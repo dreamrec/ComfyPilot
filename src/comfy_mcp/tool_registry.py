@@ -25,3 +25,4 @@ from comfy_mcp.tools import docs            # noqa: F401 -- v0.4 Documentation E
 from comfy_mcp.tools import templates       # noqa: F401 -- v0.5 Template Engine
 from comfy_mcp.tools import knowledge       # noqa: F401 -- v0.6 Knowledge Management
 from comfy_mcp.tools import registry        # noqa: F401 -- v0.7 Registry Integration
+from comfy_mcp.tools import planner         # noqa: F401 -- v0.8 Workflow Planner

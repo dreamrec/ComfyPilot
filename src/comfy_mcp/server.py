@@ -25,12 +25,15 @@ _shared_docs_store = None
 _shared_template_index = None
 _shared_knowledge_manager = None
 _shared_registry_index = None
+_shared_ecosystem_registry = None
+_shared_model_awareness_scanner = None
+_shared_workflow_planner = None
 
 
 @asynccontextmanager
 async def comfy_lifespan(server: FastMCP):
     """Manage ComfyClient and subsystem lifecycles."""
-    global _shared_client, _shared_install_graph, _shared_docs_store, _shared_template_index, _shared_knowledge_manager, _shared_registry_index
+    global _shared_client, _shared_install_graph, _shared_docs_store, _shared_template_index, _shared_knowledge_manager, _shared_registry_index, _shared_ecosystem_registry, _shared_model_awareness_scanner, _shared_workflow_planner
 
     url = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
     api_key = os.environ.get("COMFY_API_KEY", "")
@@ -112,6 +115,16 @@ async def comfy_lifespan(server: FastMCP):
     registry_index = RegistryIndex()
     _shared_registry_index = registry_index
 
+    from comfy_mcp.ecosystem import EcosystemRegistry, ModelAwarenessScanner
+    from comfy_mcp.planner import WorkflowPlanner
+
+    ecosystem_registry = EcosystemRegistry()
+    model_awareness_scanner = ModelAwarenessScanner(ecosystem_registry)
+    workflow_planner = WorkflowPlanner(ecosystem_registry, model_awareness_scanner)
+    _shared_ecosystem_registry = ecosystem_registry
+    _shared_model_awareness_scanner = model_awareness_scanner
+    _shared_workflow_planner = workflow_planner
+
     if client.capabilities.get("ws_available", False):
         await event_mgr.start()
 
@@ -132,6 +145,9 @@ async def comfy_lifespan(server: FastMCP):
             "config_manager": config_manager,
             "registry_client": registry_client,
             "registry_index": registry_index,
+            "ecosystem_registry": ecosystem_registry,
+            "model_awareness_scanner": model_awareness_scanner,
+            "workflow_planner": workflow_planner,
         }
     finally:
         _shared_client = None
@@ -140,6 +156,9 @@ async def comfy_lifespan(server: FastMCP):
         _shared_template_index = None
         _shared_knowledge_manager = None
         _shared_registry_index = None
+        _shared_ecosystem_registry = None
+        _shared_model_awareness_scanner = None
+        _shared_workflow_planner = None
         if _bg_task is not None and not _bg_task.done():
             _bg_task.cancel()
         await registry_client.close()
@@ -238,6 +257,50 @@ async def registry_status_resource() -> str:
     if _shared_registry_index is None:
         return json.dumps({"status": "not_initialized"})
     return json.dumps(_shared_registry_index.summary(), indent=2)
+
+
+@mcp.resource("comfy://ecosystem/registry")
+async def ecosystem_registry_resource() -> str:
+    """Curated model families, provider coverage, and verification metadata."""
+    if _shared_ecosystem_registry is None:
+        return json.dumps({"status": "not_initialized"})
+    summary = _shared_ecosystem_registry.summary()
+    return json.dumps({
+        "summary": summary,
+        "families": _shared_ecosystem_registry.list_entries(kind="family"),
+        "ecosystems": _shared_ecosystem_registry.list_entries(kind="ecosystem"),
+        "providers": _shared_ecosystem_registry.list_entries(kind="provider"),
+    }, indent=2)
+
+
+@mcp.resource("comfy://environment/model-awareness")
+async def model_awareness_resource() -> str:
+    """Detected model families, provider signals, and capability summary for this install."""
+    if _shared_model_awareness_scanner is None or _shared_install_graph is None or _shared_client is None:
+        return json.dumps({"status": "not_initialized"})
+    snapshot = _shared_install_graph.snapshot or {}
+    result = _shared_model_awareness_scanner.scan(snapshot, capabilities=_shared_client.capabilities)
+    return json.dumps(result, indent=2)
+
+
+@mcp.resource("comfy://planner/recommendations")
+async def planner_recommendations_resource() -> str:
+    """Top recommendations for common workflow tasks on this current install."""
+    if (
+        _shared_workflow_planner is None
+        or _shared_install_graph is None
+        or _shared_client is None
+    ):
+        return json.dumps({"status": "not_initialized"})
+    snapshot = _shared_install_graph.snapshot or {}
+    return json.dumps(
+        _shared_workflow_planner.recommend_for_common_tasks(
+            snapshot,
+            capabilities=_shared_client.capabilities,
+            template_index=_shared_template_index,
+        ),
+        indent=2,
+    )
 
 
 def _register_tools():

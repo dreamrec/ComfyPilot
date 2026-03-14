@@ -13,6 +13,29 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_OFFICIAL_CATEGORY_HINTS = {
+    "text to image": "text-to-image",
+    "text-to-image": "text-to-image",
+    "txt2img": "text-to-image",
+    "image edit": "image-to-image",
+    "edit": "image-to-image",
+    "img2img": "image-to-image",
+    "image to image": "image-to-image",
+    "inpaint": "inpaint",
+    "inpainting": "inpaint",
+    "controlnet": "controlnet",
+    "text to video": "text-to-video",
+    "t2v": "text-to-video",
+    "image to video": "image-to-video",
+    "i2v": "image-to-video",
+    "flf2v": "first-last-frame-to-video",
+    "audio to video": "audio-to-video",
+    "audio": "audio",
+    "image upscale": "upscale",
+    "upscale": "upscale",
+    "video upscale": "video-upscale",
+}
+
 
 class TemplateDiscovery:
     """Discovers workflow templates from multiple sources."""
@@ -34,7 +57,7 @@ class TemplateDiscovery:
             if data is None:
                 return []
             templates = []
-            for item in data:
+            for item in self._normalize_official_payload(data):
                 item["source"] = "official"
                 if "tags" not in item:
                     item["tags"] = []
@@ -71,6 +94,7 @@ class TemplateDiscovery:
                 item["source"] = "custom_node"
                 if "tags" not in item:
                     item["tags"] = []
+                item.setdefault("supports_instantiation", "workflow" in item)
                 templates.append(item)
             return templates
         except Exception as exc:
@@ -100,6 +124,91 @@ class TemplateDiscovery:
             return response.json()
         return None
 
+    @staticmethod
+    def _slugify(value: str) -> str:
+        return "-".join(part for part in value.lower().replace("_", " ").split() if part)
+
+    def _infer_official_category(self, item: dict[str, Any], module: dict[str, Any]) -> str:
+        raw_category = item.get("category")
+        if raw_category:
+            return raw_category
+
+        lower_tags = [tag.lower() for tag in item.get("tags", []) if isinstance(tag, str)]
+        for tag in lower_tags:
+            if tag in _OFFICIAL_CATEGORY_HINTS:
+                return _OFFICIAL_CATEGORY_HINTS[tag]
+
+        haystacks = [
+            item.get("title", ""),
+            item.get("description", ""),
+            module.get("title", ""),
+        ]
+        for text in haystacks:
+            lower = text.lower()
+            for hint, category in _OFFICIAL_CATEGORY_HINTS.items():
+                if hint in lower:
+                    return category
+
+        module_title = module.get("title", "")
+        return self._slugify(module_title) if module_title else "official"
+
+    def _normalize_official_entry(
+        self,
+        item: dict[str, Any],
+        module: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        module = module or {}
+        template = dict(item)
+        workflow_file = template.get("file")
+        if not workflow_file and template.get("name"):
+            workflow_file = f"{template['name']}.json"
+
+        template["title"] = template.get("title", template.get("name", ""))
+        template["category"] = self._infer_official_category(template, module)
+        template["module_name"] = module.get("moduleName", template.get("module_name", ""))
+        template["module_title"] = module.get("title", template.get("module_title", ""))
+        template["template_type"] = module.get("type", template.get("template_type", ""))
+        template["model_names"] = list(template.get("models", []))
+        template["required_custom_nodes"] = list(template.get("requiresCustomNodes", []))
+        template["distribution_targets"] = list(template.get("includeOnDistributions", []))
+        template["tutorial_url"] = template.get("tutorialUrl", "")
+        template["media_type"] = template.get("mediaType", template.get("template_type", ""))
+        template["media_subtype"] = template.get("mediaSubtype", "")
+        template["open_source"] = bool(template.get("openSource", False))
+        template["usage"] = int(template.get("usage", 0) or 0)
+        template["vram"] = int(template.get("vram", 0) or 0)
+        template["size"] = int(template.get("size", 0) or 0)
+        template["workflow_file"] = workflow_file
+        if workflow_file:
+            template["workflow_url"] = (
+                "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/"
+                f"refs/heads/main/templates/{workflow_file}"
+            )
+        template["supports_instantiation"] = bool(template.get("workflow"))
+        io = template.get("io", {})
+        template["input_count"] = len(io.get("inputs", []))
+        template["output_count"] = len(io.get("outputs", []))
+        return template
+
+    def _normalize_official_payload(self, data: Any) -> list[dict[str, Any]]:
+        if isinstance(data, dict):
+            data = [data]
+        if not isinstance(data, list):
+            return []
+
+        templates: list[dict[str, Any]] = []
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            nested_templates = entry.get("templates")
+            if isinstance(nested_templates, list):
+                for template in nested_templates:
+                    if isinstance(template, dict):
+                        templates.append(self._normalize_official_entry(template, module=entry))
+                continue
+            templates.append(self._normalize_official_entry(entry))
+        return templates
+
     def discover_builtin(self) -> list[dict[str, Any]]:
         """Return hardcoded built-in templates (8 templates) that are always available."""
         return [
@@ -112,6 +221,7 @@ class TemplateDiscovery:
                 "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "KSampler",
                                    "EmptyLatentImage", "VAEDecode", "SaveImage"],
                 "required_models": {"checkpoints": 1},
+                "supports_instantiation": True,
                 "workflow": {
                     "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
                     "2": {"class_type": "CLIPTextEncode", "inputs": {"text": "beautiful landscape", "clip": ["1", 1]}},
@@ -135,6 +245,7 @@ class TemplateDiscovery:
                 "required_nodes": ["CheckpointLoaderSimple", "LoadImage", "VAEEncode",
                                    "CLIPTextEncode", "KSampler", "VAEDecode", "SaveImage"],
                 "required_models": {"checkpoints": 1},
+                "supports_instantiation": True,
                 "workflow": {
                     "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
                     "2": {"class_type": "LoadImage", "inputs": {"image": "input.png"}},
@@ -159,6 +270,7 @@ class TemplateDiscovery:
                 "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "KSampler",
                                    "EmptyLatentImage", "VAEDecode", "SaveImage"],
                 "required_models": {"checkpoints": 1},
+                "supports_instantiation": True,
                 "workflow": {
                     "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
                     "2": {"class_type": "CLIPTextEncode", "inputs": {"text": "beautiful landscape", "clip": ["1", 1]}},
@@ -182,6 +294,7 @@ class TemplateDiscovery:
                 "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "LoadImage",
                                    "VAEEncode", "KSampler", "VAEDecode", "SaveImage"],
                 "required_models": {"checkpoints": 1},
+                "supports_instantiation": True,
                 "workflow": {
                     "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
                     "2": {"class_type": "LoadImage", "inputs": {"image": "input.png"}},
@@ -206,6 +319,7 @@ class TemplateDiscovery:
                 "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "KSampler",
                                    "EmptyLatentImage", "VAEDecode", "SaveImage"],
                 "required_models": {"checkpoints": 1},
+                "supports_instantiation": True,
                 "workflow": {
                     "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
                     "2": {"class_type": "CLIPTextEncode", "inputs": {"text": "beautiful landscape", "clip": ["1", 1]}},
@@ -229,6 +343,7 @@ class TemplateDiscovery:
                 "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "KSampler",
                                    "EmptyLatentImage", "LatentUpscale", "VAEDecode", "SaveImage"],
                 "required_models": {"checkpoints": 1},
+                "supports_instantiation": True,
                 "workflow": {
                     "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
                     "2": {"class_type": "EmptyLatentImage", "inputs": {"width": 512, "height": 512, "batch_size": 1}},
@@ -261,6 +376,7 @@ class TemplateDiscovery:
                 "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "LoadImage",
                                    "VAEEncode", "SetLatentNoiseMask", "KSampler", "VAEDecode", "SaveImage"],
                 "required_models": {"checkpoints": 1},
+                "supports_instantiation": True,
                 "workflow": {
                     "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
                     "2": {"class_type": "LoadImage", "inputs": {"image": "input.png"}},
@@ -288,6 +404,7 @@ class TemplateDiscovery:
                                    "EmptyLatentImage", "ControlNetLoader", "ControlNetApply",
                                    "LoadImage", "VAEDecode", "SaveImage"],
                 "required_models": {"checkpoints": 1, "controlnet": 1},
+                "supports_instantiation": True,
                 "workflow": {
                     "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}},
                     "2": {"class_type": "ControlNetLoader", "inputs": {"control_net_name": "control_v11p_sd15_canny.pth"}},

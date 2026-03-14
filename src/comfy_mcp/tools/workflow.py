@@ -8,6 +8,8 @@ from typing import Any
 from mcp.server.fastmcp import Context
 
 from comfy_mcp.server import mcp
+from comfy_mcp.workflow_formats import describe_workflow
+from comfy_mcp.workflow_translation import translate_workflow
 
 
 def _client(ctx: Context):
@@ -34,6 +36,15 @@ async def comfy_queue_prompt(
         workflow: Workflow dict to queue
         front: If True, insert at front of queue instead of back
     """
+    workflow_info = describe_workflow(workflow)
+    if workflow_info["format"] != "api-prompt":
+        return json.dumps({
+            "error": "Workflow must be in ComfyUI API prompt format before queueing.",
+            "workflow_format": workflow_info["format"],
+            "workflow_summary": workflow_info["summary"],
+            "suggested_next_step": "Use comfy_translate_workflow for supported UI workflows before queueing.",
+        }, indent=2)
+
     await ctx.report_progress(0, 100)
     result = await _client(ctx).queue_prompt(workflow, front=front)
     prompt_id = result.get("prompt_id")
@@ -190,6 +201,21 @@ async def comfy_validate_workflow(
     errors: list[str] = []
     warnings: list[str] = []
 
+    workflow_info = describe_workflow(workflow)
+    if workflow_info["format"] == "comfyui-ui":
+        return json.dumps({
+            "valid": False,
+            "errors": [
+                "Workflow is in ComfyUI UI workflow format, not API prompt format.",
+                "Use it as a reference workflow or translate it before queueing.",
+            ],
+            "warnings": [],
+            "node_count": workflow_info["summary"].get("node_count", 0),
+            "workflow_format": workflow_info["format"],
+            "workflow_summary": workflow_info["summary"],
+            "passes": ["format"],
+        }, indent=2)
+
     # Pass 1: Schema
     if not isinstance(workflow, dict):
         return json.dumps({"valid": False, "errors": ["Workflow must be a dict"], "warnings": [], "node_count": 0}, indent=2)
@@ -274,6 +300,32 @@ async def comfy_export_workflow(
 
 @mcp.tool(
     annotations={
+        "title": "Translate Workflow",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+)
+async def comfy_translate_workflow(
+    workflow: dict,
+    ctx: Context = None,
+) -> str:
+    """Attempt a conservative translation from UI workflow JSON to API prompt format."""
+    install_graph = ctx.request_context.lifespan_context.get("install_graph") if ctx else None
+    snapshot = getattr(install_graph, "snapshot", None) if install_graph else None
+    object_info = snapshot.get("object_info", {}) if snapshot else {}
+    if not object_info:
+        return json.dumps({
+            "error": "Install graph object_info is required. Run comfy_refresh_install_graph first.",
+        }, indent=2)
+
+    result = translate_workflow(workflow, object_info)
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool(
+    annotations={
         "title": "Import Workflow",
         "readOnlyHint": True,
         "destructiveHint": False,
@@ -297,6 +349,28 @@ async def comfy_import_workflow(
                 "error": "Parsed JSON is not a dict",
                 "workflow": None,
             }, indent=2)
+        if workflow == {}:
+            return json.dumps(workflow, indent=2)
+        workflow_info = describe_workflow(workflow)
+        if workflow_info["format"] != "api-prompt":
+            response = {
+                "format": workflow_info["format"],
+                "workflow": workflow,
+                "workflow_summary": workflow_info["summary"],
+                "warning": (
+                    "Imported JSON is not in ComfyUI API prompt format. "
+                    "It can be kept as a reference workflow but cannot be queued directly."
+                ),
+            }
+            install_graph = ctx.request_context.lifespan_context.get("install_graph") if ctx else None
+            snapshot = getattr(install_graph, "snapshot", None) if install_graph else None
+            object_info = snapshot.get("object_info", {}) if snapshot else {}
+            if workflow_info["format"] == "comfyui-ui" and object_info:
+                translation = translate_workflow(workflow, object_info)
+                response["translation_report"] = translation
+                if translation["status"] == "translated":
+                    response["translated_workflow"] = translation["workflow"]
+            return json.dumps(response, indent=2)
         return json.dumps(workflow, indent=2)
     except json.JSONDecodeError as e:
         return json.dumps({

@@ -68,3 +68,36 @@ class TestInstantiation:
         inst = TemplateInstantiator(snapshot)
         result = inst.instantiate(TEMPLATE_WITH_WORKFLOW)
         assert any("model" in w.lower() or "checkpoint" in w.lower() for w in result.get("warnings", []))
+
+    def test_modern_inputs_prefer_modern_model_folders(self):
+        from comfy_mcp.templates.instantiator import TemplateInstantiator
+
+        snapshot = {
+            "models": {
+                "diffusion_models": ["qwen_image_fp8.safetensors"],
+                "text_encoders": ["qwen_2.5_vl_7b_fp8_scaled.safetensors"],
+                "vae": ["qwen_image_vae.safetensors"],
+                "checkpoints": ["legacy.safetensors"],
+                "clip": ["clip_l.safetensors"],
+            }
+        }
+        template = {
+            "id": "official_qwen",
+            "name": "qwen",
+            "workflow": {
+                "1": {
+                    "class_type": "LoadDiffusionModel",
+                    "inputs": {
+                        "unet_name": "missing_unet.safetensors",
+                        "clip_name": "missing_text_encoder.safetensors",
+                        "vae_name": "missing_vae.safetensors",
+                    },
+                }
+            },
+        }
+
+        result = TemplateInstantiator(snapshot).instantiate(template)
+        inputs = result["workflow"]["1"]["inputs"]
+        assert inputs["unet_name"] == "qwen_image_fp8.safetensors"
+        assert inputs["clip_name"] == "qwen_2.5_vl_7b_fp8_scaled.safetensors"
+        assert inputs["vae_name"] == "qwen_image_vae.safetensors"

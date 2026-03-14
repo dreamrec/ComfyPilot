@@ -51,7 +51,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_restart` | Restart the ComfyUI server process | destructive |
 | `comfy_free_vram` | Unload models and free GPU memory | destructive |
 
-### Model Tools (5)
+### Model Tools (7)
 
 | Tool | Description |
 |------|-------------|
@@ -60,8 +60,10 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_list_model_folders` | List available model folder categories |
 | `comfy_search_models` | Search across all model folders by name pattern |
 | `comfy_refresh_models` | Force ComfyUI to rescan model directories |
+| `comfy_list_model_families` | List curated model families, ecosystems, and provider catalogs |
+| `comfy_detect_model_capabilities` | Detect installed families, capabilities, and provider signals from the current environment |
 
-### Workflow Execution Tools (8)
+### Workflow Execution Tools (9)
 
 | Tool | Description |
 |------|-------------|
@@ -70,9 +72,10 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_cancel_run` | Cancel a specific queued job by prompt ID |
 | `comfy_interrupt` | Interrupt the currently running generation |
 | `comfy_clear_queue` | Clear all pending jobs from the queue |
-| `comfy_validate_workflow` | Validate a workflow against the node catalog |
+| `comfy_validate_workflow` | Validate a workflow against the node catalog, with explicit detection of UI-format workflows versus API prompts |
 | `comfy_export_workflow` | Export a workflow as shareable JSON |
-| `comfy_import_workflow` | Import a workflow from JSON |
+| `comfy_import_workflow` | Import a workflow from JSON and report when the payload is UI-format reference JSON instead of an API prompt |
+| `comfy_translate_workflow` | Attempt a conservative translation from ComfyUI UI workflow JSON to API prompt format using the current node catalog |
 
 ### Node Tools (6)
 
@@ -160,13 +163,21 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 
 | Tool | Description |
 |------|-------------|
-| `comfy_build_workflow` | Build from template: txt2img, img2img, upscale, inpaint, controlnet |
+| `comfy_build_workflow` | Build from template: txt2img, img2img, upscale, inpaint, controlnet. When a newer family is detected but not yet safely synthesizeable, the response includes a `suggested_template` reference to the closest modern template, along with translation-confidence hints when available. |
 | `comfy_add_node` | Add a node to a workflow-in-progress |
 | `comfy_connect_nodes` | Wire node outputs to inputs |
 | `comfy_set_widget_value` | Set widget values on existing nodes |
 | `comfy_apply_template` | Convenience alias for `comfy_build_workflow` |
 
 **Templates** provide sensible defaults (checkpoint, dimensions, steps, CFG, sampler) that can be overridden. They generate ComfyUI API-format JSON ready for `comfy_queue_prompt`.
+
+### Planner Tools (1)
+
+| Tool | Description |
+|------|-------------|
+| `comfy_recommend_workflow` | Rank local families, compatible templates, and provider options for a goal or task, carrying richer official template metadata such as model names, tutorial URLs, usage, open-source availability, and translation-confidence scoring |
+
+The planner uses installed models, detected providers, template compatibility, translation-confidence signals, and local-first preferences to recommend the best current strategy before building or queueing anything.
 
 ### Output Routing Tools (4)
 
@@ -195,6 +206,9 @@ Resources provide static/semi-static data without tool call overhead:
 | `comfy://docs/status` | Documentation cache freshness and hash state |
 | `comfy://templates/index` | Template index counts, categories, and sources |
 | `comfy://registry/status` | Registry cache stats and index coverage |
+| `comfy://ecosystem/registry` | Curated model families, ecosystems, providers, and verification metadata |
+| `comfy://environment/model-awareness` | Installed family detection, capability summary, and provider signals |
+| `comfy://planner/recommendations` | Top workflow recommendations for common tasks on the current install |
 
 ## Safety Protocol
 

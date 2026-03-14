@@ -2,12 +2,22 @@
 from __future__ import annotations
 
 import copy
+import inspect
 import json
 from typing import Any
 
 from mcp.server.fastmcp import Context
 
 from comfy_mcp.server import mcp
+
+
+_BUILDER_TASKS = {
+    "txt2img": "t2i",
+    "img2img": "i2i",
+    "upscale": "upscale",
+    "inpaint": "inpaint",
+    "controlnet": "control",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -410,6 +420,57 @@ _TEMPLATES = {
 }
 
 
+def _select_checkpoint_for_family(
+    checkpoints: list[str],
+    preferred_families: list[str],
+    registry,
+) -> str | None:
+    for family_id in preferred_families:
+        for checkpoint in checkpoints:
+            classified = registry.classify_model(checkpoint, "checkpoints")
+            if classified.get("family") == family_id:
+                return checkpoint
+    return None
+
+
+async def _hydrate_suggested_template(
+    suggested_template: dict | None,
+    *,
+    template_index,
+    install_graph,
+) -> dict | None:
+    hydrate_template = getattr(template_index, "hydrate_template", None)
+    if (
+        suggested_template is None
+        or template_index is None
+        or not inspect.iscoroutinefunction(hydrate_template)
+        or install_graph is None
+        or not getattr(install_graph, "snapshot", None)
+    ):
+        return suggested_template
+
+    hydrated = await hydrate_template(
+        suggested_template.get("template_id", ""),
+        include_workflow=False,
+        object_info=install_graph.snapshot.get("object_info", {}),
+        assess_translation=True,
+    )
+    if hydrated is None:
+        return suggested_template
+
+    enriched = dict(suggested_template)
+    for key in ("workflow_format", "workflow_summary", "workflow_source", "translation_status", "translation_assessment"):
+        if key in hydrated:
+            enriched[key] = hydrated[key]
+
+    assessment = hydrated.get("translation_assessment") or {}
+    if assessment.get("ready_for_queue"):
+        enriched["next_step_tool"] = "comfy_instantiate_template"
+    elif assessment.get("confidence") not in {"unscored", None}:
+        enriched["next_step_tool"] = "comfy_get_template"
+    return enriched
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -440,8 +501,55 @@ async def comfy_build_workflow(
         lc = ctx.request_context.lifespan_context if ctx else {}
     except AttributeError:
         lc = {}
+
+    recommendation_bundle = None
+    recommendation = None
+    suggested_template = None
+    warnings: list[str] = []
+
+    if ctx:
+        try:
+            from comfy_mcp.ecosystem import EcosystemRegistry, ModelAwarenessScanner
+            from comfy_mcp.planner import WorkflowPlanner
+
+            registry = lc.get("ecosystem_registry") or EcosystemRegistry()
+            scanner = lc.get("model_awareness_scanner") or ModelAwarenessScanner(registry)
+            planner = lc.get("workflow_planner") or WorkflowPlanner(registry, scanner)
+            install_graph = lc.get("install_graph")
+            template_index = lc.get("template_index")
+            snapshot = getattr(install_graph, "snapshot", None) if install_graph else None
+            if snapshot:
+                recommendation_bundle = planner.recommend(
+                    snapshot,
+                    capabilities=getattr(lc.get("comfy_client"), "capabilities", {}),
+                    task=_BUILDER_TASKS.get(template, ""),
+                    goal=template,
+                    prefer_local=True,
+                    allow_providers=True,
+                    template_index=template_index,
+                    limit=3,
+                )
+                recommendation = recommendation_bundle.get("default_recommendation")
+                suggested_template = next(
+                    (
+                        item for item in recommendation_bundle.get("recommendations", [])
+                        if item.get("type") == "template"
+                    ),
+                    None,
+                )
+        except Exception:
+            recommendation_bundle = None
+            recommendation = None
+            suggested_template = None
+
     template_index = lc.get("template_index")
     install_graph = lc.get("install_graph")
+    if suggested_template is not None:
+        suggested_template = await _hydrate_suggested_template(
+            suggested_template,
+            template_index=template_index,
+            install_graph=install_graph,
+        )
     if template_index and install_graph and install_graph.snapshot:
         from comfy_mcp.templates.scorer import TemplateScorer
         scorer = TemplateScorer(
@@ -481,9 +589,45 @@ async def comfy_build_workflow(
             client = lc["comfy_client"]
             models = await client.get_models("checkpoints")
             if models:
-                resolved_params["checkpoint"] = models[0]
+                selected = None
+                if recommendation is not None:
+                    preferred_families = [
+                        item["family"]
+                        for item in recommendation_bundle.get("recommendations", [])
+                        if item.get("type") == "family" and item.get("builder_compatible")
+                    ]
+                    try:
+                        from comfy_mcp.ecosystem import EcosystemRegistry
+
+                        selected = _select_checkpoint_for_family(
+                            models,
+                            preferred_families,
+                            EcosystemRegistry(),
+                        )
+                    except Exception:
+                        selected = None
+                resolved_params["checkpoint"] = selected or models[0]
         except Exception:
             pass  # Fallback to template default
+
+    if recommendation is not None and recommendation.get("type") == "family" and not recommendation.get("builder_compatible", False):
+        warnings.append(
+            f"Best detected family {recommendation.get('display_name', recommendation.get('family', 'unknown'))} uses a modern workflow stack. "
+            f"Falling back to the legacy {template} builder template."
+        )
+        if suggested_template is not None:
+            assessment = suggested_template.get("translation_assessment", {})
+            confidence = assessment.get("confidence")
+            confidence_note = ""
+            if confidence and confidence not in {"reference", "unscored"}:
+                confidence_note = f" Translation confidence looks {confidence}."
+            elif confidence == "reference":
+                confidence_note = " Treat it as a reference workflow first."
+            warnings.append(
+                f"Closest template match is {suggested_template.get('display_name', suggested_template.get('template_id', 'unknown'))} "
+                f"({suggested_template.get('template_id', 'template')}). Use {suggested_template.get('next_step_tool', 'comfy_get_template')} "
+                f"for a modern workflow reference.{confidence_note}"
+            )
 
     # Detect model family for appropriate defaults
     from comfy_mcp.builder.families import family_defaults
@@ -506,6 +650,9 @@ async def comfy_build_workflow(
             "family": defaults["family"],
             "node_count": len(workflow),
             "workflow": workflow,
+            "recommendation": recommendation,
+            "suggested_template": suggested_template,
+            "warnings": warnings,
         },
         indent=2,
     )

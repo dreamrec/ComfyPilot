@@ -25,7 +25,7 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 - A structured toolset for workflow building, image generation, model management, and output routing.
 - A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
 - A technique memory system that learns your workflow patterns and builds a reusable library.
-- 90-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, and registry integration for missing node resolution.
+- 94-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, registry integration for missing node resolution, model-awareness scanning, workflow translation, and workflow recommendations for modern ComfyUI ecosystems.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -43,7 +43,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (90 Tools)
+## Tool Map (94 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -52,17 +52,19 @@ Use for connection health, GPU diagnostics, and VRAM management.
 - `comfy_list_extensions`, `comfy_restart`, `comfy_free_vram`
 
 ### 2) Models
-Use for discovering and managing checkpoints, LoRAs, VAEs, and other model files.
+Use for discovering and managing checkpoints, LoRAs, VAEs, and other model files, plus awareness of modern model families and provider ecosystems.
 
 - `comfy_list_models`, `comfy_get_model_info`, `comfy_list_model_folders`
 - `comfy_search_models`, `comfy_refresh_models`
+- `comfy_list_model_families`, `comfy_detect_model_capabilities`
 
 ### 3) Workflow Execution
 Use for queueing, cancelling, and managing prompt execution.
 
 - `comfy_queue_prompt`, `comfy_get_queue`, `comfy_cancel_run`
 - `comfy_interrupt`, `comfy_clear_queue`
-- `comfy_validate_workflow`, `comfy_export_workflow`, `comfy_import_workflow`
+- `comfy_validate_workflow`, `comfy_export_workflow`, `comfy_import_workflow`, `comfy_translate_workflow`
+  Workflow tools now detect UI-format JSON and report it honestly instead of treating it like an API prompt.
 
 ### 4) Nodes + Schema
 Use for exploring ComfyUI's node catalog and understanding widget schemas.
@@ -118,6 +120,7 @@ Use for guardrails, pre-flight checks, and emergency control.
 Use for template-based workflow construction and editing.
 
 - `comfy_build_workflow` — Build from templates: txt2img, img2img, upscale, inpaint, controlnet.
+  When a newer family is detected but not yet natively buildable, the response now includes `suggested_template` metadata pointing at the closest modern official template, plus translation-confidence hints when that template can likely be turned into an API prompt.
 - `comfy_add_node` — Add a node to a workflow-in-progress.
 - `comfy_connect_nodes` — Wire node outputs to inputs.
 - `comfy_set_widget_value` — Set widget values on nodes.
@@ -158,10 +161,10 @@ Use for discovering, searching, and instantiating workflow templates from offici
 
 - `comfy_discover_templates` -- Scan all template sources and rebuild the unified template index.
 - `comfy_search_templates` -- Search templates by query, tags, and/or category with relevance scoring.
-- `comfy_get_template` -- Get full template details including workflow body and model requirements.
+- `comfy_get_template` -- Get full template details, including hydrated remote workflow format hints, workflow metadata for official templates, and translation-confidence assessment when the current install graph is available.
 - `comfy_list_template_categories` -- List all available template categories.
 - `comfy_template_status` -- Show template index status (counts, categories, cache freshness).
-- `comfy_instantiate_template` -- Instantiate a template with automatic model substitution and parameter overrides.
+- `comfy_instantiate_template` -- Instantiate API-format templates with automatic model substitution and parameter overrides; UI-format templates are conservatively translated when possible and otherwise returned honestly as reference-only, with a structured translation report.
 
 ### 17) Knowledge Management
 Use for unified knowledge status, cache management, and persistent user preferences.
@@ -181,7 +184,12 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 - `comfy_check_compatibility` -- Check if a registry package is compatible with the current environment.
 - `comfy_registry_status` -- Show registry cache statistics (index size, entry counts).
 
-## MCP Resources (10)
+### 19) Workflow Planning
+Use for choosing the best current workflow strategy based on installed models, templates, and providers.
+
+- `comfy_recommend_workflow` -- Rank local families, compatible templates, and provider options for a goal or task, including richer official template metadata such as model names, tutorial links, usage, open-source availability, and translation-confidence scoring for modern template workflows.
+
+## MCP Resources (13)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
 - `comfy://server/capabilities` — Detected server profile, version, auth method
@@ -193,6 +201,9 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 - `comfy://docs/status` — Documentation cache status (embedded doc counts, llms-full.txt freshness, content hashes)
 - `comfy://templates/index` — Template index summary (counts, categories, sources, freshness)
 - `comfy://registry/status` — Registry cache stats and index coverage
+- `comfy://ecosystem/registry` — Curated model families, ecosystems, providers, and verification metadata
+- `comfy://environment/model-awareness` — Detected installed families, capability summary, and provider signals
+- `comfy://planner/recommendations` — Top workflow recommendations for common tasks on the current install
 
 ## How To Use It (Practical Workflow)
 
@@ -231,7 +242,7 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 | stdio transport | Supported | Default |
 | Streamable HTTP transport | Not yet | Planned |
 | API Prompt Format | Supported | Multi-pass validation (schema + catalog + graph) |
-| Workflow JSON (UI export format) | Not yet | No translator between UI format and API prompt format |
+| Workflow JSON (UI export format) | Partial | Conservative translation to API prompt format now exists for a verified subset of UI workflows, with structured confidence reporting; unsupported graphs still fall back to honest reference-only handling |
 | V3 custom nodes | Not tested | V3 migration is ongoing in ComfyUI |
 | WebSocket progress events | Supported | EventManager started in lifespan, drain_events fixed |
 | Image content blocks | Supported | Inline image display in chat |

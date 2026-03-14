@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from comfy_mcp.tools.models import (
+    comfy_detect_model_capabilities,
     comfy_get_model_info,
+    comfy_list_model_families,
     comfy_list_models,
     comfy_list_model_folders,
     comfy_search_models,
@@ -87,15 +89,21 @@ class TestListModelFolders:
         data = json.loads(result)
         assert "folders" in data
         assert "checkpoints" in data["folders"]
+        assert "diffusion_models" in data["folders"]
+        assert "text_encoders" in data["folders"]
         assert "loras" in data["folders"]
         assert "vae" in data["folders"]
+        assert "model_patches" in data["folders"]
+        assert "latent_upscale_models" in data["folders"]
         assert "clip" in data["folders"]
+        assert "clip_vision" in data["folders"]
         assert "diffusers" in data["folders"]
         assert "controlnet" in data["folders"]
         assert "upscale_models" in data["folders"]
         assert "embeddings" in data["folders"]
         assert "hypernetworks" in data["folders"]
-        assert data["count"] == 9
+        assert data["count"] == 14
+        assert "modern" in data["groups"]
 
 
 class TestSearchModels:
@@ -153,8 +161,7 @@ class TestSearchModels:
         mock_client.get_models = AsyncMock(side_effect=mock_get_models)
         result = await comfy_search_models("model", ctx=mock_ctx)
         data = json.loads(result)
-        # Should search checkpoints, loras, vae, controlnet, upscale_models
-        assert data["total_matches"] == 5
+        assert data["total_matches"] == 13
 
     @pytest.mark.asyncio
     async def test_search_models_no_matches(self, mock_ctx, mock_client):
@@ -190,4 +197,44 @@ class TestRefreshModels:
         assert data["status"] == "ok"
         assert "fetched" in data["message"].lower()
         assert data["checkpoint_count"] == 1
-        mock_client.get_models.assert_awaited_once_with("checkpoints")
+        assert data["folder_count"] == 13
+        assert data["total_models"] == 13
+        assert "diffusion_models" in data["model_counts"]
+
+
+class TestModelAwareness:
+    @pytest.mark.asyncio
+    async def test_list_model_families(self, mock_ctx, mock_client):
+        result = await comfy_list_model_families(ctx=mock_ctx)
+        data = json.loads(result)
+        ids = {entry["id"] for entry in data["entries"]}
+        assert data["kind"] == "family"
+        assert "qwen-image" in ids
+        assert "ltx23" in ids
+
+    @pytest.mark.asyncio
+    async def test_list_model_families_invalid_kind(self, mock_ctx, mock_client):
+        result = await comfy_list_model_families(kind="bad", ctx=mock_ctx)
+        data = json.loads(result)
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_detect_model_capabilities_from_install_graph(self, mock_ctx, mock_client):
+        mock_ctx.request_context.lifespan_context["install_graph"].snapshot = {
+            "models": {
+                "checkpoints": ["ponyDiffusionV6XL.safetensors"],
+                "diffusion_models": ["qwen_image_fp8.safetensors"],
+                "text_encoders": ["qwen_2.5_vl_7b_fp8_scaled.safetensors"],
+                "vae": ["qwen_image_vae.safetensors"],
+            },
+            "node_classes": {"GoogleNanoBananaNode", "RunwayVideoGeneration"},
+        }
+        result = await comfy_detect_model_capabilities(ctx=mock_ctx)
+        data = json.loads(result)
+        assert "qwen-image" in data["detected_architectures"]
+        assert "sdxl" in data["detected_architectures"]
+        assert "pony" in data["detected_ecosystems"]
+        assert "google" in data["detected_providers"]
+        assert "runway" in data["detected_providers"]
+        assert "t2i" in data["available_capabilities"]
+        assert data["profile"] == "local"

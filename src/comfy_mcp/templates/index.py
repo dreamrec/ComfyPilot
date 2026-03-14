@@ -12,7 +12,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from comfy_mcp.knowledge.store import atomic_write
+from comfy_mcp.workflow_formats import describe_workflow
 
 logger = logging.getLogger("comfypilot.templates")
 
@@ -37,6 +40,9 @@ class TemplateIndex:
 
     def _manifest_path(self) -> Path:
         return self._dir / "manifest.json"
+
+    def _workflow_cache_path(self, template_id: str) -> Path:
+        return self._dir / "workflows" / f"{template_id}.json"
 
     def _load(self) -> None:
         idx_path = self._index_path()
@@ -82,6 +88,93 @@ class TemplateIndex:
             if t.get("id") == template_id:
                 return t
         return None
+
+    def _load_cached_workflow(self, template_id: str) -> Any | None:
+        cache_path = self._workflow_cache_path(template_id)
+        if not cache_path.exists():
+            return None
+        try:
+            return json.loads(cache_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    async def _fetch_remote_workflow(self, template_id: str, workflow_url: str) -> Any | None:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            response = await client.get(workflow_url)
+            response.raise_for_status()
+            payload = response.json()
+        atomic_write(self._workflow_cache_path(template_id), json.dumps(payload, indent=2))
+        return payload
+
+    async def hydrate_template(
+        self,
+        template_id: str,
+        *,
+        include_workflow: bool = False,
+        refresh_remote: bool = False,
+        object_info: dict[str, Any] | None = None,
+        assess_translation: bool = False,
+    ) -> dict[str, Any] | None:
+        """Return a template with remote workflow metadata hydrated when available."""
+        template = self.get(template_id)
+        if template is None:
+            return None
+
+        hydrated = dict(template)
+        workflow_payload = hydrated.get("workflow")
+        workflow_source = "embedded" if workflow_payload is not None else None
+
+        if workflow_payload is None and hydrated.get("workflow_url"):
+            if not refresh_remote:
+                workflow_payload = self._load_cached_workflow(template_id)
+                if workflow_payload is not None:
+                    workflow_source = "cache"
+            if workflow_payload is None:
+                try:
+                    workflow_payload = await self._fetch_remote_workflow(
+                        template_id,
+                        hydrated["workflow_url"],
+                    )
+                    workflow_source = "remote"
+                except Exception as exc:
+                    logger.debug("Failed to fetch workflow for template %s: %s", template_id, exc)
+                    hydrated["workflow_fetch_error"] = str(exc)
+
+        description = describe_workflow(workflow_payload)
+        hydrated["workflow_format"] = description["format"]
+        hydrated["workflow_summary"] = description["summary"]
+        hydrated["workflow_source"] = workflow_source
+        hydrated["supports_instantiation"] = bool(
+            hydrated.get("supports_instantiation", False) or description["format"] == "api-prompt"
+        )
+
+        if assess_translation and workflow_payload is not None:
+            if description["format"] == "comfyui-ui" and not object_info:
+                hydrated["translation_status"] = "needs_object_info"
+                hydrated["translation_assessment"] = {
+                    "mode": "unknown",
+                    "confidence": "unscored",
+                    "score": None,
+                    "ready_for_queue": False,
+                    "recommended_action": "refresh-install-graph",
+                    "reasons": [
+                        "Installed node schema was not available, so this UI workflow could not be assessed safely."
+                    ],
+                }
+            else:
+                from comfy_mcp.workflow_translation import translate_workflow
+
+                translation_report = translate_workflow(workflow_payload, object_info or {})
+                hydrated["translation_status"] = translation_report["status"]
+                hydrated["translation_assessment"] = translation_report.get("translation_assessment", {})
+
+        if workflow_payload is not None:
+            if include_workflow or "workflow" in template:
+                hydrated["workflow"] = workflow_payload
+            else:
+                hydrated.pop("workflow", None)
+
+        return hydrated
 
     def list_all(self) -> list[dict]:
         """Return all templates (metadata only, no workflow bodies)."""

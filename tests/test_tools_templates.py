@@ -23,6 +23,16 @@ def template_ctx(mock_ctx):
         "id": "official_txt2img", "name": "txt2img_basic", "category": "text-to-image",
         "source": "official", "workflow": {"1": {"class_type": "KSampler", "inputs": {}}},
     })
+    index_mock.hydrate_template = AsyncMock(return_value={
+        "id": "official_txt2img",
+        "name": "txt2img_basic",
+        "category": "text-to-image",
+        "source": "official",
+        "workflow": {"1": {"class_type": "KSampler", "inputs": {}}},
+        "workflow_format": "api-prompt",
+        "workflow_summary": {"node_count": 1, "node_types": ["KSampler"]},
+        "supports_instantiation": True,
+    })
     index_mock.summary = MagicMock(return_value={"template_count": 1, "stale": False})
     index_mock.rebuild = MagicMock()
 
@@ -68,6 +78,34 @@ class TestGetTemplate:
         from comfy_mcp.tools.templates import comfy_get_template
         result = json.loads(await comfy_get_template(template_id="official_txt2img", ctx=template_ctx))
         assert result["name"] == "txt2img_basic"
+        assert result["workflow_format"] == "api-prompt"
+
+    @pytest.mark.asyncio
+    async def test_get_can_return_hydrated_remote_template(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_get_template
+
+        template_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(
+            return_value={
+                "id": "official_qwen_template",
+                "name": "image_qwen_image",
+                "title": "Qwen-Image Starter",
+                "workflow_format": "comfyui-ui",
+                "workflow_summary": {"node_count": 2, "node_types": ["SaveImage", "QwenNode"]},
+                "workflow_source": "remote",
+                "translation_status": "translated",
+                "translation_assessment": {
+                    "confidence": "high",
+                    "score": 0.87,
+                    "ready_for_queue": True,
+                },
+                "supports_instantiation": False,
+            }
+        )
+
+        result = json.loads(await comfy_get_template(template_id="official_qwen_template", ctx=template_ctx))
+        assert result["workflow_format"] == "comfyui-ui"
+        assert result["workflow_source"] == "remote"
+        assert result["translation_assessment"]["confidence"] == "high"
 
 
 class TestListCategories:
@@ -84,6 +122,159 @@ class TestTemplateStatus:
         from comfy_mcp.tools.templates import comfy_template_status
         result = json.loads(await comfy_template_status(ctx=template_ctx))
         assert "template_count" in result
+
+
+class TestInstantiateTemplate:
+    @pytest.mark.asyncio
+    async def test_instantiate_template_api_workflow(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_instantiate_template
+
+        result = json.loads(await comfy_instantiate_template(template_id="official_txt2img", ctx=template_ctx))
+        assert result["status"] in ("ready", "warnings")
+
+    @pytest.mark.asyncio
+    async def test_instantiate_template_returns_reference_for_ui_workflow(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_instantiate_template
+
+        template_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(
+            return_value={
+                "id": "official_qwen_template",
+                "name": "image_qwen_image",
+                "title": "Qwen-Image Starter",
+                "workflow_format": "comfyui-ui",
+                "workflow_summary": {"node_count": 12, "node_types": ["SaveImage", "QwenNode"]},
+                "workflow_url": "https://example.com/qwen.json",
+                "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+                "supports_instantiation": False,
+            }
+        )
+
+        result = json.loads(await comfy_instantiate_template(template_id="official_qwen_template", ctx=template_ctx))
+        assert result["status"] == "reference_only"
+        assert result["workflow_format"] == "comfyui-ui"
+
+    @pytest.mark.asyncio
+    async def test_instantiate_template_translates_supported_ui_workflow(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_instantiate_template
+
+        template_ctx.request_context.lifespan_context["install_graph"].snapshot["object_info"] = {
+            "CheckpointLoaderSimple": {
+                "input": {"required": {"ckpt_name": [["model.safetensors"]]}},
+                "output": ["MODEL", "CLIP", "VAE"],
+            },
+        }
+        template_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(
+            return_value={
+                "id": "official_simple_ui",
+                "name": "simple_ui",
+                "title": "Simple UI Workflow",
+                "workflow_format": "comfyui-ui",
+                "workflow_summary": {"node_count": 1, "node_types": ["CheckpointLoaderSimple"]},
+                "workflow": {
+                    "nodes": [
+                        {
+                            "id": 1,
+                            "type": "CheckpointLoaderSimple",
+                            "inputs": [],
+                            "widgets_values": ["model.safetensors"],
+                        }
+                    ],
+                    "links": [],
+                },
+                "supports_instantiation": False,
+            }
+        )
+
+        result = json.loads(await comfy_instantiate_template(template_id="official_simple_ui", ctx=template_ctx))
+        assert result["status"] in ("ready", "warnings")
+        assert result["translation_report"]["status"] == "translated"
+
+    @pytest.mark.asyncio
+    async def test_instantiate_official_style_qwen_template_end_to_end(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_instantiate_template
+
+        template_ctx.request_context.lifespan_context["install_graph"].snapshot = {
+            "node_classes": {"SaveImage"},
+            "models": {
+                "diffusion_models": ["qwen_image_fp8_e4m3fn.safetensors"],
+                "text_encoders": ["qwen_2.5_vl_7b_fp8_scaled.safetensors"],
+                "vae": ["qwen_image_vae.safetensors"],
+            },
+            "embeddings": [],
+            "object_info": {
+                "SaveImage": {
+                    "input": {"required": {"images": ["IMAGE"]}, "optional": {"filename_prefix": ["STRING"]}},
+                    "output": [],
+                    "output_node": True,
+                },
+            },
+        }
+        template_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(
+            return_value={
+                "id": "official_qwen_template",
+                "name": "image_qwen_image",
+                "title": "Qwen-Image Starter",
+                "workflow_format": "comfyui-ui",
+                "workflow_summary": {"node_count": 2, "node_types": ["SaveImage", "QwenWrapper"]},
+                "workflow": {
+                    "nodes": [
+                        {
+                            "id": 76,
+                            "type": "9b9009e4-2d3d-445f-9be5-6063f465757e",
+                            "inputs": [
+                                {
+                                    "label": "prompt",
+                                    "name": "text",
+                                    "type": "STRING",
+                                    "widget": {"name": "text"},
+                                    "link": None,
+                                }
+                            ],
+                            "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [86]}],
+                            "properties": {
+                                "proxyWidgets": [
+                                    ["-1", "text"],
+                                    ["-1", "width"],
+                                    ["-1", "height"],
+                                    ["69", "seed"],
+                                    ["69", "control_after_generate"],
+                                    ["-1", "unet_name"],
+                                    ["-1", "clip_name"],
+                                    ["-1", "vae_name"],
+                                ]
+                            },
+                            "widgets_values": [
+                                "prompt text",
+                                1024,
+                                1024,
+                                123,
+                                None,
+                                "missing_unet.safetensors",
+                                "missing_text_encoder.safetensors",
+                                "missing_vae.safetensors",
+                            ],
+                        },
+                        {
+                            "id": 77,
+                            "type": "SaveImage",
+                            "inputs": [{"name": "images", "link": 86}],
+                            "widgets_values": ["ComfyPilot"],
+                        },
+                    ],
+                    "links": [[86, 76, 0, 77, 0, "IMAGE"]],
+                },
+                "supports_instantiation": False,
+            }
+        )
+
+        result = json.loads(await comfy_instantiate_template(template_id="official_qwen_template", ctx=template_ctx))
+        assert result["status"] == "warnings"
+        assert result["translation_report"]["status"] == "translated"
+        translated = result["workflow"]["76"]["inputs"]
+        assert translated["text"] == "prompt text"
+        assert translated["unet_name"] == "qwen_image_fp8_e4m3fn.safetensors"
+        assert translated["clip_name"] == "qwen_2.5_vl_7b_fp8_scaled.safetensors"
+        assert translated["vae_name"] == "qwen_image_vae.safetensors"
 
 
 class TestTemplateIndexResource:

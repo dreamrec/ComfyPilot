@@ -1,0 +1,82 @@
+[
+  {
+    "id": "pony",
+    "kind": "ecosystem",
+    "display_name": "Pony",
+    "priority": 80,
+    "modality": ["image"],
+    "tasks": ["t2i", "i2i"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["checkpoints"],
+    "community_tags": ["sdxl"],
+    "matchers": [
+      {
+        "folder": "checkpoints",
+        "terms": ["pony", "pony diffusion"],
+        "patterns": ["pony"]
+      }
+    ],
+    "source_urls": ["https://www.reddit.com/r/comfyui/comments/1rhiicm/clip_vision_problems/"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "illustrious",
+    "kind": "ecosystem",
+    "display_name": "Illustrious",
+    "priority": 78,
+    "modality": ["image"],
+    "tasks": ["t2i", "i2i"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["checkpoints"],
+    "community_tags": ["sdxl"],
+    "matchers": [
+      {
+        "folder": "checkpoints",
+        "terms": ["illustrious"],
+        "patterns": ["illustrious"]
+      }
+    ],
+    "source_urls": ["https://www.reddit.com/r/StableDiffusion/comments/1qsya6n/is_illustrious_still_the_best_for_anime/"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "juggernaut-xl",
+    "kind": "ecosystem",
+    "display_name": "Juggernaut XL",
+    "priority": 76,
+    "modality": ["image"],
+    "tasks": ["t2i", "i2i"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["checkpoints"],
+    "community_tags": ["sdxl"],
+    "matchers": [
+      {
+        "folder": "checkpoints",
+        "terms": ["juggernaut xl", "juggernautxl"],
+        "patterns": ["juggernaut.*xl"]
+      }
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/basic/text-to-image"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "realvis-xl",
+    "kind": "ecosystem",
+    "display_name": "RealVis XL",
+    "priority": 74,
+    "modality": ["image"],
+    "tasks": ["t2i", "i2i"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["checkpoints"],
+    "community_tags": ["sdxl"],
+    "matchers": [
+      {
+        "folder": "checkpoints",
+        "terms": ["realvis xl", "realvisxl"],
+        "patterns": ["realvis.*xl"]
+      }
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/basic/text-to-image"],
+    "last_verified_at": "2026-03-14"
+  }
+]

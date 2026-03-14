@@ -1,16 +1,31 @@
-"""Models tools — 5 tools for model management."""
+"""Models tools — 7 tools for model management and awareness."""
 
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.ecosystem import EcosystemRegistry, ModelAwarenessScanner
+from comfy_mcp.install.install_graph import MODEL_FOLDERS
 from comfy_mcp.server import mcp
 
 
 def _client(ctx: Context):
     return ctx.request_context.lifespan_context["comfy_client"]
+
+
+def _install_graph(ctx: Context):
+    return ctx.request_context.lifespan_context.get("install_graph")
+
+
+def _registry(ctx: Context) -> EcosystemRegistry:
+    return ctx.request_context.lifespan_context.get("ecosystem_registry") or EcosystemRegistry()
+
+
+def _scanner(ctx: Context) -> ModelAwarenessScanner:
+    return ctx.request_context.lifespan_context.get("model_awareness_scanner") or ModelAwarenessScanner(_registry(ctx))
 
 
 @mcp.tool(
@@ -87,18 +102,16 @@ async def comfy_list_model_folders(ctx: Context = None) -> str:
 
     Returns common ComfyUI model folders.
     """
-    folders = [
-        "checkpoints",
-        "loras",
-        "vae",
-        "clip",
-        "diffusers",
-        "controlnet",
-        "upscale_models",
-        "embeddings",
-        "hypernetworks",
-    ]
-    result = {"folders": folders, "count": len(folders)}
+    folders = list(MODEL_FOLDERS) + ["embeddings"]
+    result = {
+        "folders": folders,
+        "count": len(folders),
+        "groups": {
+            "legacy": ["checkpoints", "loras", "vae", "controlnet", "upscale_models"],
+            "modern": ["diffusion_models", "text_encoders", "model_patches", "latent_upscale_models", "clip_vision"],
+            "auxiliary": ["clip", "diffusers", "hypernetworks", "embeddings"],
+        },
+    }
     return json.dumps(result, indent=2)
 
 
@@ -123,7 +136,7 @@ async def comfy_search_models(
         folders: Specific folders to search. If None, searches common folders.
     """
     if folders is None:
-        folders = ["checkpoints", "loras", "vae", "controlnet", "upscale_models"]
+        folders = list(MODEL_FOLDERS)
 
     matches = {}
     query_lower = query.lower()
@@ -157,10 +170,93 @@ async def comfy_refresh_models(ctx: Context = None) -> str:
     Note: This re-reads ComfyUI's current model cache. It does NOT
     trigger a server-side filesystem rescan.
     """
-    models = await _client(ctx).get_models("checkpoints")
+    model_counts: dict[str, int] = {}
+    total_models = 0
+    for folder in MODEL_FOLDERS:
+        try:
+            models = await _client(ctx).get_models(folder)
+        except Exception:
+            continue
+        model_counts[folder] = len(models)
+        total_models += len(models)
     result = {
         "status": "ok",
         "message": "Model list re-fetched from ComfyUI cache",
-        "checkpoint_count": len(models),
+        "checkpoint_count": model_counts.get("checkpoints", 0),
+        "folder_count": len(model_counts),
+        "total_models": total_models,
+        "model_counts": model_counts,
     }
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool(
+    annotations={
+        "title": "List Model Families",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+)
+async def comfy_list_model_families(
+    kind: str = "family",
+    modality: str = "",
+    runtime_mode: str = "",
+    ctx: Context = None,
+) -> str:
+    """List curated model families, ecosystems, or provider catalogs.
+
+    Args:
+        kind: One of family, ecosystem, provider
+        modality: Optional modality filter (image, video, audio)
+        runtime_mode: Optional runtime filter (local-native, partner-nodes, cloud)
+    """
+    if kind not in {"family", "ecosystem", "provider"}:
+        return json.dumps({
+            "error": f"Unknown kind: {kind}",
+            "available": ["family", "ecosystem", "provider"],
+        }, indent=2)
+
+    entries = _registry(ctx).list_entries(kind=kind, modality=modality, runtime_mode=runtime_mode)
+    return json.dumps({
+        "kind": kind,
+        "entries": entries,
+        "total_count": len(entries),
+    }, indent=2)
+
+
+@mcp.tool(
+    annotations={
+        "title": "Detect Model Capabilities",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+)
+async def comfy_detect_model_capabilities(ctx: Context = None) -> str:
+    """Summarize installed model families, capabilities, and provider signals."""
+    install_graph = _install_graph(ctx)
+    snapshot: dict[str, Any] | None = None
+    if install_graph is not None:
+        snapshot = getattr(install_graph, "snapshot", None)
+
+    if not snapshot:
+        snapshot = {
+            "models": {},
+            "node_classes": set(),
+        }
+        for folder in MODEL_FOLDERS:
+            try:
+                snapshot["models"][folder] = await _client(ctx).get_models(folder)
+            except Exception:
+                continue
+        try:
+            object_info = await _client(ctx).get_object_info()
+        except Exception:
+            object_info = {}
+        snapshot["node_classes"] = set(object_info.keys())
+
+    result = _scanner(ctx).scan(snapshot, capabilities=getattr(_client(ctx), "capabilities", {}))
     return json.dumps(result, indent=2)

@@ -1,0 +1,1 @@
+"""Bundled ecosystem registry data."""
