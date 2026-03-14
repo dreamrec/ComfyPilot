@@ -73,11 +73,22 @@ def _apply_template_assessment(item: dict, hydrated: dict) -> dict:
     return enriched
 
 
+def _should_hydrate_template(item: dict, hydrated_count: int, max_hydrated_templates: int) -> bool:
+    if hydrated_count >= max_hydrated_templates:
+        return False
+    if item.get("type") != "template" or not item.get("template_id"):
+        return False
+    if item.get("actionability") != "translatable-template":
+        return False
+    return bool(item.get("workflow_url") or item.get("workflow_file"))
+
+
 async def _enrich_template_recommendations(
     result: dict,
     *,
     ctx: Context,
     template_index,
+    max_hydrated_templates: int = 2,
 ) -> dict:
     hydrate_template = getattr(template_index, "hydrate_template", None)
     if template_index is None or not inspect.iscoroutinefunction(hydrate_template):
@@ -85,8 +96,9 @@ async def _enrich_template_recommendations(
 
     object_info = _object_info(ctx)
     enriched: list[dict] = []
+    hydrated_count = 0
     for item in result.get("recommendations", []):
-        if item.get("type") != "template" or not item.get("template_id"):
+        if not _should_hydrate_template(item, hydrated_count, max_hydrated_templates):
             enriched.append(item)
             continue
         hydrated = await hydrate_template(
@@ -99,6 +111,7 @@ async def _enrich_template_recommendations(
             enriched.append(item)
             continue
         enriched.append(_apply_template_assessment(item, hydrated))
+        hydrated_count += 1
 
     enriched.sort(key=lambda item: item.get("score", 0), reverse=True)
     result = dict(result)

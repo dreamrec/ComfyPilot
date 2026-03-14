@@ -121,6 +121,91 @@ class TestRecommendWorkflowTool:
         assert templates
         assert templates[0]["next_step_tool"] == "comfy_get_template"
 
+    @pytest.mark.asyncio
+    async def test_recommend_workflow_only_hydrates_top_remote_templates(self, planner_ctx):
+        from comfy_mcp.tools.planner import comfy_recommend_workflow
+
+        planner_ctx.request_context.lifespan_context["install_graph"] = MagicMock(snapshot={
+            "models": {},
+            "node_classes": set(),
+            "object_info": {},
+        })
+        planner_ctx.request_context.lifespan_context["template_index"].list_all = MagicMock(return_value=[
+            {
+                "id": "template_one",
+                "name": "image_qwen_one",
+                "title": "Qwen Template One",
+                "category": "text-to-image",
+                "source": "official",
+                "description": "Official starter workflow for Qwen-Image.",
+                "tags": ["Text to Image", "Image"],
+                "model_names": ["Qwen-Image"],
+                "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+                "workflow_file": "image_qwen_image.json",
+                "workflow_url": "https://example.com/one.json",
+                "open_source": True,
+                "usage": 300,
+                "distribution_targets": ["local"],
+                "supports_instantiation": False,
+            },
+            {
+                "id": "template_two",
+                "name": "image_qwen_two",
+                "title": "Qwen Template Two",
+                "category": "text-to-image",
+                "source": "official",
+                "description": "Official starter workflow for Qwen-Image.",
+                "tags": ["Text to Image", "Image"],
+                "model_names": ["Qwen-Image"],
+                "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+                "workflow_file": "image_qwen_image_alt.json",
+                "workflow_url": "https://example.com/two.json",
+                "open_source": True,
+                "usage": 200,
+                "distribution_targets": ["local"],
+                "supports_instantiation": False,
+            },
+            {
+                "id": "template_three",
+                "name": "image_qwen_three",
+                "title": "Qwen Template Three",
+                "category": "text-to-image",
+                "source": "official",
+                "description": "Official starter workflow for Qwen-Image.",
+                "tags": ["Text to Image", "Image"],
+                "model_names": ["Qwen-Image"],
+                "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+                "workflow_file": "image_qwen_image_alt_2.json",
+                "workflow_url": "https://example.com/three.json",
+                "open_source": True,
+                "usage": 100,
+                "distribution_targets": ["local"],
+                "supports_instantiation": False,
+            },
+        ])
+        planner_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(side_effect=[
+            {
+                "id": "template_one",
+                "workflow_format": "comfyui-ui",
+                "translation_status": "translated",
+                "translation_assessment": {"confidence": "high", "score": 0.9, "ready_for_queue": True},
+            },
+            {
+                "id": "template_two",
+                "workflow_format": "comfyui-ui",
+                "translation_status": "translated",
+                "translation_assessment": {"confidence": "medium", "score": 0.7, "ready_for_queue": True},
+            },
+        ])
+
+        result = json.loads(await comfy_recommend_workflow(task="t2i", allow_providers=False, limit=5, ctx=planner_ctx))
+        templates = [item for item in result["recommendations"] if item.get("type") == "template"]
+        assert len(templates) >= 3
+        assert planner_ctx.request_context.lifespan_context["template_index"].hydrate_template.await_count == 2
+        assert "translation_assessment" in templates[0]
+        assert "translation_assessment" in templates[1]
+        assert "translation_assessment" not in templates[2]
+
 
 class TestPlannerResource:
     @pytest.mark.asyncio
