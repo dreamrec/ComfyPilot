@@ -75,6 +75,8 @@ def mock_ctx(mock_client):
         "technique_store": MagicMock(),
         "vram_guard": MagicMock(),
         "job_tracker": _make_job_tracker_mock(),
+        "docs_store": MagicMock(),
+        "docs_fetcher": AsyncMock(),
     }
     ctx.report_progress = AsyncMock()
     ctx.log_info = AsyncMock()

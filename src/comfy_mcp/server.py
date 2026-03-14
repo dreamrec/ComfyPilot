@@ -18,12 +18,13 @@ from comfy_mcp.comfy_client import ComfyClient
 # Module-level references for resources (set during lifespan)
 _shared_client: ComfyClient | None = None
 _shared_install_graph = None
+_shared_docs_store = None
 
 
 @asynccontextmanager
 async def comfy_lifespan(server: FastMCP):
     """Manage ComfyClient and subsystem lifecycles."""
-    global _shared_client, _shared_install_graph
+    global _shared_client, _shared_install_graph, _shared_docs_store
 
     url = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
     api_key = os.environ.get("COMFY_API_KEY", "")
@@ -53,6 +54,12 @@ async def comfy_lifespan(server: FastMCP):
     await install_graph.refresh()
     _shared_install_graph = install_graph
 
+    from comfy_mcp.docs.store import DocsStore
+    from comfy_mcp.docs.fetcher import DocsFetcher
+    docs_store = DocsStore()
+    docs_fetcher = DocsFetcher()
+    _shared_docs_store = docs_store
+
     if client.capabilities.get("ws_available", False):
         await event_mgr.start()
 
@@ -65,11 +72,15 @@ async def comfy_lifespan(server: FastMCP):
             "vram_guard": vram_guard,
             "job_tracker": job_tracker,
             "install_graph": install_graph,
+            "docs_store": docs_store,
+            "docs_fetcher": docs_fetcher,
         }
     finally:
         _shared_client = None
         _shared_install_graph = None
+        _shared_docs_store = None
         await event_mgr.shutdown()
+        await docs_fetcher.close()
         await client.close()
 
 
@@ -143,6 +154,14 @@ async def capabilities_resource() -> str:
     if _shared_client is None:
         return json.dumps({"error": "Server not initialized"})
     return json.dumps(_shared_client.capabilities, indent=2)
+
+
+@mcp.resource("comfy://docs/status")
+async def docs_status_resource() -> str:
+    """Documentation cache status — freshness, counts, hashes."""
+    if _shared_docs_store is None:
+        return json.dumps({"status": "not_initialized"})
+    return json.dumps(_shared_docs_store.summary(), indent=2)
 
 
 def _register_tools():
