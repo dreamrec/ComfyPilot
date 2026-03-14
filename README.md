@@ -9,10 +9,8 @@
 
 # ComfyPilot v0.7.1
 
-**ComfyPilot** is an MCP server for ComfyUI.
-It lets an AI agent build workflows, queue generations, monitor progress, retrieve images, and manage VRAM — all through structured tool calls with visual output return.
-
-`#comfypilot` `#comfyui` `#mcp` `#stablediffusion` `#flux` `#imagegeneration` `#aiart`
+**ComfyPilot** gives an MCP client a practical, structured way to work with ComfyUI.
+It can build workflows, queue jobs, monitor progress, retrieve images, and manage VRAM without forcing the client to guess raw API details.
 
 ## Documentation
 
@@ -21,11 +19,11 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 
 ## What This Is
 
-- A practical control layer between AI agents and ComfyUI.
-- A structured toolset for workflow building, image generation, model management, and output routing.
-- A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
-- A technique memory system that learns your workflow patterns and builds a reusable library.
-- 94-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, registry integration for missing node resolution, model-awareness scanning, workflow translation, and workflow recommendations for modern ComfyUI ecosystems.
+- A practical control layer between an MCP client and ComfyUI.
+- A toolset for workflow building, image generation, model management, and output routing.
+- A workflow-oriented server built for iterative generation, not one-shot prompting.
+- A reusable technique library for patterns you want to keep around.
+- A 94-tool runtime surface covering snapshots, progress tracking, image retrieval, VRAM safety, templates, docs, compatibility checks, registry lookup, model awareness, workflow translation, and workflow planning.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -246,11 +244,11 @@ Use for choosing the best current workflow strategy based on installed models, t
 | V3 custom nodes | Not tested | V3 migration is ongoing in ComfyUI |
 | WebSocket progress events | Supported | EventManager started in lifespan, drain_events fixed |
 | Image content blocks | Supported | Inline image display in chat |
-| Cross-app routing | Filesystem only | Saves to disk with suggested commands |
+| Cross-app routing | File-based | Saves or copies files to configured destinations |
 
 ## Quick Setup
 
-Local development runtime:
+If you just want it running locally:
 
 ```bash
 git clone https://github.com/dreamrec/ComfyPilot.git
@@ -259,20 +257,15 @@ uv sync
 uv run comfypilot
 ```
 
-Claude Code plugin (one-command install):
-
-```bash
-claude plugin add /path/to/ComfyPilot
-```
-
 ## MCP Bundle (Standardized)
 
-ComfyPilot ships a standard MCP bundle in-repo:
+ComfyPilot ships a small MCP bundle in-repo so you can drop it into a client config without rewriting everything by hand:
 
 - `mcp/manifest.json`
-- `mcp/profiles/claude-desktop.json`, `cursor.json`, `generic.json`
+- `mcp/profiles/desktop.json`, `cursor.json`, `generic.json`
+- `.mcp.json`
 
-Manual client configuration example (Claude Desktop):
+Manual client configuration example:
 
 ```json
 {
@@ -305,22 +298,23 @@ Manual client configuration example (Claude Desktop):
 Run the test suite:
 
 ```bash
-uv run pytest -v
+uv sync --extra dev
+uv run python -m pytest -v
 ```
 
 Run a specific category:
 
 ```bash
-uv run pytest tests/test_builder.py -v
+uv run python -m pytest tests/test_builder.py -v
 ```
 
-Full suite: 598 tests across 56 test files.
+Full suite: 653 tests across 58 test files.
 
 ## Contributing
 
 ```bash
 uv sync --extra dev
-uv run pytest -q
+uv run python -m pytest -q
 ```
 
 ## Reliability Habit

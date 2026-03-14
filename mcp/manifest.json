@@ -1,7 +1,7 @@
 {
   "name": "comfypilot",
-  "version": "1.0.0",
-  "description": "AI-native MCP server for live ComfyUI control — 71 tools across 12 categories",
+  "version": "0.7.1",
+  "description": "MCP server for practical ComfyUI control, workflow planning, documentation, and image generation tooling",
   "author": "ComfyPilot",
   "license": "MIT",
   "transport": "stdio",
@@ -15,6 +15,10 @@
     "COMFY_API_KEY": {
       "description": "Optional API key for ComfyUI authentication",
       "default": ""
+    },
+    "COMFY_AUTH_METHOD": {
+      "description": "Authentication method: auto, bearer, or x-api-key",
+      "default": "auto"
     },
     "COMFY_TIMEOUT": {
       "description": "HTTP request timeout in seconds",
@@ -49,6 +53,13 @@
     "memory",
     "safety",
     "builder",
-    "output_routing"
+    "output_routing",
+    "install",
+    "compatibility",
+    "docs",
+    "templates",
+    "knowledge",
+    "registry",
+    "planner"
   ]
 }

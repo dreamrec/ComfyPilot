@@ -2,8 +2,6 @@
 
 Date: 2026-03-14
 
-Branch: `codex/model-awareness-plan`
-
 ## Objective
 
 Ship a smarter ComfyPilot that understands the current ComfyUI ecosystem without destabilizing the server.

@@ -2,8 +2,6 @@
 
 Date: 2026-03-14
 
-Branch: `codex/fix-final-audit-issues`
-
 Commit: `d04a543` (`Fix final audit issues`)
 
 ## Scope
@@ -93,7 +91,7 @@ Corrections include:
 
 - Version updated to `0.7.1`
 - Tool count text corrected to `90 Tools`
-- Test-count text updated to `598 tests across 56 test files`
+- Test-count text updated to match the then-current suite
 - Manual resource list updated to match actual exposed MCP resources
 - Support matrix wording updated to reflect partial but real cloud support
 

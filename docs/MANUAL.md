@@ -1,13 +1,13 @@
 # ComfyPilot Production Manual
 
-Complete reference for operating ComfyPilot — the MCP server for live AI control of ComfyUI.
+Complete reference for running ComfyPilot with ComfyUI. Use this when you want the exact behavior, setup details, and current tool surface in one place.
 
 ## Architecture
 
 ```
 ┌──────────────┐     stdio      ┌──────────────┐    HTTP/WS     ┌──────────────┐
 │  MCP Client  │◄──────────────►│  ComfyPilot  │◄─────────────►│   ComfyUI    │
-│ (Claude, etc)│                │  (FastMCP)   │               │  (GPU host)  │
+│ (Any client) │                │  (FastMCP)   │               │  (GPU host)  │
 └──────────────┘                └──────────────┘               └──────────────┘
                                        │
                                        ├── ComfyClient (HTTP + WebSocket)
@@ -18,7 +18,7 @@ Complete reference for operating ComfyPilot — the MCP server for live AI contr
                                        └── VRAMGuard (safety thresholds)
 ```
 
-ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent HTTP connection to ComfyUI's REST API and, for local/self-hosted instances, a WebSocket connection for real-time progress events. All subsystems are initialized during the lifespan phase and shared across tool invocations.
+ComfyPilot runs as an MCP server over stdio transport. It keeps a persistent HTTP connection to ComfyUI's REST API and, for local or self-hosted instances, a WebSocket connection for real-time progress events. The main subsystems are initialized during lifespan startup and then shared across tool calls.
 
 ## Connection Model
 
@@ -188,7 +188,7 @@ The planner uses installed models, detected providers, template compatibility, t
 | `comfy_send_to_blender` | Copy output to Blender project directory |
 | `comfy_list_destinations` | List configured output destinations and their paths |
 
-Output routing is agent-orchestrated — the AI decides where to send results based on the user's creative pipeline context.
+Output routing is file-based. The client decides where a result should go, and ComfyPilot handles the actual save or copy step.
 
 ## MCP Resources
 
@@ -261,15 +261,14 @@ If the remote instance requires authentication, set `COMFY_API_KEY`.
 
 ```
 ComfyPilot/
-├── .claude-plugin/
-│   └── plugin.json          # Claude Code plugin manifest
-├── .mcp.json                # MCP server config (plugin-portable)
+├── .mcp.json                # Portable MCP server config example
 ├── docs/
-│   └── MANUAL.md            # This file
+│   ├── MANUAL.md            # This file
+│   └── extra/               # Audit notes and design docs
 ├── mcp/
 │   ├── manifest.json        # Standardized MCP manifest
 │   └── profiles/            # Client config examples
-│       ├── claude-desktop.json
+│       ├── desktop.json
 │       ├── cursor.json
 │       └── generic.json
 ├── skills/
@@ -302,7 +301,7 @@ ComfyPilot/
 │           ├── safety.py       # Safety tools
 │           ├── builder.py      # Workflow builder tools
 │           └── output_routing.py  # Cross-app routing tools
-├── tests/                    # 275 tests across 17 files
+├── tests/                    # 653 tests across 58 files
 ├── pyproject.toml
 ├── CHANGELOG.md
 ├── LICENSE
