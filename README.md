@@ -181,7 +181,7 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 - `comfy_check_compatibility` -- Check if a registry package is compatible with the current environment.
 - `comfy_registry_status` -- Show registry cache statistics (index size, entry counts).
 
-## MCP Resources (11)
+## MCP Resources (10)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
 - `comfy://server/capabilities` — Detected server profile, version, auth method
