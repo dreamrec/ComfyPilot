@@ -97,15 +97,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import time
 from pathlib import Path
 from typing import Any
-
-
-def _sanitize_filename(class_name: str) -> str:
-    """Convert a node class name to a filesystem-safe filename."""
-    return re.sub(r'[^\w\-.]', '_', class_name)
 
 
 def _content_hash(text: str) -> str:
@@ -139,6 +133,8 @@ class DocsStore:
         path = self._manifest_path()
         path.write_text(json.dumps(self._manifest, indent=2))
 ```
+
+Note: `_sanitize_filename` is intentionally NOT included here. Task 1 stores files using the raw `class_name` directly. Sanitization is added in Task 2 following TDD (tests first, then implementation).
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -186,15 +182,34 @@ class TestFilenameSanitization:
         assert _sanitize_filename("ADE_AnimateDiff.v2") == "ADE_AnimateDiff.v2"
 ```
 
-- [ ] **Step 2: Run test to verify it passes (sanitization already implemented)**
+- [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_docs_store.py::TestFilenameSanitization -v`
-Expected: PASS (the `_sanitize_filename` function was already written in Task 1)
+Expected: FAIL with `ImportError` — `_sanitize_filename` does not exist yet.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Implement `_sanitize_filename` in store.py**
+
+Add to `src/comfy_mcp/docs/store.py`, above the `_content_hash` function:
+
+```python
+import re
+
+def _sanitize_filename(class_name: str) -> str:
+    """Convert a node class name to a filesystem-safe filename."""
+    return re.sub(r'[^\w\-.]', '_', class_name)
+```
+
+Also add `import re` to the imports at the top of the file.
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_docs_store.py::TestFilenameSanitization -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add tests/test_docs_store.py && git commit -m "test(v0.4): add filename sanitization tests"
+cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/docs/store.py tests/test_docs_store.py && git commit -m "feat(v0.4): add filename sanitization with TDD (tests first, then implementation)"
 ```
 
 ---
@@ -336,6 +351,10 @@ Add to `DocsStore` class in `src/comfy_mcp/docs/store.py`:
         self._manifest = {}
         self._name_to_file = {}
         self._save_manifest()
+
+    def list_embedded_classes(self) -> list[str]:
+        """Return the list of class names that have cached embedded docs."""
+        return list(self._manifest.get("embedded", {}).keys())
 
     def summary(self) -> dict:
         """Return cache status summary."""
@@ -867,8 +886,7 @@ class DocsIndex:
         query_lower = query.lower()
         results = []
 
-        manifest = self._store._manifest.get("embedded", {})
-        for class_name in manifest:
+        for class_name in self._store.list_embedded_classes():
             content = self._store.get_embedded(class_name)
             if content is None:
                 continue
@@ -934,7 +952,7 @@ def docs_ctx(mock_ctx):
     store_mock.save_llms = MagicMock()
     store_mock.summary = MagicMock(return_value={"embedded_docs": 5, "stale": False})
     store_mock.is_stale = MagicMock(return_value=False)
-    store_mock._manifest = {"embedded": {"KSampler": {"filename": "KSampler", "hash": "abc", "cached_at": 1.0}}}
+    store_mock.list_embedded_classes = MagicMock(return_value=["KSampler"])
 
     fetcher_mock = AsyncMock()
     fetcher_mock.fetch_embedded_doc = AsyncMock(return_value="# KSampler\nFresh doc.")
@@ -966,6 +984,8 @@ class TestSearchDocs:
         from comfy_mcp.tools.docs import comfy_search_docs
         result = json.loads(await comfy_search_docs(query="sampl", ctx=docs_ctx))
         assert "results" in result
+        assert result["count"] >= 1
+        assert len(result["results"]) >= 1
 
 
 class TestGetGuide:
@@ -974,6 +994,26 @@ class TestGetGuide:
         from comfy_mcp.tools.docs import comfy_get_guide
         result = json.loads(await comfy_get_guide(topic="sampling", ctx=docs_ctx))
         assert "content" in result
+
+
+class TestRefreshDocs:
+    @pytest.mark.asyncio
+    async def test_refresh_happy_path(self, docs_ctx):
+        """Successful refresh fetches and caches docs."""
+        from comfy_mcp.tools.docs import comfy_refresh_docs
+        result = json.loads(await comfy_refresh_docs(ctx=docs_ctx))
+        assert result["status"] == "ok"
+        assert result["llms_cached"] is True
+
+    @pytest.mark.asyncio
+    async def test_refresh_partial_on_fetch_failure(self, docs_ctx):
+        """Fetch failure returns partial success, does not crash."""
+        docs_ctx.request_context.lifespan_context["docs_fetcher"].fetch_llms_full = AsyncMock(return_value=None)
+        from comfy_mcp.tools.docs import comfy_refresh_docs
+        result = json.loads(await comfy_refresh_docs(ctx=docs_ctx))
+        assert result["status"] == "partial"
+        assert len(result["errors"]) >= 1
+        assert result["llms_cached"] is False
 
 
 class TestDocsStatus:
@@ -1021,7 +1061,7 @@ def _fetcher(ctx: Context):
         "openWorldHint": True,
     }
 )
-async def comfy_get_node_docs(class_name: str, ctx: Context = None) -> str:
+async def comfy_get_node_docs(class_name: str, ctx: Context) -> str:
     """Get documentation for a specific ComfyUI node class.
 
     Returns embedded documentation merged with object_info schema.
@@ -1070,7 +1110,7 @@ async def comfy_get_node_docs(class_name: str, ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_search_docs(query: str, limit: int = 10, ctx: Context = None) -> str:
+async def comfy_search_docs(query: str, limit: int = 10, ctx: Context) -> str:
     """Full-text search across cached ComfyUI documentation.
 
     Searches node descriptions and guide content by keyword.
@@ -1087,6 +1127,9 @@ async def comfy_search_docs(query: str, limit: int = 10, ctx: Context = None) ->
     if install_graph and install_graph.snapshot:
         object_info = install_graph.snapshot.get("object_info", {})
 
+    # NOTE: DocsIndex is intentionally re-created on every call. object_info may
+    # change between calls (e.g., after comfy_refresh), so we keep the index fresh
+    # rather than caching a stale instance.
     index = DocsIndex(store, object_info=object_info)
     results = index.search(query, limit=limit)
     return json.dumps({"query": query, "count": len(results), "results": results}, indent=2)
@@ -1101,7 +1144,7 @@ async def comfy_search_docs(query: str, limit: int = 10, ctx: Context = None) ->
         "openWorldHint": False,
     }
 )
-async def comfy_get_guide(topic: str, ctx: Context = None) -> str:
+async def comfy_get_guide(topic: str, ctx: Context) -> str:
     """Retrieve a guide section from ComfyUI documentation by topic.
 
     Searches the llms-full.txt section index for matching content.
@@ -1126,7 +1169,7 @@ async def comfy_get_guide(topic: str, ctx: Context = None) -> str:
         "openWorldHint": True,
     }
 )
-async def comfy_refresh_docs(ctx: Context = None) -> str:
+async def comfy_refresh_docs(ctx: Context) -> str:
     """Re-fetch all documentation sources and rebuild the cache.
 
     Fetches embedded-docs and llms-full.txt from remote sources.
@@ -1143,13 +1186,23 @@ async def comfy_refresh_docs(ctx: Context = None) -> str:
     else:
         errors.append("llms-full.txt: fetch failed (network error or source unavailable)")
 
-    # Fetch embedded docs for all known node classes
+    # Fetch embedded docs for all known node classes in parallel.
+    # Uses asyncio.gather with a semaphore to limit concurrency (max 10)
+    # so we don't overwhelm the remote server with 500+ simultaneous requests.
+    import asyncio
     install_graph = ctx.request_context.lifespan_context.get("install_graph")
     fetched_count = 0
     if install_graph and install_graph.snapshot:
-        node_classes = install_graph.snapshot.get("node_classes", set())
-        for class_name in sorted(node_classes):
-            doc = await fetcher.fetch_embedded_doc(class_name)
+        node_classes = sorted(install_graph.snapshot.get("node_classes", set()))
+        semaphore = asyncio.Semaphore(10)
+
+        async def _fetch_one(cn: str) -> tuple[str, str | None]:
+            async with semaphore:
+                doc = await fetcher.fetch_embedded_doc(cn)
+                return cn, doc
+
+        results = await asyncio.gather(*[_fetch_one(cn) for cn in node_classes])
+        for class_name, doc in results:
             if doc is not None:
                 store.save_embedded(class_name, doc)
                 fetched_count += 1
@@ -1172,7 +1225,7 @@ async def comfy_refresh_docs(ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_docs_status(ctx: Context = None) -> str:
+async def comfy_docs_status(ctx: Context) -> str:
     """Show documentation cache status.
 
     Returns cache freshness, source availability, and content hashes.
@@ -1231,12 +1284,17 @@ Add at module level (near `_shared_install_graph`):
 _shared_docs_store = None
 ```
 
+Add `_shared_docs_store` to the existing `global` statement inside `comfy_lifespan` (alongside `_shared_install_graph`):
+```python
+    global _shared_install_graph, _shared_docs_store
+```
+
 Set it in lifespan (after `docs_store = DocsStore()`):
 ```python
     _shared_docs_store = docs_store
 ```
 
-Clear it in finally (near `_shared_install_graph = None`):
+Clear it in the finally block (near `_shared_install_graph = None`):
 ```python
         _shared_docs_store = None
 ```

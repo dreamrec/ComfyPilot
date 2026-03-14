@@ -23,13 +23,16 @@
 | Create | `src/comfy_mcp/templates/instantiator.py` | Model substitution + compat validation + ready workflow output |
 | Create | `src/comfy_mcp/tools/templates.py` | 6 MCP tools |
 | Create | `tests/test_template_discovery.py` | Tests for discovery |
+| Create | `tests/test_template_index.py` | Tests for index |
 | Create | `tests/test_template_scorer.py` | Tests for scoring |
 | Create | `tests/test_template_instantiator.py` | Tests for instantiation |
 | Create | `tests/test_tools_templates.py` | Tests for MCP tools |
+| Create | `tests/test_builder_template_fallthrough.py` | Tests for builder.py template fallthrough |
 | Modify | `src/comfy_mcp/server.py` | Add TemplateIndex to lifespan + resource |
+| Modify | `src/comfy_mcp/tools/builder.py` | Add template fallthrough to comfy_build_workflow |
 | Modify | `src/comfy_mcp/tool_registry.py` | Add templates import |
 | Modify | `tests/conftest.py` | Add template_index to mock_ctx |
-| Modify | `README.md` | Update to 82 tools, 9 resources |
+| Modify | `README.md` | Update to 77 tools (82 with v0.4), 9 resources |
 
 ---
 
@@ -117,6 +120,21 @@ class TestDiscoverCustomNode:
         assert templates[0]["source"] == "custom_node"
 
 
+class TestDiscoverOfficialDictReturn:
+    @pytest.mark.asyncio
+    async def test_handles_dict_returning_client(self, mock_comfy_client):
+        """ComfyClient.get() may return a dict/list directly instead of a response object."""
+        from comfy_mcp.templates.discovery import TemplateDiscovery
+        index_data = [
+            {"name": "txt2img_basic", "category": "text-to-image", "description": "Basic txt2img", "file": "txt2img_basic.json"},
+        ]
+        mock_comfy_client.get = AsyncMock(return_value=index_data)
+        discovery = TemplateDiscovery(mock_comfy_client)
+        templates = await discovery.discover_official()
+        assert len(templates) == 1
+        assert templates[0]["source"] == "official"
+
+
 class TestDiscoverBuiltin:
     def test_builtin_templates_always_available(self):
         from comfy_mcp.templates.discovery import TemplateDiscovery
@@ -174,15 +192,20 @@ class TemplateDiscovery:
         self._client = comfy_client
 
     async def discover_official(self) -> list[dict[str, Any]]:
-        """Fetch official templates from ComfyUI server."""
+        """Fetch official templates from ComfyUI server.
+
+        Note: ComfyClient.get() may return either a dict (existing codebase
+        pattern) or an httpx-style response object. This method handles both:
+        if the result is a dict/list, it is used directly; if it has
+        .status_code/.json(), it is unwrapped first.
+        """
         if self._client is None:
             return []
         try:
             response = await self._client.get("/templates/index.json")
-            if response.status_code != 200:
-                logger.debug("Official templates returned %d", response.status_code)
+            data = self._unwrap_response(response)
+            if data is None:
                 return []
-            data = response.json()
             templates = []
             for item in data:
                 item["source"] = "official"
@@ -200,10 +223,9 @@ class TemplateDiscovery:
             return []
         try:
             response = await self._client.get("/workflow_templates")
-            if response.status_code != 200:
-                logger.debug("Custom node templates returned %d", response.status_code)
+            data = self._unwrap_response(response)
+            if data is None:
                 return []
-            data = response.json()
             templates = []
             for item in data:
                 item["source"] = "custom_node"
@@ -214,6 +236,24 @@ class TemplateDiscovery:
         except Exception as exc:
             logger.debug("Custom node template discovery failed: %s", exc)
             return []
+
+    @staticmethod
+    def _unwrap_response(response) -> list[dict[str, Any]] | None:
+        """Handle both dict-returning and response-object-returning client.get() patterns.
+
+        If client.get() returns a dict or list directly, use it as-is.
+        If it returns an httpx-style response with .status_code and .json(), unwrap it.
+        """
+        if isinstance(response, (dict, list)):
+            return response
+        # httpx-style response object
+        if hasattr(response, "status_code"):
+            if response.status_code != 200:
+                logger.debug("Response returned status %d", response.status_code)
+                return None
+            return response.json()
+        # Unknown type — try to use as-is
+        return response
 
     def discover_builtin(self) -> list[dict[str, Any]]:
         """Return built-in template definitions."""
@@ -250,8 +290,139 @@ cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/templa
 
 **Files:**
 - Create: `src/comfy_mcp/templates/index.py`
+- Create: `tests/test_template_index.py`
 
-- [ ] **Step 1: Implement TemplateIndex**
+- [ ] **Step 1: Write failing tests for TemplateIndex**
+
+```python
+# tests/test_template_index.py
+"""Tests for TemplateIndex — unified index with disk cache."""
+
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+import pytest
+
+
+SAMPLE_TEMPLATES = [
+    {"name": "txt2img_basic", "category": "text-to-image", "source": "official",
+     "tags": ["txt2img", "basic"], "required_nodes": ["KSampler"], "required_models": {"checkpoints": 1}},
+    {"name": "controlnet_basic", "category": "controlnet", "source": "builtin",
+     "tags": ["controlnet"], "required_nodes": ["ControlNetLoader"], "required_models": {"controlnet": 1}},
+]
+
+
+class TestRebuild:
+    def test_rebuild_assigns_ids(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        assert all("id" in t for t in idx.list_all())
+
+    def test_rebuild_persists_to_disk(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        assert (tmp_path / "index.json").exists()
+        assert (tmp_path / "manifest.json").exists()
+
+    def test_rebuild_updates_manifest(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["template_count"] == 2
+        assert "last_updated" in manifest
+
+
+class TestGet:
+    def test_get_existing(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        result = idx.get("official_txt2img_basic")
+        assert result is not None
+        assert result["name"] == "txt2img_basic"
+
+    def test_get_missing_returns_none(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        assert idx.get("nonexistent") is None
+
+
+class TestListAll:
+    def test_list_all_returns_all(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        assert len(idx.list_all()) == 2
+
+    def test_list_all_excludes_workflow_body(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        templates = [{"name": "t1", "source": "builtin", "category": "test",
+                      "workflow": {"1": {"class_type": "KSampler"}}}]
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(templates)
+        for t in idx.list_all():
+            assert "workflow" not in t
+
+
+class TestCategories:
+    def test_categories_returns_sorted_unique(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        cats = idx.categories()
+        assert cats == ["controlnet", "text-to-image"]
+
+
+class TestIsStale:
+    def test_empty_index_is_stale(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        assert idx.is_stale() is True
+
+    def test_fresh_index_is_not_stale(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        assert idx.is_stale(max_age=300) is False
+
+
+class TestContentHash:
+    def test_content_hash_nonempty_after_rebuild(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        assert len(idx.content_hash()) > 0
+
+    def test_content_hash_empty_before_rebuild(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        assert idx.content_hash() == ""
+
+
+class TestDiskPersistence:
+    def test_reload_from_disk(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx1 = TemplateIndex(storage_dir=str(tmp_path))
+        idx1.rebuild(SAMPLE_TEMPLATES)
+        # Create a new instance pointing at same dir — should load from disk
+        idx2 = TemplateIndex(storage_dir=str(tmp_path))
+        assert len(idx2.list_all()) == 2
+        assert idx2.content_hash() == idx1.content_hash()
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_template_index.py -v`
+Expected: FAIL with `ModuleNotFoundError`
+
+- [ ] **Step 3: Implement TemplateIndex**
 
 ```python
 # src/comfy_mcp/templates/index.py
@@ -370,10 +541,15 @@ class TemplateIndex:
         }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_template_index.py -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/templates/index.py && git commit -m "feat(v0.5): add TemplateIndex with unified disk cache"
+cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/templates/index.py tests/test_template_index.py && git commit -m "feat(v0.5): add TemplateIndex with unified disk cache"
 ```
 
 ---
@@ -805,7 +981,10 @@ def template_ctx(mock_ctx):
     """Mock context with template_index in lifespan."""
     index_mock = MagicMock()
     index_mock.list_all = MagicMock(return_value=[
-        {"id": "official_txt2img", "name": "txt2img_basic", "category": "text-to-image", "source": "official"},
+        {"id": "official_txt2img", "name": "txt2img_basic", "category": "text-to-image", "source": "official",
+         "tags": ["txt2img", "basic", "generation"],
+         "required_nodes": ["CheckpointLoaderSimple", "CLIPTextEncode", "KSampler", "EmptyLatentImage", "VAEDecode", "SaveImage"],
+         "required_models": {"checkpoints": 1}},
     ])
     index_mock.categories = MagicMock(return_value=["text-to-image", "controlnet"])
     index_mock.get = MagicMock(return_value={
@@ -880,7 +1059,7 @@ class TestTemplateStatus:
 Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_tools_templates.py -v`
 Expected: FAIL
 
-- [ ] **Step 3: Implement MCP tools**
+- [ ] **Step 3a: Implement read-only MCP tools (list, get, categories, search)**
 
 ```python
 # src/comfy_mcp/tools/templates.py
@@ -901,27 +1080,6 @@ def _index(ctx: Context):
 
 def _discovery(ctx: Context):
     return ctx.request_context.lifespan_context["template_discovery"]
-
-
-@mcp.tool(
-    annotations={
-        "title": "Discover Templates",
-        "readOnlyHint": False,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": True,
-    }
-)
-async def comfy_discover_templates(ctx: Context = None) -> str:
-    """Scan all template sources and rebuild the unified template index.
-
-    Fetches from official ComfyUI templates, custom node examples, and built-in templates.
-    """
-    discovery = _discovery(ctx)
-    index = _index(ctx)
-    templates = await discovery.discover_all()
-    index.rebuild(templates)
-    return json.dumps({"status": "ok", "summary": index.summary()}, indent=2)
 
 
 @mcp.tool(
@@ -989,6 +1147,62 @@ async def comfy_get_template(template_id: str, ctx: Context = None) -> str:
 
 @mcp.tool(
     annotations={
+        "title": "List Template Categories",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+)
+async def comfy_list_template_categories(ctx: Context = None) -> str:
+    """List all available template categories."""
+    index = _index(ctx)
+    return json.dumps({"categories": index.categories()}, indent=2)
+
+
+@mcp.tool(
+    annotations={
+        "title": "Template Status",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+)
+async def comfy_template_status(ctx: Context = None) -> str:
+    """Show template index status — counts, categories, cache freshness."""
+    index = _index(ctx)
+    return json.dumps(index.summary(), indent=2)
+```
+
+- [ ] **Step 3b: Implement action MCP tools (discover, instantiate)**
+
+Append to `src/comfy_mcp/tools/templates.py`:
+
+```python
+@mcp.tool(
+    annotations={
+        "title": "Discover Templates",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    }
+)
+async def comfy_discover_templates(ctx: Context = None) -> str:
+    """Scan all template sources and rebuild the unified template index.
+
+    Fetches from official ComfyUI templates, custom node examples, and built-in templates.
+    """
+    discovery = _discovery(ctx)
+    index = _index(ctx)
+    templates = await discovery.discover_all()
+    index.rebuild(templates)
+    return json.dumps({"status": "ok", "summary": index.summary()}, indent=2)
+
+
+@mcp.tool(
+    annotations={
         "title": "Instantiate Template",
         "readOnlyHint": True,
         "destructiveHint": False,
@@ -1023,36 +1237,6 @@ async def comfy_instantiate_template(
     instantiator = TemplateInstantiator(install_graph.snapshot)
     result = instantiator.instantiate(template, overrides=overrides)
     return json.dumps(result, indent=2)
-
-
-@mcp.tool(
-    annotations={
-        "title": "List Template Categories",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": False,
-    }
-)
-async def comfy_list_template_categories(ctx: Context = None) -> str:
-    """List all available template categories."""
-    index = _index(ctx)
-    return json.dumps({"categories": index.categories()}, indent=2)
-
-
-@mcp.tool(
-    annotations={
-        "title": "Template Status",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": False,
-    }
-)
-async def comfy_template_status(ctx: Context = None) -> str:
-    """Show template index status — counts, categories, cache freshness."""
-    index = _index(ctx)
-    return json.dumps(index.summary(), indent=2)
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1068,7 +1252,136 @@ cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/tools/
 
 ---
 
-### Task 6: Server integration + README
+### Task 6: Builder template fallthrough
+
+**Files:**
+- Modify: `src/comfy_mcp/tools/builder.py`
+- Create: `tests/test_builder_template_fallthrough.py`
+
+> **Goal:** Add a non-breaking template fallthrough path to `comfy_build_workflow`. If a matching template exists in the index, use it as a starting point (instantiate + apply overrides); otherwise fall back to the current builder logic. This ensures existing behavior is preserved while enabling template-based workflow creation.
+
+- [ ] **Step 1: Write failing tests for builder fallthrough**
+
+```python
+# tests/test_builder_template_fallthrough.py
+"""Tests for template fallthrough in comfy_build_workflow."""
+
+from __future__ import annotations
+
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+
+@pytest.fixture
+def builder_ctx_with_templates(mock_ctx):
+    """Context with template index that has a matching template."""
+    index_mock = MagicMock()
+    index_mock.list_all = MagicMock(return_value=[
+        {"id": "builtin_txt2img_basic", "name": "txt2img_basic", "category": "text-to-image",
+         "source": "builtin", "tags": ["txt2img", "basic"],
+         "required_nodes": ["CheckpointLoaderSimple", "KSampler"],
+         "required_models": {"checkpoints": 1}},
+    ])
+    index_mock.get = MagicMock(return_value={
+        "id": "builtin_txt2img_basic", "name": "txt2img_basic",
+        "workflow": {"1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "model.safetensors"}}},
+    })
+    mock_ctx.request_context.lifespan_context["template_index"] = index_mock
+
+    graph_mock = MagicMock()
+    graph_mock.snapshot = {
+        "node_classes": {"KSampler", "CheckpointLoaderSimple"},
+        "models": {"checkpoints": ["dreamshaper_8.safetensors"]},
+        "embeddings": [],
+        "object_info": {},
+    }
+    mock_ctx.request_context.lifespan_context["install_graph"] = graph_mock
+    return mock_ctx
+
+
+@pytest.fixture
+def builder_ctx_without_templates(mock_ctx):
+    """Context with template index that has no matching template."""
+    index_mock = MagicMock()
+    index_mock.list_all = MagicMock(return_value=[])
+    mock_ctx.request_context.lifespan_context["template_index"] = index_mock
+
+    graph_mock = MagicMock()
+    graph_mock.snapshot = {"node_classes": set(), "models": {}, "embeddings": [], "object_info": {}}
+    mock_ctx.request_context.lifespan_context["install_graph"] = graph_mock
+    return mock_ctx
+
+
+class TestTemplateFallthrough:
+    @pytest.mark.asyncio
+    async def test_uses_template_when_match_found(self, builder_ctx_with_templates):
+        """When a matching template exists, builder should use it."""
+        from comfy_mcp.tools.builder import comfy_build_workflow
+        result = json.loads(await comfy_build_workflow(
+            description="basic txt2img", ctx=builder_ctx_with_templates))
+        # Should have used template path (implementation-specific assertion)
+        assert "workflow" in result or "error" not in result
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_no_template_match(self, builder_ctx_without_templates):
+        """When no template matches, builder should use existing logic."""
+        from comfy_mcp.tools.builder import comfy_build_workflow
+        # Should not crash — falls back to original builder behavior
+        result = json.loads(await comfy_build_workflow(
+            description="some unusual workflow", ctx=builder_ctx_without_templates))
+        assert isinstance(result, dict)
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_builder_template_fallthrough.py -v`
+Expected: FAIL
+
+- [ ] **Step 3: Modify builder.py to add template fallthrough**
+
+In `comfy_build_workflow` in `builder.py`, add the following logic at the top of the function body (before existing builder logic):
+
+```python
+    # Template fallthrough: check if a matching template exists
+    template_index = ctx.request_context.lifespan_context.get("template_index")
+    install_graph = ctx.request_context.lifespan_context.get("install_graph")
+    if template_index and install_graph and install_graph.snapshot:
+        from comfy_mcp.templates.scorer import TemplateScorer
+        scorer = TemplateScorer(
+            install_graph.snapshot.get("node_classes", set()),
+            install_graph.snapshot.get("models", {}),
+        )
+        candidates = scorer.score(description, template_index.list_all(), limit=1)
+        if candidates and candidates[0]["score"] >= 0.5:
+            template = template_index.get(candidates[0]["id"])
+            if template and "workflow" in template:
+                from comfy_mcp.templates.instantiator import TemplateInstantiator
+                instantiator = TemplateInstantiator(install_graph.snapshot)
+                result = instantiator.instantiate(template, overrides=overrides if overrides else None)
+                result["source"] = "template"
+                return json.dumps(result, indent=2)
+
+    # ... existing builder logic continues below (unchanged) ...
+```
+
+> **Important:** This is non-breaking. The template path only activates when (a) template_index is available, (b) a candidate scores >= 0.5, and (c) the template has a workflow body. Otherwise, the existing builder logic runs as before.
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_builder_template_fallthrough.py -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/tools/builder.py tests/test_builder_template_fallthrough.py && git commit -m "feat(v0.5): add template fallthrough to comfy_build_workflow"
+```
+
+---
+
+### Task 7: Server integration + README
 
 **Files:**
 - Modify: `src/comfy_mcp/server.py`
@@ -1123,23 +1436,60 @@ Add to `lifespan_context`:
 ```python
         "template_index": MagicMock(),
         "template_discovery": AsyncMock(),
+        "install_graph": MagicMock(),
 ```
+
+> **Note:** `install_graph` is required because multiple template tools (e.g., `comfy_search_templates`, `comfy_instantiate_template`) access it from the lifespan context. If it is already present from a prior version, ensure it is not overwritten.
 
 - [ ] **Step 4: Update README.md**
 
 - Version: `v0.5.0`
-- Tool count: `82-tool runtime surface`
+- Tool count: `77 tools (82 with v0.4)`
 - Add Template Engine section (### 16)
 - Resources count: 9
 - Add `comfy://templates/index` resource
 
-- [ ] **Step 5: Run full test suite**
+- [ ] **Step 5: Add resource test for `comfy://templates/index`**
+
+Add to `tests/test_tools_templates.py` (or create a separate `tests/test_template_resource.py`):
+
+```python
+class TestTemplateIndexResource:
+    @pytest.mark.asyncio
+    async def test_resource_returns_expected_json(self):
+        """Verify the comfy://templates/index resource returns valid JSON with expected keys."""
+        import comfy_mcp.server as server_module
+        from comfy_mcp.server import templates_index_resource
+
+        # Simulate initialized state
+        mock_index = MagicMock()
+        mock_index.summary = MagicMock(return_value={
+            "template_count": 5,
+            "categories": ["text-to-image", "controlnet"],
+            "source_counts": {"official": 2, "builtin": 3},
+            "stale": False,
+            "last_updated": 1710000000.0,
+            "content_hash": "abc123",
+        })
+        original = getattr(server_module, "_shared_template_index", None)
+        server_module._shared_template_index = mock_index
+        try:
+            result = json.loads(await templates_index_resource())
+            assert "template_count" in result
+            assert result["template_count"] == 5
+            assert "categories" in result
+            assert isinstance(result["categories"], list)
+        finally:
+            server_module._shared_template_index = original
+```
+
+- [ ] **Step 6: Run full test suite**
 
 Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest -v`
 Expected: ALL pass
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/server.py src/comfy_mcp/tool_registry.py tests/conftest.py README.md && git commit -m "feat: v0.5.0 — Template Engine (82 tools, 9 resources)"
+cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/server.py src/comfy_mcp/tool_registry.py tests/conftest.py tests/test_tools_templates.py README.md && git commit -m "feat: v0.5.0 — Template Engine (77 tools; 82 with v0.4, 9 resources)"
 ```

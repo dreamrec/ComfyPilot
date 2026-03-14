@@ -20,9 +20,12 @@
 | Create | `src/comfy_mcp/knowledge/store.py` | KnowledgeStore protocol/base pattern |
 | Create | `src/comfy_mcp/knowledge/config.py` | Config read/write with env var override, atomic writes |
 | Create | `src/comfy_mcp/knowledge/manager.py` | Unified state.json management, refresh orchestration |
+| Create | `src/comfy_mcp/knowledge/migration.py` | manifest.json → state.json migration with .bak backup |
 | Create | `src/comfy_mcp/tools/knowledge.py` | 5 MCP tools |
 | Create | `tests/test_knowledge_config.py` | Tests for config |
+| Create | `tests/test_knowledge_store.py` | Tests for KnowledgeStore protocol and atomic_write |
 | Create | `tests/test_knowledge_manager.py` | Tests for manager |
+| Create | `tests/test_knowledge_migration.py` | Tests for manifest migration |
 | Create | `tests/test_tools_knowledge.py` | Tests for MCP tools |
 | Modify | `src/comfy_mcp/install/install_graph.py` | Add disk cache load/save, atomic snapshot swap |
 | Modify | `src/comfy_mcp/docs/store.py` | Migrate manifest to state.json pattern |
@@ -94,24 +97,117 @@ def atomic_write(path: Path, content: str) -> None:
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    closed = False
     try:
         os.write(fd, content.encode())
         os.close(fd)
+        closed = True
         # On Windows, need to remove target first
         if path.exists():
             path.unlink()
         os.rename(tmp_path, str(path))
     except Exception:
-        os.close(fd) if not os.get_inheritable(fd) else None
+        if not closed:
+            os.close(fd)
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
         raise
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Write tests for KnowledgeStore protocol and atomic_write**
+
+```python
+# tests/test_knowledge_store.py
+"""Tests for KnowledgeStore protocol and atomic_write utility."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import pytest
+
+
+class TestAtomicWrite:
+    def test_happy_path_writes_file(self, tmp_path):
+        from comfy_mcp.knowledge.store import atomic_write
+        target = tmp_path / "test.json"
+        atomic_write(target, '{"hello": "world"}')
+        assert target.exists()
+        assert target.read_text() == '{"hello": "world"}'
+
+    def test_creates_parent_directories(self, tmp_path):
+        from comfy_mcp.knowledge.store import atomic_write
+        target = tmp_path / "a" / "b" / "test.json"
+        atomic_write(target, "content")
+        assert target.exists()
+        assert target.read_text() == "content"
+
+    def test_cleanup_on_failure(self, tmp_path, monkeypatch):
+        from comfy_mcp.knowledge.store import atomic_write
+        import tempfile
+
+        # Force os.rename to fail to simulate write failure
+        original_rename = os.rename
+        def failing_rename(src, dst):
+            raise OSError("simulated rename failure")
+        monkeypatch.setattr(os, "rename", failing_rename)
+
+        target = tmp_path / "test.json"
+        with pytest.raises(OSError, match="simulated rename failure"):
+            atomic_write(target, "content")
+
+        # Temp file should be cleaned up
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert len(tmp_files) == 0
+
+    def test_overwrites_existing_file(self, tmp_path):
+        from comfy_mcp.knowledge.store import atomic_write
+        target = tmp_path / "test.json"
+        target.write_text("old content")
+        atomic_write(target, "new content")
+        assert target.read_text() == "new content"
+
+
+class TestKnowledgeStoreProtocol:
+    def test_protocol_is_runtime_checkable(self):
+        from comfy_mcp.knowledge.store import KnowledgeStore
+        from typing import runtime_checkable, Protocol
+        assert issubclass(KnowledgeStore, Protocol)
+
+    def test_compliant_class_passes_isinstance(self):
+        from comfy_mcp.knowledge.store import KnowledgeStore
+
+        class FakeStore:
+            def is_stale(self, max_age: float = 300) -> bool:
+                return False
+            def content_hash(self) -> str:
+                return "abc123"
+            def summary(self) -> dict:
+                return {}
+            def clear(self) -> None:
+                pass
+
+        assert isinstance(FakeStore(), KnowledgeStore)
+
+    def test_non_compliant_class_fails_isinstance(self):
+        from comfy_mcp.knowledge.store import KnowledgeStore
+
+        class BadStore:
+            pass
+
+        assert not isinstance(BadStore(), KnowledgeStore)
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_knowledge_store.py -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
 
 ```bash
-cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/knowledge/__init__.py src/comfy_mcp/knowledge/store.py && git commit -m "feat(v0.6): add KnowledgeStore protocol and atomic_write utility"
+cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/knowledge/__init__.py src/comfy_mcp/knowledge/store.py tests/test_knowledge_store.py && git commit -m "feat(v0.6): add KnowledgeStore protocol and atomic_write utility with tests"
 ```
 
 ---
@@ -663,6 +759,34 @@ class TestInstallGraphDiskCache:
         graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
         loaded = graph.load_from_disk()
         assert loaded is False
+
+
+class TestInstallGraphProtocolCompliance:
+    """Verify InstallGraph satisfies the KnowledgeStore protocol."""
+
+    def test_isinstance_check(self, mock_client, tmp_path):
+        from comfy_mcp.install.install_graph import InstallGraph
+        from comfy_mcp.knowledge.store import KnowledgeStore
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        assert isinstance(graph, KnowledgeStore)
+
+    def test_content_hash_returns_string(self, mock_client, tmp_path):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        h = graph.content_hash()
+        assert isinstance(h, str) and len(h) > 0
+
+    def test_summary_returns_dict(self, mock_client, tmp_path):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        s = graph.summary()
+        assert isinstance(s, dict)
+
+    def test_clear_resets_state(self, mock_client, tmp_path):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        graph.clear()
+        assert graph._snapshot is None
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -712,13 +836,45 @@ Add methods:
             return False
 ```
 
-Also update `refresh()` to save to disk after refresh:
+**Note:** Do NOT add `save_to_disk()` inside `refresh()`. Auto-saving in refresh would cause existing tests to write to the real home directory. Instead, save explicitly in the server.py lifespan after refresh completes (see Task 6).
+
+- [ ] **Step 4: Retrofit KnowledgeStore protocol compliance on InstallGraph**
+
+Add the following methods to InstallGraph so it satisfies the `KnowledgeStore` protocol (the KnowledgeManager calls `store.content_hash()`, `store.summary()`, and `store.clear()`):
+
 ```python
-        # At the end of refresh(), add:
-        self.save_to_disk()
+    def content_hash(self) -> str:
+        """SHA-256 prefix of the combined hashes dict for change detection."""
+        import hashlib
+        raw = json.dumps(self._hashes, sort_keys=True)
+        return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+    def summary(self) -> dict[str, Any]:
+        """Return compact status summary for KnowledgeManager."""
+        if not self._snapshot:
+            return {"status": "empty", "node_count": 0}
+        return {
+            "status": "loaded",
+            "node_count": self._snapshot.get("node_count", 0),
+            "model_count": self._snapshot.get("model_count", 0),
+        }
+
+    def clear(self) -> None:
+        """Remove all cached data (in-memory and on disk)."""
+        self._snapshot = None
+        self._hashes = {}
+        path = self._cache_dir / "install_graph.json"
+        if path.exists():
+            path.unlink()
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+Verify protocol compliance with:
+```python
+from comfy_mcp.knowledge.store import KnowledgeStore
+assert isinstance(install_graph, KnowledgeStore)
+```
+
+- [ ] **Step 5: Run test to verify it passes**
 
 Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_install_graph.py -v`
 Expected: PASS (all existing + new tests)
@@ -727,6 +883,157 @@ Expected: PASS (all existing + new tests)
 
 ```bash
 cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/install/install_graph.py tests/test_install_graph.py && git commit -m "feat(v0.6): add install graph disk cache with atomic writes"
+```
+
+---
+
+### Task 4b: Manifest migration (manifest.json → state.json)
+
+**Files:**
+- Create: `src/comfy_mcp/knowledge/migration.py`
+- Create: `tests/test_knowledge_migration.py`
+
+- [ ] **Step 1: Write failing tests**
+
+```python
+# tests/test_knowledge_migration.py
+"""Tests for manifest.json → state.json migration."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+
+class TestManifestMigration:
+    def test_migrates_manifest_to_state(self, tmp_path):
+        from comfy_mcp.knowledge.migration import migrate_manifest_to_state
+        manifest = {"version": 1, "docs": {"count": 5}}
+        (tmp_path / "manifest.json").write_text(json.dumps(manifest))
+
+        migrate_manifest_to_state(tmp_path)
+
+        assert (tmp_path / "state.json").exists()
+        state = json.loads((tmp_path / "state.json").read_text())
+        assert "docs" in state or "migrated_from" in state
+
+    def test_creates_backup_of_manifest(self, tmp_path):
+        from comfy_mcp.knowledge.migration import migrate_manifest_to_state
+        manifest = {"version": 1, "docs": {"count": 5}}
+        (tmp_path / "manifest.json").write_text(json.dumps(manifest))
+
+        migrate_manifest_to_state(tmp_path)
+
+        assert (tmp_path / "manifest.json.bak").exists()
+        backup = json.loads((tmp_path / "manifest.json.bak").read_text())
+        assert backup == manifest
+
+    def test_idempotent_rerun_does_not_overwrite(self, tmp_path):
+        from comfy_mcp.knowledge.migration import migrate_manifest_to_state
+        manifest = {"version": 1, "docs": {"count": 5}}
+        (tmp_path / "manifest.json").write_text(json.dumps(manifest))
+
+        migrate_manifest_to_state(tmp_path)
+        first_state = (tmp_path / "state.json").read_text()
+
+        # Run again — should be idempotent
+        migrate_manifest_to_state(tmp_path)
+        second_state = (tmp_path / "state.json").read_text()
+        assert first_state == second_state
+
+    def test_noop_when_no_manifest(self, tmp_path):
+        from comfy_mcp.knowledge.migration import migrate_manifest_to_state
+        migrate_manifest_to_state(tmp_path)
+        # No crash, no state.json created from nothing
+        assert not (tmp_path / "state.json").exists()
+
+    def test_noop_when_state_already_exists(self, tmp_path):
+        from comfy_mcp.knowledge.migration import migrate_manifest_to_state
+        (tmp_path / "manifest.json").write_text('{"old": true}')
+        (tmp_path / "state.json").write_text('{"already": "migrated"}')
+
+        migrate_manifest_to_state(tmp_path)
+        state = json.loads((tmp_path / "state.json").read_text())
+        assert state == {"already": "migrated"}  # Not overwritten
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_knowledge_migration.py -v`
+Expected: FAIL
+
+- [ ] **Step 3: Implement migration logic**
+
+```python
+# src/comfy_mcp/knowledge/migration.py
+"""Migration helper — manifest.json → state.json with .bak backup.
+
+Handles idempotent migration: skips if state.json already exists,
+creates .bak backup of manifest.json before migrating.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import shutil
+from pathlib import Path
+
+from comfy_mcp.knowledge.store import atomic_write
+
+logger = logging.getLogger("comfypilot.knowledge.migration")
+
+
+def migrate_manifest_to_state(data_dir: Path) -> bool:
+    """Migrate manifest.json to state.json if needed.
+
+    Returns True if migration was performed, False if skipped.
+    """
+    data_dir = Path(data_dir)
+    manifest_path = data_dir / "manifest.json"
+    state_path = data_dir / "state.json"
+    backup_path = data_dir / "manifest.json.bak"
+
+    # Skip if no manifest to migrate
+    if not manifest_path.exists():
+        return False
+
+    # Skip if already migrated (state.json exists)
+    if state_path.exists():
+        logger.info("state.json already exists, skipping migration")
+        return False
+
+    try:
+        manifest_data = json.loads(manifest_path.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Cannot read manifest.json for migration: %s", exc)
+        return False
+
+    # Create backup
+    shutil.copy2(str(manifest_path), str(backup_path))
+
+    # Build state from manifest
+    state = {
+        "migrated_from": "manifest.json",
+        **manifest_data,
+    }
+
+    atomic_write(state_path, json.dumps(state, indent=2))
+    logger.info("Migrated manifest.json → state.json (backup at manifest.json.bak)")
+    return True
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && uv run pytest tests/test_knowledge_migration.py -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/knowledge/migration.py tests/test_knowledge_migration.py && git commit -m "feat(v0.6): add manifest.json → state.json migration with backup and idempotency"
 ```
 
 ---
@@ -926,7 +1233,7 @@ async def comfy_get_config(key: str | None = None, ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_set_config(key: str, value: Any = None, ctx: Context = None) -> str:
+async def comfy_set_config(key: str, value: Any, ctx: Context = None) -> str:
     """Write a persisted user preference.
 
     Args:
@@ -969,24 +1276,52 @@ After existing subsystem initialization, add:
 
     config_manager = ConfigManager()
 
+    global _shared_knowledge_manager
+
+    import asyncio
+
     # Try loading install graph from disk cache for faster startup
     if install_graph.load_from_disk() and not install_graph.is_stale():
         logger.info("Loaded install graph from disk cache")
+    elif install_graph.load_from_disk():
+        # Cache exists but is stale — use it immediately, refresh in background
+        logger.info("Install graph cache stale, scheduling background refresh")
+        async def _bg_refresh():
+            try:
+                await install_graph.refresh()
+                install_graph.save_to_disk()
+                logger.info("Background install graph refresh complete")
+            except Exception as exc:
+                logger.warning("Background refresh failed: %s", exc)
+        asyncio.create_task(_bg_refresh())
     else:
+        # No cache at all — must block on first refresh
         await install_graph.refresh()
+        install_graph.save_to_disk()  # Explicit save after refresh (not inside refresh())
     _shared_install_graph = install_graph
 
-    knowledge_manager = KnowledgeManager({
-        "install_graph": install_graph,
-        "docs": docs_store,
-        "templates": template_index,
-    })
+    # Build stores dict dynamically — only include subsystems that are available
+    stores = {"install_graph": install_graph}
+    if "docs_store" in dir() and docs_store is not None:
+        stores["docs"] = docs_store
+    if "template_index" in dir() and template_index is not None:
+        stores["templates"] = template_index
+
+    knowledge_manager = KnowledgeManager(stores)
 ```
 
-Add to yield dict:
+After creating the KnowledgeManager, set the global and add finally cleanup:
 ```python
+    _shared_knowledge_manager = knowledge_manager
+
+    try:
+        yield {
+            ...
             "knowledge_manager": knowledge_manager,
             "config_manager": config_manager,
+        }
+    finally:
+        _shared_knowledge_manager = None
 ```
 
 Replace the `comfy://knowledge/status` resource with `comfy://knowledge/full`:

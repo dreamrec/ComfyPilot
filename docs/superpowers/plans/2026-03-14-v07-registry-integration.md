@@ -31,6 +31,8 @@
 | Modify | `tests/conftest.py` | Add registry mocks to mock_ctx |
 | Modify | `README.md` | Update to 92 tools, 11 resources |
 
+> **Note:** The spec mentions `environment.py` but no modifications are needed there. Registry enrichment happens at the engine level (`engine.py`'s `run_preflight`) rather than in the environment checker. The environment module continues to report raw missing node class names; enrichment with package data is applied afterward.
+
 ---
 
 ## Chunk 1: Registry Client
@@ -504,8 +506,18 @@ class RegistryIndex:
 
     def save(self) -> None:
         """Persist cache to disk."""
-        from comfy_mcp.knowledge.store import atomic_write
-        atomic_write(self._index_path(), json.dumps(self._cache, indent=2))
+        # TODO: replace with knowledge.store.atomic_write after v0.6
+        import tempfile
+        data = json.dumps(self._cache, indent=2)
+        path = self._index_path()
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        try:
+            with open(fd, "w") as f:
+                f.write(data)
+            Path(tmp).replace(path)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
 
     def clear(self) -> None:
         """Clear all cached entries."""
@@ -689,7 +701,7 @@ class RegistryResolver:
     async def resolve_one(self, class_name: str) -> dict[str, Any]:
         """Resolve a single node class name to a package.
 
-        Returns: {"class": str, "package": str|None, "version": str|None,
+        Returns: {"class": str, "package": str|None, "latest_version": str|None,
                   "compatible": bool, "install_cmd": str|None, "note": str|None}
         """
         # Check cache first
@@ -699,7 +711,7 @@ class RegistryResolver:
                 return {
                     "class": class_name,
                     "package": None,
-                    "version": None,
+                    "latest_version": None,
                     "compatible": False,
                     "install_cmd": None,
                     "note": "Not found in registry — may be a local/private custom node",
@@ -713,7 +725,7 @@ class RegistryResolver:
             return {
                 "class": class_name,
                 "package": None,
-                "version": None,
+                "latest_version": None,
                 "compatible": False,
                 "install_cmd": None,
                 "note": "Not found in registry — may be a local/private custom node",
@@ -740,19 +752,62 @@ class RegistryResolver:
         }
 
     async def resolve_batch(self, class_names: list[str]) -> dict[str, Any]:
-        """Resolve multiple missing node classes, deduplicating by package."""
+        """Resolve multiple missing node classes, deduplicating by package.
+
+        Uses bulk_resolve API when 3+ uncached class names need resolution
+        (per spec: prefer bulk resolve for 3+ nodes).
+        """
         results = []
         packages_seen: dict[str, list[str]] = {}  # package_id -> [class_names]
 
+        # Split into cached and uncached
+        uncached = []
         for name in class_names:
-            result = await self.resolve_one(name)
-            results.append(result)
+            cached = self._index.lookup(name)
+            if cached is not None:
+                if cached.get("package") is None:
+                    results.append({
+                        "class": name, "package": None, "latest_version": None,
+                        "compatible": False, "install_cmd": None,
+                        "note": "Not found in registry — may be a local/private custom node",
+                    })
+                else:
+                    results.append(self._build_result(name, cached["package"], cached.get("version")))
+            else:
+                uncached.append(name)
 
+        # Use bulk resolve API for 3+ uncached nodes
+        if len(uncached) >= 3:
+            bulk_result = await self._client.bulk_resolve(
+                [{"node_class": n} for n in uncached]
+            )
+            for name in uncached:
+                entry = bulk_result.get(name)
+                if entry and entry.get("node"):
+                    node_info = entry["node"]
+                    pkg_id = node_info.get("id", "")
+                    version = node_info.get("latest_version", {}).get("version", "unknown")
+                    self._index.cache_positive(name, pkg_id, version)
+                    results.append(self._build_result(name, pkg_id, version))
+                else:
+                    self._index.cache_negative(name)
+                    results.append({
+                        "class": name, "package": None, "latest_version": None,
+                        "compatible": False, "install_cmd": None,
+                        "note": "Not found in registry — may be a local/private custom node",
+                    })
+        else:
+            for name in uncached:
+                result = await self.resolve_one(name)
+                results.append(result)
+
+        # Build packages_seen from all results
+        for result in results:
             pkg = result.get("package")
             if pkg:
                 if pkg not in packages_seen:
                     packages_seen[pkg] = []
-                packages_seen[pkg].append(name)
+                packages_seen[pkg].append(result["class"])
 
         # Add deduplication notes
         for result in results:
@@ -769,9 +824,11 @@ class RegistryResolver:
         unresolved = len(results) - resolved
         unique_packages = len(packages_seen)
 
-        resolution = f"Install {unique_packages} package(s) to resolve {resolved} missing node(s)"
+        n = unique_packages
+        m = resolved
+        resolution = f"Install {n} package{'s' if n != 1 else ''} to resolve all {m} missing node{'s' if m != 1 else ''}"
         if unresolved > 0:
-            resolution += f". {unresolved} node(s) not found in registry."
+            resolution += f". {unresolved} node{'s' if unresolved != 1 else ''} not found in registry."
 
         return {
             "nodes": results,
@@ -803,9 +860,17 @@ cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/regist
 
 - [ ] **Step 1: Write failing test for enriched output**
 
-Add to `tests/test_compat_engine.py`:
+Append to `tests/test_compat_engine.py` (after the existing `SNAPSHOT` definition already present in that file — do **not** redefine `SNAPSHOT`; if the file does not already have one, add it before this class):
 
 ```python
+# NOTE: This class relies on the SNAPSHOT dict already defined at module level
+# in tests/test_compat_engine.py. If it is missing, add:
+#   SNAPSHOT = {
+#       "version": "0.17.0",
+#       "os": "nt",
+#       "gpu_devices": [{"name": "NVIDIA RTX 5090", "type": "cuda"}],
+#   }
+
 class TestCompatEngineWithRegistry:
     def test_missing_nodes_enriched_when_registry_provided(self):
         from comfy_mcp.compat.engine import run_preflight
@@ -847,10 +912,14 @@ Modify `run_preflight` in `src/comfy_mcp/compat/engine.py` to accept an optional
 def run_preflight(workflow: Any, snapshot: dict, registry_resolutions: dict[str, dict] | None = None) -> dict[str, Any]:
 ```
 
-At the point where `missing_nodes` is assembled, enrich entries if registry data is provided:
+**Note on type change:** After enrichment, `missing_nodes` in the result dict becomes `list[str | dict[str, Any]]` (was `list[str]`). Any internal helper that builds the report (e.g., `_build_report`) must update its signature accordingly:
+- Parameter: `missing_nodes: list[str | dict[str, Any]]`
+- Docstring: "Each entry is either a plain class name string (no registry data) or a dict with keys: class, package, latest_version, compatible, install_cmd, note."
+
+**Insertion point:** This enrichment code goes in `run_preflight()` **after** `env_result` is computed (i.e., after the line `env_result = check_environment(workflow, snapshot)` or equivalent) and **before** the final `return { ... "missing_nodes": ... }` dict is assembled. Specifically, find the line that reads `missing_nodes` from `env_result` (e.g., `env_result.get("missing_nodes", [])`) and insert the enrichment block between that extraction and its use in the return dict:
 
 ```python
-    # After environment check, before building result:
+    # Between missing_nodes extraction from env_result and _build_report / return dict:
     if registry_resolutions and env_result.get("missing_nodes"):
         enriched_missing = []
         for node_name in env_result["missing_nodes"]:
@@ -945,6 +1014,25 @@ class TestResolveMissing:
         registry_ctx.request_context.lifespan_context["registry_client"].reverse_lookup = AsyncMock(return_value=None)
         result = json.loads(await comfy_resolve_missing(node_classes=["FakeNode"], ctx=registry_ctx))
         assert "nodes" in result
+        assert result["nodes"][0]["package"] is None
+        assert result["unresolved"] == 1
+
+
+class TestCheckCompatibility:
+    @pytest.mark.asyncio
+    async def test_compatible_package(self, registry_ctx):
+        from comfy_mcp.tools.registry import comfy_check_compatibility
+        result = json.loads(await comfy_check_compatibility(package_id="pkg-a", ctx=registry_ctx))
+        assert result["compatible"] is True
+        assert result["package_id"] == "pkg-a"
+        assert "install_cmd" in result
+
+    @pytest.mark.asyncio
+    async def test_not_found_package(self, registry_ctx):
+        from comfy_mcp.tools.registry import comfy_check_compatibility
+        registry_ctx.request_context.lifespan_context["registry_client"].get_node = AsyncMock(return_value=None)
+        result = json.loads(await comfy_check_compatibility(package_id="nonexistent", ctx=registry_ctx))
+        assert "error" in result
 
 
 class TestRegistryStatus:
@@ -953,6 +1041,30 @@ class TestRegistryStatus:
         from comfy_mcp.tools.registry import comfy_registry_status
         result = json.loads(await comfy_registry_status(ctx=registry_ctx))
         assert "total_entries" in result
+
+
+class TestRegistryStatusResource:
+    @pytest.mark.asyncio
+    async def test_resource_returns_summary(self):
+        import comfy_mcp.server as srv
+        mock_index = MagicMock()
+        mock_index.summary = MagicMock(return_value={
+            "total_entries": 10, "positive_entries": 8, "negative_entries": 2,
+        })
+        srv._shared_registry_index = mock_index
+        try:
+            result = json.loads(await srv.registry_status_resource())
+            assert result["total_entries"] == 10
+            assert result["positive_entries"] == 8
+        finally:
+            srv._shared_registry_index = None
+
+    @pytest.mark.asyncio
+    async def test_resource_not_initialized(self):
+        import comfy_mcp.server as srv
+        srv._shared_registry_index = None
+        result = json.loads(await srv.registry_status_resource())
+        assert result["status"] == "not_initialized"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1006,7 +1118,10 @@ async def comfy_search_registry(
         limit: Maximum results (default 10).
     """
     client = _client(ctx)
-    result = await client.search_nodes(query, limit=limit)
+    extra = {}
+    if tags:
+        extra["tags"] = ",".join(tags)
+    result = await client.search_nodes(query, limit=limit, **extra)
     return json.dumps(result, indent=2)
 
 
@@ -1170,7 +1285,7 @@ cd C:/Users/dr5090/AppData/Local/Temp/ComfyPilot && git add src/comfy_mcp/tools/
 
 - [ ] **Step 1: Add to server.py lifespan**
 
-After knowledge_manager initialization, add:
+After `await install_graph.refresh()` and before the `yield` statement in the lifespan function, add:
 
 ```python
     from comfy_mcp.registry.client import RegistryClient
@@ -1217,6 +1332,7 @@ Add to `lifespan_context`:
 ```python
         "registry_client": AsyncMock(),
         "registry_index": MagicMock(),
+        "install_graph": MagicMock(),
 ```
 
 - [ ] **Step 4: Update README.md**
