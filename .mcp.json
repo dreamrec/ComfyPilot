@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "comfypilot": {
+      "command": "uv",
+      "args": ["run", "--directory", ".", "comfypilot"],
+      "env": {
+        "COMFY_URL": "https://desktop-3lurf0p.tail88651a.ts.net",
+        "COMFY_API_KEY": ""
+      }
+    }
+  }
+}
