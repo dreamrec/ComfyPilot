@@ -24,7 +24,7 @@ class RegistryResolver:
         """Resolve a single node class name to a package.
 
         Returns: {"class": str, "package": str|None, "latest_version": str|None,
-                  "compatible": bool, "install_cmd": str|None, "note": str|None}
+                  "basic_check_passed": bool, "install_cmd": str|None, "note": str|None}
         """
         # Check cache first
         cached = self._index.lookup(class_name)
@@ -34,7 +34,7 @@ class RegistryResolver:
                     "class": class_name,
                     "package": None,
                     "latest_version": None,
-                    "compatible": False,
+                    "basic_check_passed": False,
                     "install_cmd": None,
                     "note": "Not found in registry — may be a local/private custom node",
                 }
@@ -48,7 +48,7 @@ class RegistryResolver:
                 "class": class_name,
                 "package": None,
                 "latest_version": None,
-                "compatible": False,
+                "basic_check_passed": False,
                 "install_cmd": None,
                 "note": "Not found in registry — may be a local/private custom node",
             }
@@ -68,7 +68,7 @@ class RegistryResolver:
             "class": class_name,
             "package": package_id,
             "latest_version": version,
-            "compatible": True,  # TODO: full compat check against snapshot in future
+            "basic_check_passed": True,  # Only version/OS checked; full compat not verified
             "install_cmd": f"comfy node install {package_id}",
             "note": None,
         }
@@ -90,7 +90,7 @@ class RegistryResolver:
                 if cached.get("package") is None:
                     results.append({
                         "class": name, "package": None, "latest_version": None,
-                        "compatible": False, "install_cmd": None,
+                        "basic_check_passed": False, "install_cmd": None,
                         "note": "Not found in registry — may be a local/private custom node",
                     })
                 else:
@@ -115,7 +115,7 @@ class RegistryResolver:
                     self._index.cache_negative(name)
                     results.append({
                         "class": name, "package": None, "latest_version": None,
-                        "compatible": False, "install_cmd": None,
+                        "basic_check_passed": False, "install_cmd": None,
                         "note": "Not found in registry — may be a local/private custom node",
                     })
         else:

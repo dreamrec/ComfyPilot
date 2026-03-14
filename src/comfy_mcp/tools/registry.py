@@ -167,7 +167,7 @@ async def comfy_check_compatibility(package_id: str, *, ctx: Context) -> str:
         "package_id": package_id,
         "name": pkg.get("name", ""),
         "latest_version": pkg.get("latest_version", {}).get("version", "unknown"),
-        "compatible": len(warnings) == 0,
+        "basic_check_passed": len(warnings) == 0,
         "warnings": warnings,
         "install_cmd": f"comfy node install {package_id}",
     }, indent=2)

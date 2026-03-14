@@ -2,7 +2,7 @@
 
 Sources:
 1. Official ComfyUI templates (GET /templates/index.json)
-2. Custom node example workflows (GET /workflow_templates)
+2. Custom node example workflows (GET /api/workflow_templates)
 3. Built-in templates (hardcoded fallbacks for basic workflows)
 """
 
@@ -49,7 +49,7 @@ class TemplateDiscovery:
         if self._client is None:
             return []
         try:
-            response = await self._client.get("/workflow_templates")
+            response = await self._client.get("/api/workflow_templates")
             data = self._unwrap_response(response)
             if data is None:
                 return []

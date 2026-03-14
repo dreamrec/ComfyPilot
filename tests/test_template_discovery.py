@@ -63,6 +63,17 @@ class TestDiscoverCustomNode:
         assert templates[0]["source"] == "custom_node"
 
 
+class TestRequestPaths:
+    @pytest.mark.asyncio
+    async def test_custom_node_uses_api_prefix(self, mock_comfy_client):
+        """Ensure discover_custom_node hits /api/workflow_templates, not /workflow_templates."""
+        from comfy_mcp.templates.discovery import TemplateDiscovery
+        mock_comfy_client.get = AsyncMock(return_value=[])
+        discovery = TemplateDiscovery(mock_comfy_client)
+        await discovery.discover_custom_node()
+        mock_comfy_client.get.assert_called_once_with("/api/workflow_templates")
+
+
 class TestDiscoverOfficialDictReturn:
     @pytest.mark.asyncio
     async def test_handles_dict_returning_client(self, mock_comfy_client):

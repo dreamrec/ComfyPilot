@@ -102,7 +102,7 @@ class TestCompatEngineWithRegistry:
                 "class": "UnknownNode",
                 "package": "some-custom-pack",
                 "latest_version": "1.0.0",
-                "compatible": True,
+                "basic_check_passed": True,
                 "install_cmd": "comfy node install some-custom-pack",
                 "note": None,
             }

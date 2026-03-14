@@ -62,7 +62,7 @@ class TestCheckCompatibility:
     async def test_compatible_package(self, registry_ctx):
         from comfy_mcp.tools.registry import comfy_check_compatibility
         result = json.loads(await comfy_check_compatibility(package_id="pkg-a", ctx=registry_ctx))
-        assert result["compatible"] is True
+        assert result["basic_check_passed"] is True
         assert result["package_id"] == "pkg-a"
         assert "install_cmd" in result
 

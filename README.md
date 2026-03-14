@@ -305,6 +305,13 @@ uv run pytest tests/test_builder.py -v
 
 Full suite: 541 tests across 53 test files.
 
+## Contributing
+
+```bash
+uv sync --extra dev
+uv run pytest -q
+```
+
 ## Reliability Habit
 
 Treat this as mandatory for every meaningful task: before generations check VRAM, before workflow changes snapshot, after builds validate, after errors check `comfy_detect_instability`.
