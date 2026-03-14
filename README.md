@@ -166,6 +166,20 @@ Use for agent-orchestrated cross-app delivery of generated images.
 - Automatic custom node installation or dependency management.
 - "One shot perfect generation" without iterative refinement.
 
+## Support Matrix
+
+| Feature | Status | Notes |
+|---|---|---|
+| Local ComfyUI (self-hosted) | Supported | Primary target |
+| Comfy Cloud API | Partial | Auth + route differences not yet handled |
+| stdio transport | Supported | Default |
+| Streamable HTTP transport | Not yet | Planned |
+| Workflow JSON (v0.17+ spec) | Partial | Import/export works, schema validation limited |
+| V3 custom nodes | Not tested | V3 migration is ongoing in ComfyUI |
+| WebSocket progress events | Partial | EventManager built but not started in lifespan (fix in v0.2.0) |
+| Image content blocks | Supported | Inline image display in chat |
+| Cross-app routing | Filesystem only | Saves to disk with suggested commands |
+
 ## Quick Setup
 
 Local development runtime:
