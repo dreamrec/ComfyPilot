@@ -23,6 +23,12 @@ def mock_client():
     """Mock ComfyClient with common method stubs."""
     client = AsyncMock()
     client.base_url = "http://localhost:8188"
+    client.capabilities = {
+        "profile": "local",
+        "version": "0.17.0",
+        "ws_available": True,
+        "features": [],
+    }
     client.get = AsyncMock(return_value={})
     client.post = AsyncMock(return_value={})
     client.get_system_stats = AsyncMock(return_value={

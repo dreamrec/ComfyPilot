@@ -18,7 +18,21 @@ from typing import Any
 
 logger = logging.getLogger("comfypilot.install")
 
-MODEL_FOLDERS = ("checkpoints", "loras", "vae", "controlnet", "upscale_models", "clip", "diffusers", "hypernetworks")
+MODEL_FOLDERS = (
+    "checkpoints",
+    "diffusion_models",
+    "text_encoders",
+    "vae",
+    "loras",
+    "controlnet",
+    "model_patches",
+    "latent_upscale_models",
+    "clip",
+    "clip_vision",
+    "upscale_models",
+    "diffusers",
+    "hypernetworks",
+)
 
 
 def _hash(obj: Any) -> str:

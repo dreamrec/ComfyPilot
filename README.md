@@ -25,7 +25,7 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 - A structured toolset for workflow building, image generation, model management, and output routing.
 - A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
 - A technique memory system that learns your workflow patterns and builds a reusable library.
-- 90-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, and registry integration for missing node resolution.
+- 92-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, registry integration for missing node resolution, and model-awareness scanning for modern ComfyUI ecosystems.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -43,7 +43,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (90 Tools)
+## Tool Map (92 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -52,10 +52,11 @@ Use for connection health, GPU diagnostics, and VRAM management.
 - `comfy_list_extensions`, `comfy_restart`, `comfy_free_vram`
 
 ### 2) Models
-Use for discovering and managing checkpoints, LoRAs, VAEs, and other model files.
+Use for discovering and managing checkpoints, LoRAs, VAEs, and other model files, plus awareness of modern model families and provider ecosystems.
 
 - `comfy_list_models`, `comfy_get_model_info`, `comfy_list_model_folders`
 - `comfy_search_models`, `comfy_refresh_models`
+- `comfy_list_model_families`, `comfy_detect_model_capabilities`
 
 ### 3) Workflow Execution
 Use for queueing, cancelling, and managing prompt execution.
@@ -181,7 +182,7 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 - `comfy_check_compatibility` -- Check if a registry package is compatible with the current environment.
 - `comfy_registry_status` -- Show registry cache statistics (index size, entry counts).
 
-## MCP Resources (10)
+## MCP Resources (12)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
 - `comfy://server/capabilities` — Detected server profile, version, auth method
@@ -193,6 +194,8 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 - `comfy://docs/status` — Documentation cache status (embedded doc counts, llms-full.txt freshness, content hashes)
 - `comfy://templates/index` — Template index summary (counts, categories, sources, freshness)
 - `comfy://registry/status` — Registry cache stats and index coverage
+- `comfy://ecosystem/registry` — Curated model families, ecosystems, providers, and verification metadata
+- `comfy://environment/model-awareness` — Detected installed families, capability summary, and provider signals
 
 ## How To Use It (Practical Workflow)
 

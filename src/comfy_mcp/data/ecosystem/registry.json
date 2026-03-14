@@ -1,0 +1,275 @@
+[
+  {
+    "id": "ltx23",
+    "kind": "family",
+    "display_name": "LTX-Video 2.3",
+    "priority": 120,
+    "modality": ["video"],
+    "tasks": ["t2v", "i2v", "flf2v", "upscale"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["diffusion_models", "text_encoders", "vae", "latent_upscale_models"],
+    "optional_folders": ["loras", "model_patches"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "diffusion_models",
+        "terms": ["ltx video 2.3", "ltx-video-2.3", "ltxv 2.3", "ltxv"],
+        "patterns": ["ltx.*2[._ -]?3", "ltxv"]
+      },
+      {
+        "folder": "latent_upscale_models",
+        "terms": ["ltxv latent upscale", "ltx latent upscale"],
+        "patterns": ["ltx.*upscale"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "diffusion_models", "patterns": ["ltx.*2[._ -]?3", "ltxv"]},
+      {"folder": "text_encoders", "patterns": ["t5", "umt5", "llama"]},
+      {"folder": "vae", "patterns": ["ltx", "video vae"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/video/ltx/ltx-2-3"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "wan22",
+    "kind": "family",
+    "display_name": "Wan 2.2",
+    "priority": 118,
+    "modality": ["video"],
+    "tasks": ["t2v", "i2v"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["diffusion_models", "text_encoders", "vae"],
+    "optional_folders": ["loras"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "diffusion_models",
+        "terms": ["wan 2.2", "wan2.2", "wan video"],
+        "patterns": ["wan.*2[._ -]?2", "wanvideo"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "diffusion_models", "patterns": ["wan.*2[._ -]?2", "wanvideo"]},
+      {"folder": "text_encoders", "patterns": ["umt5", "qwen", "clip"]},
+      {"folder": "vae", "patterns": ["wan", "video vae"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/video/wan/wan2_2"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "hunyuanvideo15",
+    "kind": "family",
+    "display_name": "HunyuanVideo 1.5",
+    "priority": 116,
+    "modality": ["video"],
+    "tasks": ["t2v", "i2v"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["diffusion_models", "text_encoders", "vae"],
+    "optional_folders": ["loras"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "diffusion_models",
+        "terms": ["hunyuanvideo 1.5", "hunyuan video 1.5", "hunyuanvideo"],
+        "patterns": ["hunyuan.*1[._ -]?5", "hunyuanvideo"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "diffusion_models", "patterns": ["hunyuan"]},
+      {"folder": "text_encoders", "patterns": ["llama", "clip"]},
+      {"folder": "vae", "patterns": ["hunyuan", "video vae"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/video/hunyuan/hunyuan-video-1-5"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "qwen-image",
+    "kind": "family",
+    "display_name": "Qwen-Image",
+    "priority": 110,
+    "modality": ["image"],
+    "tasks": ["t2i", "i2i", "edit", "control"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["diffusion_models", "text_encoders", "vae"],
+    "optional_folders": ["loras", "model_patches", "controlnet"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "diffusion_models",
+        "terms": ["qwen image", "qwen-image", "qwen_image"],
+        "patterns": ["qwen.*image"]
+      },
+      {
+        "folder": "text_encoders",
+        "terms": ["qwen 2.5 vl", "qwen2.5 vl"],
+        "patterns": ["qwen.*2[._ -]?5.*vl"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "diffusion_models", "patterns": ["qwen.*image"]},
+      {"folder": "text_encoders", "patterns": ["qwen.*2[._ -]?5.*vl"]},
+      {"folder": "vae", "patterns": ["qwen.*vae"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/image/qwen/qwen-image"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "z-image",
+    "kind": "family",
+    "display_name": "Z-Image",
+    "priority": 108,
+    "modality": ["image"],
+    "tasks": ["t2i", "edit", "control"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["diffusion_models", "text_encoders", "vae"],
+    "optional_folders": ["model_patches", "controlnet", "loras"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "diffusion_models",
+        "terms": ["z image", "z-image", "z_image"],
+        "patterns": ["z[._ -]?image"]
+      },
+      {
+        "folder": "model_patches",
+        "terms": ["z image patch", "z-image patch"],
+        "patterns": ["z[._ -]?image.*patch"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "diffusion_models", "patterns": ["z[._ -]?image"]},
+      {"folder": "text_encoders", "patterns": ["clip", "t5", "llama"]},
+      {"folder": "vae", "patterns": ["z[._ -]?image", "vae"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/image/z-image/z-image-turbo"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "hidream",
+    "kind": "family",
+    "display_name": "HiDream E1/E1.1",
+    "priority": 106,
+    "modality": ["image"],
+    "tasks": ["t2i", "edit"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["diffusion_models", "text_encoders", "vae"],
+    "optional_folders": ["loras"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "diffusion_models",
+        "terms": ["hidream", "hidream e1", "hidream e1.1"],
+        "patterns": ["hidream"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "diffusion_models", "patterns": ["hidream"]},
+      {"folder": "text_encoders", "patterns": ["clip", "llama", "t5"]},
+      {"folder": "vae", "patterns": ["hidream", "vae"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/image/hidream/hidream-e1"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "flux2",
+    "kind": "family",
+    "display_name": "FLUX.2",
+    "priority": 102,
+    "modality": ["image"],
+    "tasks": ["t2i", "edit"],
+    "runtime_modes": ["local-native", "partner-nodes"],
+    "required_folders": ["diffusion_models", "text_encoders", "vae"],
+    "optional_folders": ["loras", "model_patches"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "diffusion_models",
+        "terms": ["flux.2", "flux 2", "flux2", "flux klein"],
+        "patterns": ["flux.*2", "flux.*klein"]
+      },
+      {
+        "folder": "checkpoints",
+        "terms": ["flux.2", "flux 2", "flux2"],
+        "patterns": ["flux.*2"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "text_encoders", "patterns": ["clip", "t5"]},
+      {"folder": "vae", "patterns": ["ae", "vae"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/flux/flux-2-klein"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "flux1",
+    "kind": "family",
+    "display_name": "FLUX.1",
+    "priority": 96,
+    "modality": ["image"],
+    "tasks": ["t2i", "edit"],
+    "runtime_modes": ["local-native", "partner-nodes"],
+    "required_folders": ["checkpoints"],
+    "optional_folders": ["loras", "vae", "text_encoders"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "checkpoints",
+        "terms": ["flux1", "flux 1", "flux.1", "flux dev", "flux schnell"],
+        "patterns": ["flux(?!.*2)", "flux.*dev", "flux.*schnell"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "checkpoints", "patterns": ["flux"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/flux/flux-1-dev"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "sdxl",
+    "kind": "family",
+    "display_name": "SDXL",
+    "priority": 70,
+    "modality": ["image"],
+    "tasks": ["t2i", "i2i", "inpaint", "control", "upscale"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["checkpoints"],
+    "optional_folders": ["vae", "loras", "controlnet"],
+    "community_tags": ["pony", "illustrious", "juggernaut-xl", "realvis-xl"],
+    "matchers": [
+      {
+        "folder": "checkpoints",
+        "terms": ["sdxl", "sd xl", "sd_xl", "juggernaut xl", "dreamshaper xl", "realvis xl", "animagine xl", "pony"],
+        "patterns": ["sdxl", "sd_xl", "juggernaut.*xl", "dreamshaper.*xl", "realvis.*xl", "animagine.*xl", "pony"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "checkpoints", "patterns": ["xl", "sdxl"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/basic/text-to-image"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
+    "id": "sd15",
+    "kind": "family",
+    "display_name": "SD1.5",
+    "priority": 60,
+    "modality": ["image"],
+    "tasks": ["t2i", "i2i", "inpaint", "control", "upscale"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["checkpoints"],
+    "optional_folders": ["vae", "loras", "controlnet"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "checkpoints",
+        "terms": ["v1.5", "v1-5", "sd15", "sd 1.5", "dreamshaper", "deliberate", "anything v4", "counterfeit"],
+        "patterns": ["v1[._ -]?5", "sd1[._ -]?5", "sd15", "dreamshaper(?!.*xl)", "deliberate", "anything", "counterfeit", "abyssorange"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "checkpoints", "patterns": ["v1", "sd15", "dreamshaper", "deliberate"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/basic/text-to-image"],
+    "last_verified_at": "2026-03-14"
+  }
+]

@@ -51,7 +51,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_restart` | Restart the ComfyUI server process | destructive |
 | `comfy_free_vram` | Unload models and free GPU memory | destructive |
 
-### Model Tools (5)
+### Model Tools (7)
 
 | Tool | Description |
 |------|-------------|
@@ -60,6 +60,8 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_list_model_folders` | List available model folder categories |
 | `comfy_search_models` | Search across all model folders by name pattern |
 | `comfy_refresh_models` | Force ComfyUI to rescan model directories |
+| `comfy_list_model_families` | List curated model families, ecosystems, and provider catalogs |
+| `comfy_detect_model_capabilities` | Detect installed families, capabilities, and provider signals from the current environment |
 
 ### Workflow Execution Tools (8)
 
@@ -195,6 +197,8 @@ Resources provide static/semi-static data without tool call overhead:
 | `comfy://docs/status` | Documentation cache freshness and hash state |
 | `comfy://templates/index` | Template index counts, categories, and sources |
 | `comfy://registry/status` | Registry cache stats and index coverage |
+| `comfy://ecosystem/registry` | Curated model families, ecosystems, providers, and verification metadata |
+| `comfy://environment/model-awareness` | Installed family detection, capability summary, and provider signals |
 
 ## Safety Protocol
 
