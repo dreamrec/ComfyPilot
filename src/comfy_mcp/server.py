@@ -19,12 +19,13 @@ from comfy_mcp.comfy_client import ComfyClient
 _shared_client: ComfyClient | None = None
 _shared_install_graph = None
 _shared_docs_store = None
+_shared_template_index = None
 
 
 @asynccontextmanager
 async def comfy_lifespan(server: FastMCP):
     """Manage ComfyClient and subsystem lifecycles."""
-    global _shared_client, _shared_install_graph, _shared_docs_store
+    global _shared_client, _shared_install_graph, _shared_docs_store, _shared_template_index
 
     url = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
     api_key = os.environ.get("COMFY_API_KEY", "")
@@ -60,6 +61,12 @@ async def comfy_lifespan(server: FastMCP):
     docs_fetcher = DocsFetcher()
     _shared_docs_store = docs_store
 
+    from comfy_mcp.templates.discovery import TemplateDiscovery
+    from comfy_mcp.templates.index import TemplateIndex
+    template_discovery = TemplateDiscovery(client)
+    template_index = TemplateIndex()
+    _shared_template_index = template_index
+
     if client.capabilities.get("ws_available", False):
         await event_mgr.start()
 
@@ -74,11 +81,14 @@ async def comfy_lifespan(server: FastMCP):
             "install_graph": install_graph,
             "docs_store": docs_store,
             "docs_fetcher": docs_fetcher,
+            "template_discovery": template_discovery,
+            "template_index": template_index,
         }
     finally:
         _shared_client = None
         _shared_install_graph = None
         _shared_docs_store = None
+        _shared_template_index = None
         await event_mgr.shutdown()
         await docs_fetcher.close()
         await client.close()
@@ -162,6 +172,14 @@ async def docs_status_resource() -> str:
     if _shared_docs_store is None:
         return json.dumps({"status": "not_initialized"})
     return json.dumps(_shared_docs_store.summary(), indent=2)
+
+
+@mcp.resource("comfy://templates/index")
+async def templates_index_resource() -> str:
+    """Template index summary -- counts, categories, sources."""
+    if _shared_template_index is None:
+        return json.dumps({"status": "not_initialized"})
+    return json.dumps(_shared_template_index.summary(), indent=2)
 
 
 def _register_tools():
