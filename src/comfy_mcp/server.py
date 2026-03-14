@@ -25,6 +25,7 @@ _shared_install_graph = None
 _shared_docs_store = None
 _shared_template_index = None
 _shared_knowledge_manager = None
+_shared_registry_index = None
 
 
 @asynccontextmanager
@@ -216,6 +217,14 @@ async def templates_index_resource() -> str:
     if _shared_template_index is None:
         return json.dumps({"status": "not_initialized"})
     return json.dumps(_shared_template_index.summary(), indent=2)
+
+
+@mcp.resource("comfy://registry/status")
+async def registry_status_resource() -> str:
+    """Registry cache stats and index coverage."""
+    if _shared_registry_index is None:
+        return json.dumps({"status": "not_initialized"})
+    return json.dumps(_shared_registry_index.summary(), indent=2)
 
 
 def _register_tools():
