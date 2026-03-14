@@ -284,3 +284,40 @@ class TestInstallGraphProtocolCompliance:
         graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
         graph.clear()
         assert graph._snapshot is None
+
+
+class TestInstallGraphFeaturePayload:
+    """Regression tests: features field must preserve both list and dict payloads."""
+
+    @pytest.mark.asyncio
+    async def test_list_features_preserved(self, mock_client):
+        """List-shaped feature payloads are kept as-is."""
+        from comfy_mcp.install.install_graph import InstallGraph
+        mock_client.get_features = AsyncMock(return_value=["feat-a", "feat-b"])
+        graph = InstallGraph(mock_client)
+        await graph.refresh()
+        assert graph.snapshot["features"] == ["feat-a", "feat-b"]
+
+    @pytest.mark.asyncio
+    async def test_dict_features_preserved(self, mock_client):
+        """Object/dict-shaped feature payloads must NOT be collapsed to []."""
+        from comfy_mcp.install.install_graph import InstallGraph
+        mock_client.get_features = AsyncMock(return_value={
+            "compositing": True,
+            "upscale_models": ["4xNMKD"],
+        })
+        graph = InstallGraph(mock_client)
+        await graph.refresh()
+        assert graph.snapshot["features"] == {
+            "compositing": True,
+            "upscale_models": ["4xNMKD"],
+        }
+
+    @pytest.mark.asyncio
+    async def test_none_features_default_to_empty_list(self, mock_client):
+        """When get_features raises, features falls back to None-safe default []."""
+        from comfy_mcp.install.install_graph import InstallGraph
+        mock_client.get_features = AsyncMock(side_effect=Exception("unavailable"))
+        graph = InstallGraph(mock_client)
+        await graph.refresh()
+        assert graph.snapshot["features"] == []

@@ -449,13 +449,22 @@ async def comfy_build_workflow(
             install_graph.snapshot.get("models", {}),
         )
         candidates = scorer.score(template, template_index.list_all(), limit=1)
-        if candidates and candidates[0]["score"] >= 0.7:
+        if candidates and candidates[0]["score"] >= 0.4:
             matched = template_index.get(candidates[0]["id"])
             if matched and "workflow" in matched:
                 from comfy_mcp.templates.instantiator import TemplateInstantiator
                 instantiator = TemplateInstantiator(install_graph.snapshot)
                 result = instantiator.instantiate(matched, overrides=params if params else None)
                 result["source"] = "template"
+                # Detect family from checkpoint in the workflow
+                from comfy_mcp.builder.families import family_defaults as _fd
+                _ckpt = None
+                for _node in matched["workflow"].values():
+                    if _node.get("class_type") == "CheckpointLoaderSimple":
+                        _ckpt = _node.get("inputs", {}).get("ckpt_name")
+                        break
+                if _ckpt:
+                    result["family"] = _fd(_ckpt)["family"]
                 return json.dumps(result, indent=2)
 
     if template not in _TEMPLATES:
@@ -476,9 +485,28 @@ async def comfy_build_workflow(
         except Exception:
             pass  # Fallback to template default
 
+    # Detect model family for appropriate defaults
+    from comfy_mcp.builder.families import family_defaults
+    checkpoint = resolved_params.get("checkpoint", "v1-5-pruned-emaonly.safetensors")
+    defaults = family_defaults(checkpoint)
+    # Apply family defaults for dimensions if user didn't specify
+    if "width" not in (params or {}):
+        resolved_params["width"] = defaults["width"]
+    if "height" not in (params or {}):
+        resolved_params["height"] = defaults["height"]
+    if "cfg" not in (params or {}):
+        resolved_params["cfg"] = defaults["cfg"]
+    if "steps" not in (params or {}):
+        resolved_params["steps"] = defaults["steps"]
+
     workflow = _TEMPLATES[template](resolved_params)
     return json.dumps(
-        {"template": template, "node_count": len(workflow), "workflow": workflow},
+        {
+            "template": template,
+            "family": defaults["family"],
+            "node_count": len(workflow),
+            "workflow": workflow,
+        },
         indent=2,
     )
 

@@ -144,6 +144,42 @@ class TestBuildWorkflow:
         ckpt = result["workflow"]["1"]["inputs"]["ckpt_name"]
         assert ckpt == "sdxl_base.safetensors"
 
+    @pytest.mark.asyncio
+    async def test_family_field_in_response(self, builder_ctx):
+        """Response should include a 'family' field."""
+        result = json.loads(await comfy_build_workflow("txt2img", ctx=builder_ctx))
+        assert "family" in result
+        assert result["family"] == "sd1.5"
+
+    @pytest.mark.asyncio
+    async def test_sdxl_checkpoint_gets_1024_defaults(self, builder_ctx):
+        """SDXL checkpoint should produce 1024x1024 when width/height not specified."""
+        params = {"checkpoint": "sd_xl_base_1.0.safetensors"}
+        result = json.loads(await comfy_build_workflow("txt2img", params=params, ctx=builder_ctx))
+        wf = result["workflow"]
+        assert wf["4"]["inputs"]["width"] == 1024
+        assert wf["4"]["inputs"]["height"] == 1024
+        assert result["family"] == "sdxl"
+
+    @pytest.mark.asyncio
+    async def test_sd15_checkpoint_keeps_512_defaults(self, builder_ctx):
+        """SD1.5 checkpoint should keep 512x512 defaults."""
+        params = {"checkpoint": "v1-5-pruned-emaonly.safetensors"}
+        result = json.loads(await comfy_build_workflow("txt2img", params=params, ctx=builder_ctx))
+        wf = result["workflow"]
+        assert wf["4"]["inputs"]["width"] == 512
+        assert wf["4"]["inputs"]["height"] == 512
+        assert result["family"] == "sd1.5"
+
+    @pytest.mark.asyncio
+    async def test_explicit_dimensions_override_family_defaults(self, builder_ctx):
+        """User-specified width/height should override family defaults."""
+        params = {"checkpoint": "sd_xl_base_1.0.safetensors", "width": 768, "height": 768}
+        result = json.loads(await comfy_build_workflow("txt2img", params=params, ctx=builder_ctx))
+        wf = result["workflow"]
+        assert wf["4"]["inputs"]["width"] == 768
+        assert wf["4"]["inputs"]["height"] == 768
+
 
 # ---------------------------------------------------------------------------
 # comfy_add_node

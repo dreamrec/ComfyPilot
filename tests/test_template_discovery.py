@@ -94,7 +94,7 @@ class TestDiscoverBuiltin:
         from comfy_mcp.templates.discovery import TemplateDiscovery
         discovery = TemplateDiscovery(None)
         templates = discovery.discover_builtin()
-        assert len(templates) >= 1
+        assert len(templates) == 8
         assert all(t["source"] == "builtin" for t in templates)
 
     def test_builtin_templates_have_workflow(self):
@@ -111,5 +111,5 @@ class TestDiscoverAll:
         mock_comfy_client.get = AsyncMock(side_effect=Exception("offline"))
         discovery = TemplateDiscovery(mock_comfy_client)
         templates = await discovery.discover_all()
-        # Should at least have builtins
-        assert len(templates) >= 1
+        # Should at least have builtins (8 built-in templates)
+        assert len(templates) == 8

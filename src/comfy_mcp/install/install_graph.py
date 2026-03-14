@@ -106,7 +106,7 @@ class InstallGraph:
             "categories": sorted(categories),
             "object_info": object_info,
             "models": models,
-            "features": features if isinstance(features, list) else [],
+            "features": features if features is not None else [],
             "extensions": extensions,
             "embeddings": embeddings,
             "refreshed_at": time.time(),
