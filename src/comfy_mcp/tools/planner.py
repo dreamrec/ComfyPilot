@@ -66,6 +66,8 @@ def _apply_template_assessment(item: dict, hydrated: dict) -> dict:
         )
         if assessment.get("ready_for_queue"):
             enriched["next_step_tool"] = "comfy_instantiate_template"
+        elif assessment.get("confidence") == "unscored":
+            enriched["next_step_tool"] = "comfy_get_template"
         elif assessment.get("confidence") not in {"unscored", None}:
             enriched["next_step_tool"] = "comfy_get_template"
     return enriched

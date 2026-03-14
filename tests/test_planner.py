@@ -97,6 +97,30 @@ class TestRecommendWorkflowTool:
         assert templates[0]["next_step_tool"] == "comfy_instantiate_template"
         assert templates[0]["translation_assessment"]["confidence"] == "high"
 
+    @pytest.mark.asyncio
+    async def test_recommend_workflow_uses_get_template_when_translation_is_unscored(self, planner_ctx):
+        from comfy_mcp.tools.planner import comfy_recommend_workflow
+
+        planner_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(return_value={
+            "id": "official_image_qwen_image",
+            "name": "image_qwen_image",
+            "workflow_format": "comfyui-ui",
+            "workflow_source": "remote",
+            "translation_status": "needs_object_info",
+            "translation_assessment": {
+                "confidence": "unscored",
+                "score": None,
+                "ready_for_queue": False,
+                "recommended_action": "refresh-install-graph",
+            },
+        })
+        planner_ctx.request_context.lifespan_context["install_graph"] = None
+
+        result = json.loads(await comfy_recommend_workflow(task="t2i", ctx=planner_ctx))
+        templates = [item for item in result["recommendations"] if item.get("type") == "template"]
+        assert templates
+        assert templates[0]["next_step_tool"] == "comfy_get_template"
+
 
 class TestPlannerResource:
     @pytest.mark.asyncio
