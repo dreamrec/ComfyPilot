@@ -120,7 +120,7 @@ Use for guardrails, pre-flight checks, and emergency control.
 Use for template-based workflow construction and editing.
 
 - `comfy_build_workflow` — Build from templates: txt2img, img2img, upscale, inpaint, controlnet.
-  When a newer family is detected but not yet natively buildable, the response now includes `suggested_template` metadata pointing at the closest modern official template.
+  When a newer family is detected but not yet natively buildable, the response now includes `suggested_template` metadata pointing at the closest modern official template, plus translation-confidence hints when that template can likely be turned into an API prompt.
 - `comfy_add_node` — Add a node to a workflow-in-progress.
 - `comfy_connect_nodes` — Wire node outputs to inputs.
 - `comfy_set_widget_value` — Set widget values on nodes.
@@ -161,10 +161,10 @@ Use for discovering, searching, and instantiating workflow templates from offici
 
 - `comfy_discover_templates` -- Scan all template sources and rebuild the unified template index.
 - `comfy_search_templates` -- Search templates by query, tags, and/or category with relevance scoring.
-- `comfy_get_template` -- Get full template details, including hydrated remote workflow format hints and workflow metadata for official templates.
+- `comfy_get_template` -- Get full template details, including hydrated remote workflow format hints, workflow metadata for official templates, and translation-confidence assessment when the current install graph is available.
 - `comfy_list_template_categories` -- List all available template categories.
 - `comfy_template_status` -- Show template index status (counts, categories, cache freshness).
-- `comfy_instantiate_template` -- Instantiate API-format templates with automatic model substitution and parameter overrides; UI-format templates are conservatively translated when possible and otherwise returned honestly as reference-only.
+- `comfy_instantiate_template` -- Instantiate API-format templates with automatic model substitution and parameter overrides; UI-format templates are conservatively translated when possible and otherwise returned honestly as reference-only, with a structured translation report.
 
 ### 17) Knowledge Management
 Use for unified knowledge status, cache management, and persistent user preferences.
@@ -187,7 +187,7 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 ### 19) Workflow Planning
 Use for choosing the best current workflow strategy based on installed models, templates, and providers.
 
-- `comfy_recommend_workflow` -- Rank local families, compatible templates, and provider options for a goal or task, including richer official template metadata such as model names, tutorial links, usage, and open-source availability.
+- `comfy_recommend_workflow` -- Rank local families, compatible templates, and provider options for a goal or task, including richer official template metadata such as model names, tutorial links, usage, open-source availability, and translation-confidence scoring for modern template workflows.
 
 ## MCP Resources (13)
 
@@ -242,7 +242,7 @@ Use for choosing the best current workflow strategy based on installed models, t
 | stdio transport | Supported | Default |
 | Streamable HTTP transport | Not yet | Planned |
 | API Prompt Format | Supported | Multi-pass validation (schema + catalog + graph) |
-| Workflow JSON (UI export format) | Partial | Remote template workflows can now be fetched, cached, and labeled as UI-format references, but there is still no translator to API prompt format |
+| Workflow JSON (UI export format) | Partial | Conservative translation to API prompt format now exists for a verified subset of UI workflows, with structured confidence reporting; unsupported graphs still fall back to honest reference-only handling |
 | V3 custom nodes | Not tested | V3 migration is ongoing in ComfyUI |
 | WebSocket progress events | Supported | EventManager started in lifespan, drain_events fixed |
 | Image content blocks | Supported | Inline image display in chat |
