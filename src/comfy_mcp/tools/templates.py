@@ -68,14 +68,29 @@ async def comfy_search_templates(
         "openWorldHint": False,
     }
 )
-async def comfy_get_template(template_id: str, *, ctx: Context) -> str:
-    """Get full template details including metadata and model requirements.
+async def comfy_get_template(
+    template_id: str,
+    include_workflow: bool = False,
+    refresh_remote: bool = False,
+    *,
+    ctx: Context,
+) -> str:
+    """Get full template details including metadata and workflow format hints.
 
     Args:
         template_id: Template ID from search results.
+        include_workflow: If True, include the fetched workflow JSON body when available.
+        refresh_remote: If True, re-fetch the remote workflow instead of using the cached copy.
     """
     index = _index(ctx)
-    template = index.get(template_id)
+    if hasattr(index, "hydrate_template"):
+        template = await index.hydrate_template(
+            template_id,
+            include_workflow=include_workflow,
+            refresh_remote=refresh_remote,
+        )
+    else:
+        template = index.get(template_id)
     if template is None:
         return json.dumps({"error": f"Template '{template_id}' not found"}, indent=2)
     return json.dumps(template, indent=2)
@@ -144,6 +159,7 @@ async def comfy_discover_templates(*, ctx: Context) -> str:
 async def comfy_instantiate_template(
     template_id: str,
     overrides: dict | None = None,
+    refresh_remote: bool = False,
     *,
     ctx: Context,
 ) -> str:
@@ -155,11 +171,34 @@ async def comfy_instantiate_template(
     Args:
         template_id: Template ID to instantiate.
         overrides: Optional dict of parameter overrides (e.g., {"width": 768}).
+        refresh_remote: If True, re-fetch the remote workflow instead of using the cached copy.
     """
     index = _index(ctx)
-    template = index.get(template_id)
+    if hasattr(index, "hydrate_template"):
+        template = await index.hydrate_template(
+            template_id,
+            include_workflow=True,
+            refresh_remote=refresh_remote,
+        )
+    else:
+        template = index.get(template_id)
     if template is None:
         return json.dumps({"error": f"Template '{template_id}' not found"}, indent=2)
+
+    workflow_format = template.get("workflow_format", "unknown")
+    if workflow_format != "api-prompt":
+        return json.dumps({
+            "status": "reference_only",
+            "error": (
+                "Template workflow is not in ComfyUI API prompt format and cannot be instantiated yet."
+            ),
+            "template_id": template.get("id", template_id),
+            "template_name": template.get("title", template.get("name", "")),
+            "workflow_format": workflow_format,
+            "workflow_summary": template.get("workflow_summary", {}),
+            "workflow_url": template.get("workflow_url", ""),
+            "tutorial_url": template.get("tutorial_url", ""),
+        }, indent=2)
 
     install_graph = ctx.request_context.lifespan_context.get("install_graph")
     if not install_graph or not install_graph.snapshot:

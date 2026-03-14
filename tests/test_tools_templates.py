@@ -23,6 +23,16 @@ def template_ctx(mock_ctx):
         "id": "official_txt2img", "name": "txt2img_basic", "category": "text-to-image",
         "source": "official", "workflow": {"1": {"class_type": "KSampler", "inputs": {}}},
     })
+    index_mock.hydrate_template = AsyncMock(return_value={
+        "id": "official_txt2img",
+        "name": "txt2img_basic",
+        "category": "text-to-image",
+        "source": "official",
+        "workflow": {"1": {"class_type": "KSampler", "inputs": {}}},
+        "workflow_format": "api-prompt",
+        "workflow_summary": {"node_count": 1, "node_types": ["KSampler"]},
+        "supports_instantiation": True,
+    })
     index_mock.summary = MagicMock(return_value={"template_count": 1, "stale": False})
     index_mock.rebuild = MagicMock()
 
@@ -68,6 +78,27 @@ class TestGetTemplate:
         from comfy_mcp.tools.templates import comfy_get_template
         result = json.loads(await comfy_get_template(template_id="official_txt2img", ctx=template_ctx))
         assert result["name"] == "txt2img_basic"
+        assert result["workflow_format"] == "api-prompt"
+
+    @pytest.mark.asyncio
+    async def test_get_can_return_hydrated_remote_template(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_get_template
+
+        template_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(
+            return_value={
+                "id": "official_qwen_template",
+                "name": "image_qwen_image",
+                "title": "Qwen-Image Starter",
+                "workflow_format": "comfyui-ui",
+                "workflow_summary": {"node_count": 2, "node_types": ["SaveImage", "QwenNode"]},
+                "workflow_source": "remote",
+                "supports_instantiation": False,
+            }
+        )
+
+        result = json.loads(await comfy_get_template(template_id="official_qwen_template", ctx=template_ctx))
+        assert result["workflow_format"] == "comfyui-ui"
+        assert result["workflow_source"] == "remote"
 
 
 class TestListCategories:
@@ -84,6 +115,36 @@ class TestTemplateStatus:
         from comfy_mcp.tools.templates import comfy_template_status
         result = json.loads(await comfy_template_status(ctx=template_ctx))
         assert "template_count" in result
+
+
+class TestInstantiateTemplate:
+    @pytest.mark.asyncio
+    async def test_instantiate_template_api_workflow(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_instantiate_template
+
+        result = json.loads(await comfy_instantiate_template(template_id="official_txt2img", ctx=template_ctx))
+        assert result["status"] in ("ready", "warnings")
+
+    @pytest.mark.asyncio
+    async def test_instantiate_template_returns_reference_for_ui_workflow(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_instantiate_template
+
+        template_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(
+            return_value={
+                "id": "official_qwen_template",
+                "name": "image_qwen_image",
+                "title": "Qwen-Image Starter",
+                "workflow_format": "comfyui-ui",
+                "workflow_summary": {"node_count": 12, "node_types": ["SaveImage", "QwenNode"]},
+                "workflow_url": "https://example.com/qwen.json",
+                "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+                "supports_instantiation": False,
+            }
+        )
+
+        result = json.loads(await comfy_instantiate_template(template_id="official_qwen_template", ctx=template_ctx))
+        assert result["status"] == "reference_only"
+        assert result["workflow_format"] == "comfyui-ui"
 
 
 class TestTemplateIndexResource:

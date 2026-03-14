@@ -160,10 +160,10 @@ Use for discovering, searching, and instantiating workflow templates from offici
 
 - `comfy_discover_templates` -- Scan all template sources and rebuild the unified template index.
 - `comfy_search_templates` -- Search templates by query, tags, and/or category with relevance scoring.
-- `comfy_get_template` -- Get full template details including workflow body and model requirements.
+- `comfy_get_template` -- Get full template details, including hydrated remote workflow format hints and workflow metadata for official templates.
 - `comfy_list_template_categories` -- List all available template categories.
 - `comfy_template_status` -- Show template index status (counts, categories, cache freshness).
-- `comfy_instantiate_template` -- Instantiate a template with automatic model substitution and parameter overrides.
+- `comfy_instantiate_template` -- Instantiate API-format templates with automatic model substitution and parameter overrides; UI-format templates are returned honestly as reference-only.
 
 ### 17) Knowledge Management
 Use for unified knowledge status, cache management, and persistent user preferences.
@@ -241,7 +241,7 @@ Use for choosing the best current workflow strategy based on installed models, t
 | stdio transport | Supported | Default |
 | Streamable HTTP transport | Not yet | Planned |
 | API Prompt Format | Supported | Multi-pass validation (schema + catalog + graph) |
-| Workflow JSON (UI export format) | Not yet | No translator between UI format and API prompt format |
+| Workflow JSON (UI export format) | Partial | Remote template workflows can now be fetched, cached, and labeled as UI-format references, but there is still no translator to API prompt format |
 | V3 custom nodes | Not tested | V3 migration is ongoing in ComfyUI |
 | WebSocket progress events | Supported | EventManager started in lifespan, drain_events fixed |
 | Image content blocks | Supported | Inline image display in chat |
