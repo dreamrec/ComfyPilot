@@ -10,7 +10,6 @@ import asyncio
 import json
 import logging
 import os
-import sys
 from contextlib import asynccontextmanager
 
 from mcp.server.fastmcp import FastMCP

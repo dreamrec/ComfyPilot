@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 from urllib.parse import urlencode
 import json
-from typing import Any
 
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent, ImageContent
