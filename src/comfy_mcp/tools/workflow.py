@@ -36,12 +36,27 @@ async def comfy_queue_prompt(
     """
     await ctx.report_progress(0, 100)
     result = await _client(ctx).queue_prompt(workflow, front=front)
+    prompt_id = result.get("prompt_id")
+
+    # Register with job tracker
+    job_tracker = ctx.request_context.lifespan_context["job_tracker"]
+    if prompt_id:
+        await job_tracker.track(prompt_id)
+
     await ctx.report_progress(100, 100)
-    # Normalize the response: 'number' → 'queue_position'
-    return json.dumps({
-        "prompt_id": result.get("prompt_id"),
+
+    # Preserve full upstream response alongside normalized fields
+    response = {
+        "prompt_id": prompt_id,
         "queue_position": result.get("number"),
-    }, indent=2)
+    }
+    # Preserve validation errors from ComfyUI if present
+    if "error" in result:
+        response["error"] = result["error"]
+    if "node_errors" in result:
+        response["node_errors"] = result["node_errors"]
+
+    return json.dumps(response, indent=2)
 
 
 @mcp.tool(

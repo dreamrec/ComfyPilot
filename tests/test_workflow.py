@@ -56,6 +56,22 @@ class TestQueuePrompt:
             front=True,
         )
 
+    @pytest.mark.asyncio
+    async def test_queue_prompt_registers_with_job_tracker(self, mock_ctx, mock_client):
+        """queue_prompt must call job_tracker.track(prompt_id) after queueing."""
+        mock_client.queue_prompt = AsyncMock(return_value={
+            "prompt_id": "abc-123",
+            "number": 1,
+        })
+        job_tracker = mock_ctx.request_context.lifespan_context["job_tracker"]
+
+        result = await comfy_queue_prompt(
+            workflow={"1": {"class_type": "KSampler", "inputs": {}}},
+            ctx=mock_ctx,
+        )
+
+        job_tracker.track.assert_awaited_once_with("abc-123")
+
 
 class TestGetQueue:
     @pytest.mark.asyncio
