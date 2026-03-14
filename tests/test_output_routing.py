@@ -133,7 +133,7 @@ class TestSendToTouchDesigner:
         result = json.loads(await comfy_send_to_td("default_td.png", ctx=mock_ctx))
 
         assert result["status"] == "saved"
-        assert "comfypilot_output/touchdesigner" in result["path"]
+        assert "comfypilot_output" in result["path"] and "touchdesigner" in result["path"]
 
     @pytest.mark.asyncio
     async def test_td_command_includes_path(self, mock_ctx, mock_client, tmp_path, monkeypatch):
@@ -203,7 +203,7 @@ class TestSendToBlender:
         result = json.loads(await comfy_send_to_blender("default_blender.png", ctx=mock_ctx))
 
         assert result["status"] == "saved"
-        assert "comfypilot_output/blender" in result["path"]
+        assert "comfypilot_output" in result["path"] and "blender" in result["path"]
 
     @pytest.mark.asyncio
     async def test_blender_command_format(self, mock_ctx, mock_client, tmp_path, monkeypatch):

@@ -121,6 +121,7 @@ async def comfy_interrupt(ctx: Context = None) -> str:
     """Interrupt the currently executing prompt."""
     await _client(ctx).interrupt()
     job_tracker = ctx.request_context.lifespan_context["job_tracker"]
+    job_tracker.refresh_active_states()
     interrupted_ids = []
     queued_ids = []
     for job in job_tracker.list_active():

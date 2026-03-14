@@ -12,6 +12,23 @@ from mcp.types import TextContent, ImageContent
 from comfy_mcp.server import mcp
 
 
+_MIME_MAP = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+    ".tiff": "image/tiff",
+}
+
+
+def _mime_for(filename: str) -> str:
+    """Infer MIME type from file extension, defaulting to image/png."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return _MIME_MAP.get(f".{ext}", "image/png")
+
+
 def _client(ctx: Context):
     return ctx.request_context.lifespan_context["comfy_client"]
 
@@ -35,7 +52,7 @@ async def comfy_get_output_image(filename: str, subfolder: str = "", ctx: Contex
     image_bytes = await _client(ctx).get_image(filename, subfolder)
     return [
         TextContent(type="text", text=json.dumps({"filename": filename, "size_bytes": len(image_bytes)})),
-        ImageContent(type="image", data=base64.b64encode(image_bytes).decode(), mimeType="image/png"),
+        ImageContent(type="image", data=base64.b64encode(image_bytes).decode(), mimeType=_mime_for(filename)),
     ]
 
 
@@ -85,7 +102,8 @@ async def comfy_list_output_images(subfolder: str = "", limit: int = 50, ctx: Co
         limit: Maximum number of filenames to return
     """
     history = await _client(ctx).get_history()
-    filenames: list[str] = []
+    seen: set[tuple[str, str, str]] = set()
+    entries: list[dict] = []
     for prompt_id, entry in history.items():
         outputs = entry.get("outputs", {})
         for node_id, node_output in outputs.items():
@@ -93,17 +111,20 @@ async def comfy_list_output_images(subfolder: str = "", limit: int = 50, ctx: Co
             for img in images:
                 name = img.get("filename", "")
                 img_subfolder = img.get("subfolder", "")
+                img_type = img.get("type", "output")
                 if subfolder and img_subfolder != subfolder:
                     continue
-                if name and name not in filenames:
-                    filenames.append(name)
-                if len(filenames) >= limit:
+                key = (name, img_subfolder, img_type)
+                if name and key not in seen:
+                    seen.add(key)
+                    entries.append({"filename": name, "subfolder": img_subfolder, "type": img_type})
+                if len(entries) >= limit:
                     break
-            if len(filenames) >= limit:
+            if len(entries) >= limit:
                 break
-        if len(filenames) >= limit:
+        if len(entries) >= limit:
             break
-    return json.dumps({"images": filenames, "count": len(filenames)}, indent=2)
+    return json.dumps({"images": entries, "count": len(entries)}, indent=2)
 
 
 @mcp.tool(

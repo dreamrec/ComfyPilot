@@ -106,8 +106,9 @@ class TestListOutputImages:
         from comfy_mcp.tools.images import comfy_list_output_images
         result = json.loads(await comfy_list_output_images(ctx=mock_ctx))
         assert "images" in result
-        assert "ComfyUI_00001_.png" in result["images"]
-        assert "ComfyUI_00002_.png" in result["images"]
+        filenames = [e["filename"] for e in result["images"]]
+        assert "ComfyUI_00001_.png" in filenames
+        assert "ComfyUI_00002_.png" in filenames
         assert result["count"] == 2
 
     @pytest.mark.asyncio
@@ -134,8 +135,9 @@ class TestListOutputImages:
         })
         from comfy_mcp.tools.images import comfy_list_output_images
         result = json.loads(await comfy_list_output_images(subfolder="wanted", ctx=mock_ctx))
-        assert "img1.png" in result["images"]
-        assert "img2.png" not in result["images"]
+        filenames = [e["filename"] for e in result["images"]]
+        assert "img1.png" in filenames
+        assert "img2.png" not in filenames
 
     @pytest.mark.asyncio
     async def test_limit_respected(self, mock_ctx, mock_client):

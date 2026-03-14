@@ -14,6 +14,7 @@ def _make_job_tracker_mock():
     from unittest.mock import MagicMock
     jt = AsyncMock()
     jt.list_active = MagicMock(return_value=[])
+    jt.refresh_active_states = MagicMock()
     return jt
 
 

@@ -107,6 +107,16 @@ class JobTracker:
         # Timeout
         return {"status": "timeout", "prompt_id": prompt_id, "elapsed": time.time() - start}
 
+    def refresh_active_states(self) -> None:
+        """Refresh status of active jobs from EventManager progress cache."""
+        for prompt_id, job in self._active_jobs.items():
+            if job['status'] == 'queued':
+                progress = self._event_mgr.get_latest_progress(prompt_id)
+                if progress:
+                    job['status'] = 'running'
+                    job['progress'] = progress.get('data', {}).get('value', 0)
+                    job['max_progress'] = progress.get('data', {}).get('max', 0)
+
     def list_active(self) -> list[dict]:
         """List all currently active jobs."""
         return list(self._active_jobs.values())

@@ -150,6 +150,12 @@ class EventManager:
         self._event_buffer = remaining
         return matched
 
+    def peek_events(self, event_type: str | None = None, limit: int = 100) -> list[dict]:
+        """Return buffered events without removing them (non-destructive read)."""
+        if event_type is None:
+            return list(self._event_buffer)[:limit]
+        return [ev for ev in self._event_buffer if ev['type'] == event_type][:limit]
+
     def get_latest_progress(self, prompt_id: str) -> dict | None:
         """Get cached progress for a prompt_id."""
         return self._progress_cache.get(prompt_id)
