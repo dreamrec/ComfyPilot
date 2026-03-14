@@ -12,12 +12,15 @@ from comfy_mcp.compat.schema import check_schema
 from comfy_mcp.compat.environment import check_environment
 
 
-def run_preflight(workflow: Any, snapshot: dict) -> dict[str, Any]:
+def run_preflight(workflow: Any, snapshot: dict, registry_resolutions: dict[str, dict] | None = None) -> dict[str, Any]:
     """Run all compatibility passes and produce a unified preflight report.
 
     Args:
         workflow: API-format workflow dict
         snapshot: InstallGraph snapshot
+        registry_resolutions: Optional dict mapping node class names to registry
+            package info dicts. When provided, missing_nodes entries are enriched
+            from plain strings to dicts with package, version, and install_cmd.
 
     Returns:
         Unified report with status, errors, warnings, missing_nodes,
@@ -46,8 +49,23 @@ def run_preflight(workflow: Any, snapshot: dict) -> dict[str, Any]:
     p3 = check_environment(workflow, snapshot)
     all_errors.extend(p3["errors"])
     all_warnings.extend(p3["warnings"])
-    missing_nodes = p3.get("missing_nodes", [])
     missing_models = p3.get("missing_models", [])
+
+    # Registry enrichment: replace plain node class name strings with
+    # package resolution dicts when registry data is available.
+    # Note: environment.py does NOT need modification — it continues to
+    # report raw missing node class names. Enrichment happens here at the
+    # engine level, between extraction and report assembly.
+    if registry_resolutions and p3.get("missing_nodes"):
+        enriched_missing: list[str | dict] = []
+        for node_name in p3["missing_nodes"]:
+            if node_name in registry_resolutions:
+                enriched_missing.append(registry_resolutions[node_name])
+            else:
+                enriched_missing.append(node_name)
+        missing_nodes: list[str | dict] = enriched_missing
+    else:
+        missing_nodes: list[str | dict] = p3.get("missing_nodes", [])
 
     # Determine status
     if missing_nodes or missing_models:
@@ -66,10 +84,14 @@ def _build_report(
     status: str,
     errors: list[str],
     warnings: list[str],
-    missing_nodes: list[str],
+    missing_nodes: list[str | dict],
     missing_models: list[dict],
 ) -> dict[str, Any]:
-    """Build the unified preflight report with confidence score."""
+    """Build the unified preflight report with confidence score.
+
+    Each missing_nodes entry is either a plain class name string (no registry data)
+    or a dict with keys: class, package, latest_version, compatible, install_cmd, note.
+    """
     if status == "verified":
         confidence = 0.95
     elif status == "likely":
