@@ -189,10 +189,10 @@ async def comfy_describe_dynamics(ctx: Context = None) -> str:
     }
 )
 async def comfy_get_status(ctx: Context = None) -> str:
-    """One-shot status overview (queue + GPU + execution state).
+    """One-shot status overview (queue + GPU + execution state + events).
 
     Returns:
-        Combined status JSON with queue info and system stats
+        Combined status JSON with queue info, system stats, and event health
     """
     client = _client(ctx)
 
@@ -204,10 +204,15 @@ async def comfy_get_status(ctx: Context = None) -> str:
     # Get system stats
     system_stats = await client.get_system_stats()
 
+    # Get event health
+    event_mgr = _event_mgr(ctx)
+    event_health = event_mgr.health() if hasattr(event_mgr, "health") else {}
+
     return json.dumps({
         "queue": {
             "running": len(queue_running),
             "pending": len(queue_pending),
         },
         "system": system_stats,
+        "events": event_health,
     })

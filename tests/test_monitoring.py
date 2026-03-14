@@ -122,6 +122,7 @@ class TestGetStatus:
         result = json.loads(await comfy_get_status(ctx=mock_ctx))
         assert "queue" in result
         assert "system" in result
+        assert "events" in result
         assert "devices" in result["system"]
 
     @pytest.mark.asyncio

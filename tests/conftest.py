@@ -46,10 +46,22 @@ def mock_client():
 @pytest.fixture
 def mock_ctx(mock_client):
     """Mock MCP Context with lifespan_context wired to mock_client."""
+    # Create event manager mock with a health() method
+    event_manager_mock = MagicMock()
+    event_manager_mock.health = MagicMock(return_value={
+        "running": True,
+        "connected": True,
+        "reconnect_count": 0,
+        "buffer_size": 0,
+        "buffer_capacity": 1000,
+        "subscription_count": 0,
+        "subscribed_types": [],
+    })
+
     ctx = MagicMock()
     ctx.request_context.lifespan_context = {
         "comfy_client": mock_client,
-        "event_manager": AsyncMock(),
+        "event_manager": event_manager_mock,
         "snapshot_manager": MagicMock(),
         "technique_store": MagicMock(),
         "vram_guard": MagicMock(),

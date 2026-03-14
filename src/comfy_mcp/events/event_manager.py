@@ -153,3 +153,15 @@ class EventManager:
     def get_latest_progress(self, prompt_id: str) -> dict | None:
         """Get cached progress for a prompt_id."""
         return self._progress_cache.get(prompt_id)
+
+    def health(self) -> dict:
+        """Return health status of the event system."""
+        return {
+            "running": self._running,
+            "connected": self._ws is not None,
+            "reconnect_count": self._reconnect_count,
+            "buffer_size": len(self._event_buffer),
+            "buffer_capacity": self._event_buffer.maxlen,
+            "subscription_count": sum(len(cbs) for cbs in self._subscriptions.values()),
+            "subscribed_types": list(self._subscriptions.keys()),
+        }
