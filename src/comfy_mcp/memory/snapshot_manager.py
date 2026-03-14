@@ -24,6 +24,7 @@ class SnapshotManager:
         self._max = max_snapshots
         self._snapshots: dict[str, dict] = {}  # id → snapshot data
         self._order: list[str] = []  # oldest first
+        self.auto_snapshot = False  # Toggle for automatic snapshot creation
 
     def add(self, workflow: dict, name: str = "") -> dict:
         """Create a new snapshot. Returns snapshot metadata (id, name, timestamp, node_count).
