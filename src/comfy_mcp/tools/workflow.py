@@ -100,6 +100,8 @@ async def comfy_cancel_run(
         prompt_id: The prompt ID to cancel
     """
     result = await _client(ctx).cancel_prompt(prompt_id)
+    job_tracker = ctx.request_context.lifespan_context["job_tracker"]
+    await job_tracker.mark_cancelled(prompt_id)
     return json.dumps({
         "status": "cancelled",
         "prompt_id": prompt_id,

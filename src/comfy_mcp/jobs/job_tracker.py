@@ -68,6 +68,22 @@ class JobTracker:
             job["error"] = error
             self._completed.appendleft(job)
 
+    async def mark_cancelled(self, prompt_id: str) -> None:
+        """Mark a job as cancelled."""
+        if prompt_id in self._active_jobs:
+            job = self._active_jobs.pop(prompt_id)
+            job["status"] = "cancelled"
+            job["completed_at"] = time.time()
+            self._completed.appendleft(job)
+
+    async def mark_interrupted(self, prompt_id: str) -> None:
+        """Mark a job as interrupted."""
+        if prompt_id in self._active_jobs:
+            job = self._active_jobs.pop(prompt_id)
+            job["status"] = "interrupted"
+            job["completed_at"] = time.time()
+            self._completed.appendleft(job)
+
     async def wait_for_completion(self, prompt_id: str, timeout: float = 300, poll_interval: float = 1.0) -> dict:
         """Poll history until prompt is done or timeout."""
         start = time.time()
