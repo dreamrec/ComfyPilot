@@ -435,6 +435,25 @@ async def comfy_build_workflow(
         template: Template name (txt2img, img2img, upscale, inpaint, controlnet)
         params: Optional parameters to override template defaults
     """
+    # Template fallthrough: check if a matching template exists in the v0.5 index
+    template_index = ctx.request_context.lifespan_context.get("template_index") if ctx else None
+    install_graph = ctx.request_context.lifespan_context.get("install_graph") if ctx else None
+    if template_index and install_graph and install_graph.snapshot:
+        from comfy_mcp.templates.scorer import TemplateScorer
+        scorer = TemplateScorer(
+            install_graph.snapshot.get("node_classes", set()),
+            install_graph.snapshot.get("models", {}),
+        )
+        candidates = scorer.score(template, template_index.list_all(), limit=1)
+        if candidates and candidates[0]["score"] >= 0.5:
+            matched = template_index.get(candidates[0]["id"])
+            if matched and "workflow" in matched:
+                from comfy_mcp.templates.instantiator import TemplateInstantiator
+                instantiator = TemplateInstantiator(install_graph.snapshot)
+                result = instantiator.instantiate(matched, overrides=params if params else None)
+                result["source"] = "template"
+                return json.dumps(result, indent=2)
+
     if template not in _TEMPLATES:
         return json.dumps({
             "error": f"Unknown template: {template}",
