@@ -10,6 +10,15 @@ from mcp.server.fastmcp import Context
 from comfy_mcp.server import mcp
 
 
+_BUILDER_TASKS = {
+    "txt2img": "t2i",
+    "img2img": "i2i",
+    "upscale": "upscale",
+    "inpaint": "inpaint",
+    "controlnet": "control",
+}
+
+
 # ---------------------------------------------------------------------------
 # Template functions
 # ---------------------------------------------------------------------------
@@ -410,6 +419,19 @@ _TEMPLATES = {
 }
 
 
+def _select_checkpoint_for_family(
+    checkpoints: list[str],
+    preferred_families: list[str],
+    registry,
+) -> str | None:
+    for family_id in preferred_families:
+        for checkpoint in checkpoints:
+            classified = registry.classify_model(checkpoint, "checkpoints")
+            if classified.get("family") == family_id:
+                return checkpoint
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -440,6 +462,38 @@ async def comfy_build_workflow(
         lc = ctx.request_context.lifespan_context if ctx else {}
     except AttributeError:
         lc = {}
+
+    recommendation_bundle = None
+    recommendation = None
+    warnings: list[str] = []
+
+    if ctx:
+        try:
+            from comfy_mcp.ecosystem import EcosystemRegistry, ModelAwarenessScanner
+            from comfy_mcp.planner import WorkflowPlanner
+
+            registry = lc.get("ecosystem_registry") or EcosystemRegistry()
+            scanner = lc.get("model_awareness_scanner") or ModelAwarenessScanner(registry)
+            planner = lc.get("workflow_planner") or WorkflowPlanner(registry, scanner)
+            install_graph = lc.get("install_graph")
+            template_index = lc.get("template_index")
+            snapshot = getattr(install_graph, "snapshot", None) if install_graph else None
+            if snapshot:
+                recommendation_bundle = planner.recommend(
+                    snapshot,
+                    capabilities=getattr(lc.get("comfy_client"), "capabilities", {}),
+                    task=_BUILDER_TASKS.get(template, ""),
+                    goal=template,
+                    prefer_local=True,
+                    allow_providers=True,
+                    template_index=template_index,
+                    limit=3,
+                )
+                recommendation = recommendation_bundle.get("default_recommendation")
+        except Exception:
+            recommendation_bundle = None
+            recommendation = None
+
     template_index = lc.get("template_index")
     install_graph = lc.get("install_graph")
     if template_index and install_graph and install_graph.snapshot:
@@ -481,9 +535,32 @@ async def comfy_build_workflow(
             client = lc["comfy_client"]
             models = await client.get_models("checkpoints")
             if models:
-                resolved_params["checkpoint"] = models[0]
+                selected = None
+                if recommendation is not None:
+                    preferred_families = [
+                        item["family"]
+                        for item in recommendation_bundle.get("recommendations", [])
+                        if item.get("type") == "family" and item.get("builder_compatible")
+                    ]
+                    try:
+                        from comfy_mcp.ecosystem import EcosystemRegistry
+
+                        selected = _select_checkpoint_for_family(
+                            models,
+                            preferred_families,
+                            EcosystemRegistry(),
+                        )
+                    except Exception:
+                        selected = None
+                resolved_params["checkpoint"] = selected or models[0]
         except Exception:
             pass  # Fallback to template default
+
+    if recommendation is not None and recommendation.get("type") == "family" and not recommendation.get("builder_compatible", False):
+        warnings.append(
+            f"Best detected family {recommendation.get('display_name', recommendation.get('family', 'unknown'))} uses a modern workflow stack. "
+            f"Falling back to the legacy {template} builder template."
+        )
 
     # Detect model family for appropriate defaults
     from comfy_mcp.builder.families import family_defaults
@@ -506,6 +583,8 @@ async def comfy_build_workflow(
             "family": defaults["family"],
             "node_count": len(workflow),
             "workflow": workflow,
+            "recommendation": recommendation,
+            "warnings": warnings,
         },
         indent=2,
     )

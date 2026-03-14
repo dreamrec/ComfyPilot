@@ -90,6 +90,7 @@ class RegistryEntry:
             "id": self.id,
             "display_name": self.display_name,
             "kind": self.kind,
+            "priority": self.priority,
             "tasks": self.tasks,
             "modality": self.modalities,
             "runtime_modes": self.runtime_modes,

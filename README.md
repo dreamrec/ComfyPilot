@@ -25,7 +25,7 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 - A structured toolset for workflow building, image generation, model management, and output routing.
 - A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
 - A technique memory system that learns your workflow patterns and builds a reusable library.
-- 92-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, registry integration for missing node resolution, and model-awareness scanning for modern ComfyUI ecosystems.
+- 93-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, registry integration for missing node resolution, model-awareness scanning, and workflow recommendations for modern ComfyUI ecosystems.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -43,7 +43,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (92 Tools)
+## Tool Map (93 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -182,7 +182,12 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 - `comfy_check_compatibility` -- Check if a registry package is compatible with the current environment.
 - `comfy_registry_status` -- Show registry cache statistics (index size, entry counts).
 
-## MCP Resources (12)
+### 19) Workflow Planning
+Use for choosing the best current workflow strategy based on installed models, templates, and providers.
+
+- `comfy_recommend_workflow` -- Rank local families, compatible templates, and provider options for a goal or task.
+
+## MCP Resources (13)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
 - `comfy://server/capabilities` — Detected server profile, version, auth method
@@ -196,6 +201,7 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 - `comfy://registry/status` — Registry cache stats and index coverage
 - `comfy://ecosystem/registry` — Curated model families, ecosystems, providers, and verification metadata
 - `comfy://environment/model-awareness` — Detected installed families, capability summary, and provider signals
+- `comfy://planner/recommendations` — Top workflow recommendations for common tasks on the current install
 
 ## How To Use It (Practical Workflow)
 

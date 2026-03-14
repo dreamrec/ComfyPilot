@@ -136,9 +136,14 @@ class TestBuildWorkflow:
     async def test_build_workflow_detects_installed_checkpoint(self, builder_ctx):
         """If no checkpoint specified, builder should detect first available."""
         builder_ctx.request_context.lifespan_context["comfy_client"] = MagicMock()
+        builder_ctx.request_context.lifespan_context["comfy_client"].capabilities = {"profile": "local"}
         builder_ctx.request_context.lifespan_context["comfy_client"].get_models = AsyncMock(
             return_value=["sdxl_base.safetensors", "v1-5-pruned.safetensors"]
         )
+        builder_ctx.request_context.lifespan_context["install_graph"] = MagicMock(snapshot={
+            "models": {"checkpoints": ["sdxl_base.safetensors", "v1-5-pruned.safetensors"]},
+            "node_classes": set(),
+        })
 
         result = json.loads(await comfy_build_workflow("txt2img", params={}, ctx=builder_ctx))
         ckpt = result["workflow"]["1"]["inputs"]["ckpt_name"]
@@ -179,6 +184,41 @@ class TestBuildWorkflow:
         wf = result["workflow"]
         assert wf["4"]["inputs"]["width"] == 768
         assert wf["4"]["inputs"]["height"] == 768
+
+    @pytest.mark.asyncio
+    async def test_builder_uses_planner_to_pick_best_checkpoint(self, builder_ctx):
+        builder_ctx.request_context.lifespan_context["comfy_client"] = MagicMock()
+        builder_ctx.request_context.lifespan_context["comfy_client"].capabilities = {"profile": "local"}
+        builder_ctx.request_context.lifespan_context["comfy_client"].get_models = AsyncMock(
+            return_value=["v1-5-pruned-emaonly.safetensors", "flux1-dev.safetensors"]
+        )
+        builder_ctx.request_context.lifespan_context["install_graph"] = MagicMock(snapshot={
+            "models": {"checkpoints": ["v1-5-pruned-emaonly.safetensors", "flux1-dev.safetensors"]},
+            "node_classes": set(),
+        })
+
+        result = json.loads(await comfy_build_workflow("txt2img", params={}, ctx=builder_ctx))
+        assert result["workflow"]["1"]["inputs"]["ckpt_name"] == "flux1-dev.safetensors"
+        assert result["recommendation"]["family"] == "flux1"
+
+    @pytest.mark.asyncio
+    async def test_builder_warns_when_best_family_needs_modern_workflow(self, builder_ctx):
+        builder_ctx.request_context.lifespan_context["comfy_client"] = MagicMock()
+        builder_ctx.request_context.lifespan_context["comfy_client"].capabilities = {"profile": "local"}
+        builder_ctx.request_context.lifespan_context["comfy_client"].get_models = AsyncMock(return_value=[])
+        builder_ctx.request_context.lifespan_context["install_graph"] = MagicMock(snapshot={
+            "models": {
+                "diffusion_models": ["qwen_image_fp8.safetensors"],
+                "text_encoders": ["qwen_2.5_vl_7b_fp8_scaled.safetensors"],
+                "vae": ["qwen_image_vae.safetensors"],
+            },
+            "node_classes": set(),
+        })
+
+        result = json.loads(await comfy_build_workflow("txt2img", params={}, ctx=builder_ctx))
+        assert result["recommendation"]["family"] == "qwen-image"
+        assert result["warnings"]
+        assert "Qwen-Image" in result["warnings"][0]
 
 
 # ---------------------------------------------------------------------------

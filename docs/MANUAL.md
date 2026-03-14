@@ -170,6 +170,14 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 
 **Templates** provide sensible defaults (checkpoint, dimensions, steps, CFG, sampler) that can be overridden. They generate ComfyUI API-format JSON ready for `comfy_queue_prompt`.
 
+### Planner Tools (1)
+
+| Tool | Description |
+|------|-------------|
+| `comfy_recommend_workflow` | Rank local families, compatible templates, and provider options for a goal or task |
+
+The planner uses installed models, detected providers, template compatibility, and local-first preferences to recommend the best current strategy before building or queueing anything.
+
 ### Output Routing Tools (4)
 
 | Tool | Description |
@@ -199,6 +207,7 @@ Resources provide static/semi-static data without tool call overhead:
 | `comfy://registry/status` | Registry cache stats and index coverage |
 | `comfy://ecosystem/registry` | Curated model families, ecosystems, providers, and verification metadata |
 | `comfy://environment/model-awareness` | Installed family detection, capability summary, and provider signals |
+| `comfy://planner/recommendations` | Top workflow recommendations for common tasks on the current install |
 
 ## Safety Protocol
 
