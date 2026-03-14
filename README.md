@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.0.0
+# ComfyPilot v0.2.0
 
 **ComfyPilot** is an MCP server for ComfyUI.
 It lets an AI agent build workflows, queue generations, monitor progress, retrieve images, and manage VRAM — all through structured tool calls with visual output return.
