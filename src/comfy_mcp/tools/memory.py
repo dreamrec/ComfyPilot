@@ -13,6 +13,28 @@ def _technique_store(ctx: Context):
     return ctx.request_context.lifespan_context["technique_store"]
 
 
+def _extract_technique_metadata(workflow: dict) -> dict:
+    """Extract compatibility metadata from a workflow."""
+    node_classes = set()
+    model_refs = set()
+
+    for node in workflow.values():
+        if not isinstance(node, dict):
+            continue
+        ct = node.get("class_type", "")
+        if ct:
+            node_classes.add(ct)
+        for key, val in node.get("inputs", {}).items():
+            if isinstance(val, str) and (val.endswith(".safetensors") or val.endswith(".ckpt") or val.endswith(".pth")):
+                model_refs.add(val)
+
+    return {
+        "node_classes": sorted(node_classes),
+        "model_references": sorted(model_refs),
+        "node_count": len(workflow),
+    }
+
+
 @mcp.tool(
     annotations={
         "title": "Save Technique",
@@ -38,7 +60,8 @@ async def comfy_save_technique(
         tags: Optional list of tags for categorization
     """
     store = _technique_store(ctx)
-    result = store.save(workflow, name, description=description, tags=tags)
+    metadata = _extract_technique_metadata(workflow)
+    result = store.save(workflow, name, description=description, tags=tags, metadata=metadata)
     return json.dumps(result, indent=2)
 
 

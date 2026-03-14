@@ -365,3 +365,27 @@ class TestRoundTrip:
         assert replay_data["name"] == "roundtrip_tech"
         assert "test" in replay_data["tags"]
         assert replay_data["use_count"] == 1
+
+
+class TestTechniqueMetadata:
+    @pytest.mark.asyncio
+    async def test_save_technique_includes_metadata(self, mem_ctx):
+        """Saved techniques should include node classes and model references."""
+        workflow = {
+            "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "sdxl.safetensors"}},
+            "2": {"class_type": "KSampler", "inputs": {"model": ["1", 0]}},
+        }
+        result_str = await comfy_save_technique(
+            name="test_technique",
+            workflow=workflow,
+            tags=["test"],
+            ctx=mem_ctx,
+        )
+
+        # Parse the result and check metadata
+        data = json.loads(result_str)
+        assert "node_classes" in data
+        assert "CheckpointLoaderSimple" in data["node_classes"]
+        assert "KSampler" in data["node_classes"]
+        assert "model_references" in data
+        assert "sdxl.safetensors" in data["model_references"]

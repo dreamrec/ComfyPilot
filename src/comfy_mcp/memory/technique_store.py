@@ -38,7 +38,7 @@ class TechniqueStore:
             path = self._dir / f"{technique_id}.json"
             path.write_text(json.dumps(tech, indent=2))
 
-    def save(self, workflow: dict, name: str, description: str = "", tags: list[str] | None = None) -> dict:
+    def save(self, workflow: dict, name: str, description: str = "", tags: list[str] | None = None, metadata: dict | None = None) -> dict:
         """Save a workflow as a reusable technique. Returns metadata."""
         tech_id = str(uuid.uuid4())[:8]
         technique = {
@@ -53,9 +53,15 @@ class TechniqueStore:
             "rating": -1,
             "use_count": 0,
         }
+        # Store metadata if provided
+        if metadata:
+            technique["node_classes"] = metadata.get("node_classes", [])
+            technique["model_references"] = metadata.get("model_references", [])
+
         self._techniques[tech_id] = technique
         self._persist(tech_id)
-        return {
+
+        result = {
             "id": tech_id,
             "name": name,
             "description": description,
@@ -63,6 +69,13 @@ class TechniqueStore:
             "timestamp": technique["timestamp"],
             "node_count": technique["node_count"],
         }
+
+        # Include metadata in result if available
+        if metadata:
+            result["node_classes"] = metadata.get("node_classes", [])
+            result["model_references"] = metadata.get("model_references", [])
+
+        return result
 
     def search(self, query: str = "", tags: list[str] | None = None, limit: int = 20) -> list[dict]:
         """Search techniques by text query and/or tags. Returns metadata (no workflow)."""
