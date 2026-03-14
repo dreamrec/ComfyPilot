@@ -106,6 +106,16 @@ async def comfy_set_config(key: str, value: Any, *, ctx: Context) -> str:
         key: Dotted config key (e.g., 'safety.vram_warn_pct').
         value: Value to set.
     """
+    _ALLOWED_KEYS = {
+        "safety.vram_warn_pct", "safety.vram_block_pct", "safety.max_queue",
+        "cache.ttl", "output.default_dir",
+    }
+    if key not in _ALLOWED_KEYS:
+        return json.dumps({
+            "error": f"Unknown config key: {key}",
+            "allowed_keys": sorted(_ALLOWED_KEYS),
+        }, indent=2)
+
     config = _config(ctx)
     config.set(key, value)
     return json.dumps({"status": "ok", "key": key, "value": value}, indent=2)

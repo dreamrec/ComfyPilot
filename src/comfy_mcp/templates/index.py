@@ -12,6 +12,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from comfy_mcp.knowledge.store import atomic_write
+
 logger = logging.getLogger("comfypilot.templates")
 
 
@@ -58,14 +60,14 @@ class TemplateIndex:
                 t["id"] = f"{t.get('source', 'unknown')}_{t.get('name', 'unnamed')}"
         self._templates = templates
         self._dir.mkdir(parents=True, exist_ok=True)
-        self._index_path().write_text(json.dumps(templates, indent=2), encoding="utf-8")
+        atomic_write(self._index_path(), json.dumps(templates, indent=2))
         self._manifest = {
             "last_updated": time.time(),
             "template_count": len(templates),
             "content_hash": _content_hash(json.dumps(templates, sort_keys=True)),
             "source_counts": self._count_sources(templates),
         }
-        self._manifest_path().write_text(json.dumps(self._manifest, indent=2), encoding="utf-8")
+        atomic_write(self._manifest_path(), json.dumps(self._manifest, indent=2))
 
     def _count_sources(self, templates: list[dict]) -> dict[str, int]:
         counts: dict[str, int] = {}

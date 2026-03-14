@@ -107,16 +107,14 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_clear_history` | Clear all history |
 | `comfy_search_history` | Search history by prompt ID or output metadata |
 
-### Monitoring Tools (6)
+### Monitoring Tools (4)
 
 | Tool | Description |
 |------|-------------|
 | `comfy_watch_progress` | Poll-based progress monitoring for an active job |
-| `comfy_subscribe` | Subscribe to WebSocket event types |
-| `comfy_unsubscribe` | Unsubscribe from event types |
 | `comfy_get_events` | Get buffered events with optional type filter |
-| `comfy_describe_dynamics` | Observe system dynamics over a time window |
-| `comfy_get_status` | Get current execution status |
+| `comfy_describe_dynamics` | One-shot snapshot of system dynamics (queue + events + jobs) |
+| `comfy_get_status` | Get current execution status (queue + GPU + events) |
 
 ### Snapshot Tools (6)
 

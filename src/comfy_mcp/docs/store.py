@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from comfy_mcp.knowledge.store import atomic_write
+
 logger = logging.getLogger("comfypilot.docs")
 
 
@@ -50,7 +52,7 @@ class DocsStore:
 
     def _save_manifest(self) -> None:
         path = self._manifest_path()
-        path.write_text(json.dumps(self._manifest, indent=2), encoding="utf-8")
+        atomic_write(path, json.dumps(self._manifest, indent=2))
 
     def _rebuild_name_map(self) -> None:
         self._name_to_file = {}
@@ -133,7 +135,7 @@ class DocsStore:
 
     def save_llms(self, content: str) -> None:
         llms_path = self._dir / "llms-full.txt"
-        llms_path.write_text(content, encoding="utf-8")
+        atomic_write(llms_path, content)
         self._manifest["llms_hash"] = _content_hash(content)
         self._manifest["llms_cached_at"] = time.time()
         self._manifest["last_updated"] = time.time()
@@ -161,7 +163,7 @@ class DocsStore:
             current["end_line"] = len(lines) - 1
             sections.append(current)
         sections_path = self._dir / "sections.json"
-        sections_path.write_text(json.dumps(sections, indent=2), encoding="utf-8")
+        atomic_write(sections_path, json.dumps(sections, indent=2))
 
     def get_section(self, topic: str) -> dict | None:
         sections_path = self._dir / "sections.json"

@@ -115,7 +115,7 @@ class TestSendToTouchDesigner:
         assert result["size_bytes"] == len(fake_png)
         assert "td_command" in result
         assert "moviefilein1" in result["td_command"]
-        assert str(td_dir / "td_test.png") in result["td_command"]
+        assert repr(str(td_dir / "td_test.png")) in result["td_command"]
         assert td_dir.exists()
         assert (td_dir / "td_test.png").exists()
 
@@ -148,7 +148,7 @@ class TestSendToTouchDesigner:
 
         result = json.loads(await comfy_send_to_td("image.png", ctx=mock_ctx))
 
-        assert f"{td_dir / 'image.png'}" in result["td_command"]
+        assert repr(str(td_dir / "image.png")) in result["td_command"]
 
     @pytest.mark.asyncio
     async def test_suggestion_field_present(self, mock_ctx, mock_client, tmp_path, monkeypatch):
@@ -185,7 +185,7 @@ class TestSendToBlender:
         assert result["size_bytes"] == len(fake_png)
         assert "blender_command" in result
         assert "bpy.data.images.load" in result["blender_command"]
-        assert str(blender_dir / "blender_test.png") in result["blender_command"]
+        assert repr(str(blender_dir / "blender_test.png")) in result["blender_command"]
         assert blender_dir.exists()
         assert (blender_dir / "blender_test.png").exists()
 

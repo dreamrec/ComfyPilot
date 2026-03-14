@@ -25,7 +25,7 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 - A structured toolset for workflow building, image generation, model management, and output routing.
 - A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
 - A technique memory system that learns your workflow patterns and builds a reusable library.
-- 92-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, and registry integration for missing node resolution.
+- 90-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, and registry integration for missing node resolution.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -85,8 +85,8 @@ Use for inspecting past generations and their outputs.
 ### 7) Monitoring + Progress
 Use for tracking active jobs and observing workflow dynamics.
 
-- `comfy_watch_progress`, `comfy_subscribe`, `comfy_unsubscribe`
-- `comfy_get_events`, `comfy_describe_dynamics`, `comfy_get_status`
+- `comfy_watch_progress`, `comfy_get_events`
+- `comfy_describe_dynamics`, `comfy_get_status`
 
 ### 8) Workflow Snapshots
 Use for undo/restore and workflow version tracking.

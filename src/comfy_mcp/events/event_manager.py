@@ -16,6 +16,23 @@ from typing import Any, Callable
 logger = logging.getLogger("comfypilot.events")
 
 
+class _LRUDict(dict):
+    """Simple size-capped dict that evicts oldest entries."""
+
+    def __init__(self, maxsize: int = 500):
+        super().__init__()
+        self._maxsize = maxsize
+
+    def __setitem__(self, key, value):
+        if key in self:
+            pass  # update in place
+        elif len(self) >= self._maxsize:
+            # Remove oldest entry
+            oldest = next(iter(self))
+            del self[oldest]
+        super().__setitem__(key, value)
+
+
 class EventManager:
     """Manages WebSocket connection to ComfyUI for real-time events."""
 
@@ -27,7 +44,7 @@ class EventManager:
         self._ws_task: asyncio.Task | None = None
         self._reconnect_count = 0
         self._running = False
-        self._progress_cache: dict[str, dict] = {}  # prompt_id → latest progress
+        self._progress_cache: _LRUDict = _LRUDict(maxsize=500)
 
     async def start(self) -> None:
         """Launch the WebSocket listener task."""
@@ -70,10 +87,14 @@ class EventManager:
                     async for raw_msg in ws:
                         if not self._running:
                             break
+                        if isinstance(raw_msg, bytes):
+                            logger.debug("Skipped binary WS frame (%d bytes)", len(raw_msg))
+                            continue
                         try:
                             msg = json.loads(raw_msg)
                             self._dispatch(msg)
-                        except json.JSONDecodeError:
+                        except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
+                            logger.debug("Skipped non-JSON WS frame")
                             continue
 
             except asyncio.CancelledError:

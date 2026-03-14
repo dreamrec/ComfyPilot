@@ -55,6 +55,16 @@ async def comfy_set_limits(
     Returns:
         JSON with updated threshold values
     """
+    # Validate inputs
+    if warn_pct is not None and not (0 <= warn_pct <= 100):
+        return json.dumps({"error": "warn_pct must be between 0 and 100"})
+    if block_pct is not None and not (0 <= block_pct <= 100):
+        return json.dumps({"error": "block_pct must be between 0 and 100"})
+    if max_queue is not None and max_queue < 1:
+        return json.dumps({"error": "max_queue must be >= 1"})
+    if timeout is not None and timeout < 1:
+        return json.dumps({"error": "timeout must be >= 1"})
+
     guard = _vram_guard(ctx)
     kwargs = {}
     if warn_pct is not None:

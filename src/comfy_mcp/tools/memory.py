@@ -146,12 +146,10 @@ async def comfy_replay_technique(
             "error": f"Technique {technique_id} not found",
             "technique_id": technique_id,
         }, indent=2)
-    # Increment use_count
-    tech = store._techniques.get(technique_id)
-    if tech:
-        tech["use_count"] = tech.get("use_count", 0) + 1
-        store._persist(technique_id)
-        technique["use_count"] = tech["use_count"]
+    # Increment use_count via public API
+    updated = store.record_use(technique_id)
+    if updated:
+        technique["use_count"] = updated["use_count"]
     return json.dumps(technique, indent=2)
 
 

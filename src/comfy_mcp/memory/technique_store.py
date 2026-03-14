@@ -12,6 +12,10 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from comfy_mcp.knowledge.store import atomic_write
+
+_TECHNIQUE_SCHEMA_VERSION = 1
+
 
 class TechniqueStore:
     """Stores and retrieves workflow techniques (reusable patterns)."""
@@ -27,21 +31,24 @@ class TechniqueStore:
         for path in self._dir.glob("*.json"):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
+                if "schema_version" not in data:
+                    data["schema_version"] = _TECHNIQUE_SCHEMA_VERSION
                 self._techniques[data["id"]] = data
             except (json.JSONDecodeError, KeyError):
                 continue
 
     def _persist(self, technique_id: str) -> None:
-        """Write a single technique to disk."""
+        """Write a single technique to disk atomically."""
         tech = self._techniques.get(technique_id)
         if tech:
             path = self._dir / f"{technique_id}.json"
-            path.write_text(json.dumps(tech, indent=2), encoding="utf-8")
+            atomic_write(path, json.dumps(tech, indent=2))
 
     def save(self, workflow: dict, name: str, description: str = "", tags: list[str] | None = None, metadata: dict | None = None) -> dict:
         """Save a workflow as a reusable technique. Returns metadata."""
         tech_id = str(uuid.uuid4())[:8]
         technique = {
+            "schema_version": _TECHNIQUE_SCHEMA_VERSION,
             "id": tech_id,
             "name": name,
             "description": description,
@@ -116,6 +123,15 @@ class TechniqueStore:
         if tech:
             return copy.deepcopy(tech)
         return None
+
+    def record_use(self, technique_id: str) -> dict | None:
+        """Increment use_count and return full technique. Returns None if not found."""
+        tech = self._techniques.get(technique_id)
+        if not tech:
+            return None
+        tech["use_count"] = tech.get("use_count", 0) + 1
+        self._persist(technique_id)
+        return copy.deepcopy(tech)
 
     def favorite(self, technique_id: str, favorite: bool = True, rating: int = -1) -> dict:
         """Set favorite status and/or rating for a technique."""

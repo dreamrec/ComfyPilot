@@ -4,11 +4,23 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 from mcp.server.fastmcp import Context
 
 from comfy_mcp.server import mcp
+
+
+def _safe_filename(raw: str) -> str:
+    """Extract a safe filename, rejecting path traversal attempts."""
+    name = Path(raw).name
+    if not name or name.startswith(".") or ".." in name:
+        raise ValueError(f"Unsafe filename: {raw!r}")
+    name = re.sub(r"[\\/]", "", name)
+    if not name:
+        raise ValueError(f"Unsafe filename: {raw!r}")
+    return name
 
 
 def _client(ctx: Context):
@@ -47,7 +59,7 @@ async def comfy_send_to_disk(
         )
     )
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / filename
+    dest_path = dest_dir / _safe_filename(filename)
     dest_path.write_bytes(image_bytes)
 
     return json.dumps(
@@ -90,10 +102,10 @@ async def comfy_send_to_td(
         )
     )
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / filename
+    dest_path = dest_dir / _safe_filename(filename)
     dest_path.write_bytes(image_bytes)
 
-    td_command = f"op('moviefilein1').par.file = '{dest_path}'"
+    td_command = f"op('moviefilein1').par.file = {repr(str(dest_path))}"
 
     return json.dumps(
         {
@@ -137,10 +149,10 @@ async def comfy_send_to_blender(
         )
     )
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / filename
+    dest_path = dest_dir / _safe_filename(filename)
     dest_path.write_bytes(image_bytes)
 
-    blender_command = f"bpy.data.images.load('{dest_path}')"
+    blender_command = f"bpy.data.images.load({repr(str(dest_path))})"
 
     return json.dumps(
         {

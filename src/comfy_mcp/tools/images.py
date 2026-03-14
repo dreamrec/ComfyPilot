@@ -80,6 +80,10 @@ async def comfy_upload_image(
         subfolder: Optional subfolder within the input directory
         overwrite: Whether to overwrite an existing file with the same name
     """
+    MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+    if len(image_data) > MAX_UPLOAD_BYTES * 4 // 3:
+        return json.dumps({"error": f"Image too large. Maximum {MAX_UPLOAD_BYTES // (1024 * 1024)} MB"})
+
     file_bytes = base64.b64decode(image_data)
     result = await _client(ctx).upload_image(file_bytes, filename, subfolder, overwrite=overwrite)
     return json.dumps(result, indent=2)

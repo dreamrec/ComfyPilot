@@ -48,7 +48,8 @@ class ComfyClient:
         if self.api_key:
             method = self.auth_method
             if method == "auto":
-                method = "x-api-key" if "api.comfy" in self.base_url else "bearer"
+                _CLOUD_DOMAINS = ("api.comfy", "cloud.comfy.org")
+                method = "x-api-key" if any(d in self.base_url for d in _CLOUD_DOMAINS) else "bearer"
             if method == "x-api-key":
                 headers["X-API-Key"] = self.api_key
             else:

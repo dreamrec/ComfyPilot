@@ -1,4 +1,4 @@
-"""Monitoring tools — 6 tools for real-time monitoring and event management."""
+"""Monitoring tools — 4 tools for real-time monitoring and event management."""
 
 from __future__ import annotations
 
@@ -44,58 +44,6 @@ async def comfy_watch_progress(prompt_id: str, ctx: Context = None) -> str:
     if progress:
         return json.dumps({"status": "ok", "progress": progress})
     return json.dumps({"status": "no_progress", "prompt_id": prompt_id})
-
-
-@mcp.tool(
-    annotations={
-        "title": "Subscribe to Events",
-        "readOnlyHint": False,
-        "destructiveHint": False,
-        "idempotentHint": False,
-        "openWorldHint": False,
-    }
-)
-async def comfy_subscribe(event_type: str, ctx: Context = None) -> str:
-    """Register interest in an event type.
-
-    Args:
-        event_type: The event type to subscribe to (e.g., 'progress', 'error', 'complete')
-
-    Returns:
-        JSON confirming subscription
-    """
-    event_mgr = _event_mgr(ctx)
-    event_mgr.subscribe(event_type)
-    return json.dumps({
-        "status": "subscribed",
-        "event_type": event_type,
-    })
-
-
-@mcp.tool(
-    annotations={
-        "title": "Unsubscribe from Events",
-        "readOnlyHint": False,
-        "destructiveHint": False,
-        "idempotentHint": False,
-        "openWorldHint": False,
-    }
-)
-async def comfy_unsubscribe(event_type: str, ctx: Context = None) -> str:
-    """Remove subscription to an event type.
-
-    Args:
-        event_type: The event type to unsubscribe from
-
-    Returns:
-        JSON confirming removal
-    """
-    event_mgr = _event_mgr(ctx)
-    event_mgr.unsubscribe(event_type)
-    return json.dumps({
-        "status": "unsubscribed",
-        "event_type": event_type,
-    })
 
 
 @mcp.tool(
