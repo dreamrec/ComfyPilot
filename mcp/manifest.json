@@ -1,0 +1,54 @@
+{
+  "name": "comfypilot",
+  "version": "1.0.0",
+  "description": "AI-native MCP server for live ComfyUI control — 71 tools across 12 categories",
+  "author": "ComfyPilot",
+  "license": "MIT",
+  "transport": "stdio",
+  "command": "uv",
+  "args": ["run", "comfypilot"],
+  "env": {
+    "COMFY_URL": {
+      "description": "ComfyUI server URL",
+      "default": "http://127.0.0.1:8188"
+    },
+    "COMFY_API_KEY": {
+      "description": "Optional API key for ComfyUI authentication",
+      "default": ""
+    },
+    "COMFY_TIMEOUT": {
+      "description": "HTTP request timeout in seconds",
+      "default": "300"
+    },
+    "COMFY_SNAPSHOT_LIMIT": {
+      "description": "Maximum number of workflow snapshots to retain",
+      "default": "50"
+    },
+    "COMFY_OUTPUT_DIR": {
+      "description": "Default output directory for saved images",
+      "default": "~/comfypilot_output"
+    },
+    "COMFY_TD_OUTPUT_DIR": {
+      "description": "Output directory for TouchDesigner images",
+      "default": "~/comfypilot_output/touchdesigner"
+    },
+    "COMFY_BLENDER_OUTPUT_DIR": {
+      "description": "Output directory for Blender images",
+      "default": "~/comfypilot_output/blender"
+    }
+  },
+  "categories": [
+    "system",
+    "models",
+    "workflow",
+    "nodes",
+    "images",
+    "history",
+    "monitoring",
+    "snapshots",
+    "memory",
+    "safety",
+    "builder",
+    "output_routing"
+  ]
+}

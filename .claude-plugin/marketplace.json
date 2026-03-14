@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dreamrec-ComfyPilot",
+  "description": "MCP server for live AI control of ComfyUI — 66 tools for workflow building, image generation, VRAM monitoring, snapshots, and cross-app output routing",
+  "owner": {
+    "name": "dreamrec",
+    "email": "dreamrec@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "comfypilot",
+      "description": "AI assistant for live control of ComfyUI — 66 MCP tools for workflow building, image generation, VRAM monitoring, snapshots, and cross-app output routing",
+      "version": "0.2.0",
+      "author": {
+        "name": "dreamrec"
+      },
+      "source": "./",
+      "category": "integration"
+    }
+  ]
+}
