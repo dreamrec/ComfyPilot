@@ -25,12 +25,13 @@ _shared_install_graph = None
 _shared_docs_store = None
 _shared_template_index = None
 _shared_knowledge_manager = None
+_shared_registry_index = None
 
 
 @asynccontextmanager
 async def comfy_lifespan(server: FastMCP):
     """Manage ComfyClient and subsystem lifecycles."""
-    global _shared_client, _shared_install_graph, _shared_docs_store, _shared_template_index, _shared_knowledge_manager
+    global _shared_client, _shared_install_graph, _shared_docs_store, _shared_template_index, _shared_knowledge_manager, _shared_registry_index
 
     url = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
     api_key = os.environ.get("COMFY_API_KEY", "")
@@ -104,6 +105,13 @@ async def comfy_lifespan(server: FastMCP):
     knowledge_manager = KnowledgeManager(stores)
     _shared_knowledge_manager = knowledge_manager
 
+    from comfy_mcp.registry.client import RegistryClient
+    from comfy_mcp.registry.index import RegistryIndex
+
+    registry_client = RegistryClient()
+    registry_index = RegistryIndex()
+    _shared_registry_index = registry_index
+
     if client.capabilities.get("ws_available", False):
         await event_mgr.start()
 
@@ -122,6 +130,8 @@ async def comfy_lifespan(server: FastMCP):
             "template_index": template_index,
             "knowledge_manager": knowledge_manager,
             "config_manager": config_manager,
+            "registry_client": registry_client,
+            "registry_index": registry_index,
         }
     finally:
         _shared_client = None
@@ -129,6 +139,8 @@ async def comfy_lifespan(server: FastMCP):
         _shared_docs_store = None
         _shared_template_index = None
         _shared_knowledge_manager = None
+        _shared_registry_index = None
+        await registry_client.close()
         await event_mgr.shutdown()
         await docs_fetcher.close()
         await client.close()
@@ -216,6 +228,14 @@ async def templates_index_resource() -> str:
     if _shared_template_index is None:
         return json.dumps({"status": "not_initialized"})
     return json.dumps(_shared_template_index.summary(), indent=2)
+
+
+@mcp.resource("comfy://registry/status")
+async def registry_status_resource() -> str:
+    """Registry cache stats and index coverage."""
+    if _shared_registry_index is None:
+        return json.dumps({"status": "not_initialized"})
+    return json.dumps(_shared_registry_index.summary(), indent=2)
 
 
 def _register_tools():

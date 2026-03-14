@@ -91,3 +91,31 @@ class TestCompatEngine:
         assert "missing_nodes" in result
         assert "missing_models" in result
         assert "confidence" in result
+
+
+class TestCompatEngineWithRegistry:
+    def test_missing_nodes_enriched_when_registry_provided(self):
+        from comfy_mcp.compat.engine import run_preflight
+        wf = {"1": {"class_type": "UnknownNode", "inputs": {}}}
+        registry_data = {
+            "UnknownNode": {
+                "class": "UnknownNode",
+                "package": "some-custom-pack",
+                "latest_version": "1.0.0",
+                "compatible": True,
+                "install_cmd": "comfy node install some-custom-pack",
+                "note": None,
+            }
+        }
+        result = run_preflight(wf, SNAPSHOT, registry_resolutions=registry_data)
+        assert result["status"] == "blocked"
+        # missing_nodes should now be dicts, not plain strings
+        assert isinstance(result["missing_nodes"][0], dict)
+        assert result["missing_nodes"][0]["package"] == "some-custom-pack"
+
+    def test_missing_nodes_plain_when_no_registry(self):
+        from comfy_mcp.compat.engine import run_preflight
+        wf = {"1": {"class_type": "UnknownNode", "inputs": {}}}
+        result = run_preflight(wf, SNAPSHOT)
+        # Without registry, missing_nodes stays as plain strings (backwards compat)
+        assert isinstance(result["missing_nodes"][0], str)
