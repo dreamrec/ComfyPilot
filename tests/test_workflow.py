@@ -72,6 +72,17 @@ class TestQueuePrompt:
 
         job_tracker.track.assert_awaited_once_with("abc-123")
 
+    @pytest.mark.asyncio
+    async def test_queue_prompt_rejects_ui_workflow_json(self, mock_ctx, mock_client):
+        result = await comfy_queue_prompt(
+            workflow={"nodes": [{"id": 1, "type": "SaveImage"}], "links": []},
+            ctx=mock_ctx,
+        )
+        data = json.loads(result)
+        assert "error" in data
+        assert data["workflow_format"] == "comfyui-ui"
+        mock_client.queue_prompt.assert_not_called()
+
 
 class TestGetQueue:
     @pytest.mark.asyncio
@@ -229,6 +240,17 @@ class TestValidateWorkflow:
         assert not result_dict["valid"]
         assert any("99" in e for e in result_dict["errors"])
 
+    @pytest.mark.asyncio
+    async def test_validate_reports_ui_workflow_format(self, mock_ctx):
+        result = await comfy_validate_workflow(
+            workflow={"nodes": [{"id": 1, "type": "SaveImage"}], "links": []},
+            ctx=mock_ctx,
+        )
+        data = json.loads(result)
+        assert data["valid"] is False
+        assert data["workflow_format"] == "comfyui-ui"
+        assert data["passes"] == ["format"]
+
 
 class TestExportWorkflow:
     @pytest.mark.asyncio
@@ -279,3 +301,14 @@ class TestImportWorkflow:
         result = await comfy_import_workflow(workflow_json=workflow_json, ctx=mock_ctx)
         data = json.loads(result)
         assert data == {}
+
+    @pytest.mark.asyncio
+    async def test_import_ui_workflow_returns_format_metadata(self, mock_ctx):
+        workflow_json = json.dumps({
+            "nodes": [{"id": 1, "type": "SaveImage"}],
+            "links": [],
+        })
+        result = await comfy_import_workflow(workflow_json=workflow_json, ctx=mock_ctx)
+        data = json.loads(result)
+        assert data["format"] == "comfyui-ui"
+        assert data["workflow_summary"]["node_count"] == 1

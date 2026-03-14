@@ -8,6 +8,7 @@ from typing import Any
 from mcp.server.fastmcp import Context
 
 from comfy_mcp.server import mcp
+from comfy_mcp.workflow_formats import describe_workflow
 
 
 def _client(ctx: Context):
@@ -34,6 +35,14 @@ async def comfy_queue_prompt(
         workflow: Workflow dict to queue
         front: If True, insert at front of queue instead of back
     """
+    workflow_info = describe_workflow(workflow)
+    if workflow_info["format"] != "api-prompt":
+        return json.dumps({
+            "error": "Workflow must be in ComfyUI API prompt format before queueing.",
+            "workflow_format": workflow_info["format"],
+            "workflow_summary": workflow_info["summary"],
+        }, indent=2)
+
     await ctx.report_progress(0, 100)
     result = await _client(ctx).queue_prompt(workflow, front=front)
     prompt_id = result.get("prompt_id")
@@ -190,6 +199,21 @@ async def comfy_validate_workflow(
     errors: list[str] = []
     warnings: list[str] = []
 
+    workflow_info = describe_workflow(workflow)
+    if workflow_info["format"] == "comfyui-ui":
+        return json.dumps({
+            "valid": False,
+            "errors": [
+                "Workflow is in ComfyUI UI workflow format, not API prompt format.",
+                "Use it as a reference workflow or translate it before queueing.",
+            ],
+            "warnings": [],
+            "node_count": workflow_info["summary"].get("node_count", 0),
+            "workflow_format": workflow_info["format"],
+            "workflow_summary": workflow_info["summary"],
+            "passes": ["format"],
+        }, indent=2)
+
     # Pass 1: Schema
     if not isinstance(workflow, dict):
         return json.dumps({"valid": False, "errors": ["Workflow must be a dict"], "warnings": [], "node_count": 0}, indent=2)
@@ -296,6 +320,19 @@ async def comfy_import_workflow(
             return json.dumps({
                 "error": "Parsed JSON is not a dict",
                 "workflow": None,
+            }, indent=2)
+        if workflow == {}:
+            return json.dumps(workflow, indent=2)
+        workflow_info = describe_workflow(workflow)
+        if workflow_info["format"] != "api-prompt":
+            return json.dumps({
+                "format": workflow_info["format"],
+                "workflow": workflow,
+                "workflow_summary": workflow_info["summary"],
+                "warning": (
+                    "Imported JSON is not in ComfyUI API prompt format. "
+                    "It can be kept as a reference workflow but cannot be queued directly."
+                ),
             }, indent=2)
         return json.dumps(workflow, indent=2)
     except json.JSONDecodeError as e:

@@ -64,6 +64,7 @@ Use for queueing, cancelling, and managing prompt execution.
 - `comfy_queue_prompt`, `comfy_get_queue`, `comfy_cancel_run`
 - `comfy_interrupt`, `comfy_clear_queue`
 - `comfy_validate_workflow`, `comfy_export_workflow`, `comfy_import_workflow`
+  Workflow tools now detect UI-format JSON and report it honestly instead of treating it like an API prompt.
 
 ### 4) Nodes + Schema
 Use for exploring ComfyUI's node catalog and understanding widget schemas.

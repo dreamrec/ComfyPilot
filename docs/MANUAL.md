@@ -72,9 +72,9 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_cancel_run` | Cancel a specific queued job by prompt ID |
 | `comfy_interrupt` | Interrupt the currently running generation |
 | `comfy_clear_queue` | Clear all pending jobs from the queue |
-| `comfy_validate_workflow` | Validate a workflow against the node catalog |
+| `comfy_validate_workflow` | Validate a workflow against the node catalog, with explicit detection of UI-format workflows versus API prompts |
 | `comfy_export_workflow` | Export a workflow as shareable JSON |
-| `comfy_import_workflow` | Import a workflow from JSON |
+| `comfy_import_workflow` | Import a workflow from JSON and report when the payload is UI-format reference JSON instead of an API prompt |
 
 ### Node Tools (6)
 
