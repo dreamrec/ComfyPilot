@@ -8,7 +8,7 @@ This file is imported by server._register_tools().
 # Each import triggers the @mcp.tool() decorators in that module.
 
 from comfy_mcp.tools import system      # noqa: F401  -- Task 5
-# from comfy_mcp.tools import models      # noqa: F401  -- Task 6
+from comfy_mcp.tools import models      # noqa: F401  -- Task 6
 # from comfy_mcp.tools import workflow    # noqa: F401  -- Task 7
 # from comfy_mcp.tools import nodes       # noqa: F401  -- Task 8
 # from comfy_mcp.tools import images      # noqa: F401  -- Task 9
