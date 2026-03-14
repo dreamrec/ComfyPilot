@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v0.6.0
+# ComfyPilot v0.7.0
 
 **ComfyPilot** is an MCP server for ComfyUI.
 It lets an AI agent build workflows, queue generations, monitor progress, retrieve images, and manage VRAM — all through structured tool calls with visual output return.
@@ -25,7 +25,7 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 - A structured toolset for workflow building, image generation, model management, and output routing.
 - A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
 - A technique memory system that learns your workflow patterns and builds a reusable library.
-- 87-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, and persistent knowledge management.
+- 92-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, and registry integration for missing node resolution.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -43,7 +43,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (87 Tools)
+## Tool Map (92 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -172,7 +172,16 @@ Use for unified knowledge status, cache management, and persistent user preferen
 - `comfy_get_config` -- Read persisted user preferences (safety thresholds, output dirs, cache settings).
 - `comfy_set_config` -- Write a persisted user preference.
 
-## MCP Resources (10)
+### 18) Registry Integration
+Use for looking up, resolving, and checking compatibility of ComfyUI registry packages.
+
+- `comfy_search_registry` -- Search the ComfyUI package registry by name, description, or node class.
+- `comfy_get_package` -- Get full metadata for a registry package.
+- `comfy_resolve_missing` -- Resolve missing node classes to their registry packages with install commands.
+- `comfy_check_compatibility` -- Check if a registry package is compatible with the current environment.
+- `comfy_registry_status` -- Show registry cache statistics (index size, entry counts).
+
+## MCP Resources (11)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
 - `comfy://server/capabilities` — Detected server profile, version, auth method
@@ -183,6 +192,7 @@ Use for unified knowledge status, cache management, and persistent user preferen
 - `comfy://knowledge/full` — Complete knowledge status across all subsystems (staleness, hashes, summaries)
 - `comfy://docs/status` — Documentation cache status (embedded doc counts, llms-full.txt freshness, content hashes)
 - `comfy://templates/index` — Template index summary (counts, categories, sources, freshness)
+- `comfy://registry/status` — Registry cache stats and index coverage
 
 ## How To Use It (Practical Workflow)
 
@@ -209,7 +219,7 @@ Use for unified knowledge status, cache management, and persistent user preferen
 - Replacing artistic direction by itself.
 - Running without a live ComfyUI instance (this is a bridge, not a runtime).
 - Streaming real-time video output (snapshots and polls, not live frames).
-- Automatic custom node installation or dependency management.
+- Automatic custom node installation (registry resolves packages but does not install them).
 - "One shot perfect generation" without iterative refinement.
 
 ## Support Matrix

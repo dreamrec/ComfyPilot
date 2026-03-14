@@ -82,6 +82,8 @@ def mock_ctx(mock_client):
         "install_graph": MagicMock(snapshot={"node_classes": set(), "models": {}, "embeddings": [], "object_info": {}}),
         "knowledge_manager": MagicMock(),
         "config_manager": MagicMock(),
+        "registry_client": AsyncMock(),
+        "registry_index": MagicMock(),
     }
     ctx.report_progress = AsyncMock()
     ctx.log_info = AsyncMock()
