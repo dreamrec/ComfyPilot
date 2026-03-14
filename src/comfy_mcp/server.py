@@ -6,6 +6,7 @@ Initializes the MCP server with lifespan management for persistent connections.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -14,10 +15,15 @@ from mcp.server.fastmcp import FastMCP
 
 from comfy_mcp.comfy_client import ComfyClient
 
+# Module-level reference for resources (set during lifespan)
+_shared_client: ComfyClient | None = None
+
 
 @asynccontextmanager
 async def comfy_lifespan(server: FastMCP):
     """Manage ComfyClient and subsystem lifecycles."""
+    global _shared_client
+
     url = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
     api_key = os.environ.get("COMFY_API_KEY", "")
     timeout = float(os.environ.get("COMFY_TIMEOUT", "300"))
@@ -25,6 +31,7 @@ async def comfy_lifespan(server: FastMCP):
 
     client = ComfyClient(url, api_key=api_key, timeout=timeout)
     await client.connect()
+    _shared_client = client
 
     # Subsystem managers — imported lazily to avoid circular deps
     from comfy_mcp.events.event_manager import EventManager
@@ -49,11 +56,48 @@ async def comfy_lifespan(server: FastMCP):
             "job_tracker": job_tracker,
         }
     finally:
+        _shared_client = None
         await event_mgr.shutdown()
         await client.close()
 
 
 mcp = FastMCP("comfypilot", lifespan=comfy_lifespan)
+
+
+@mcp.resource("comfy://system/info")
+async def system_info_resource() -> str:
+    """System stats, GPU info, ComfyUI version."""
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    result = await _shared_client.get_system_stats()
+    return json.dumps(result, indent=2)
+
+
+@mcp.resource("comfy://nodes/catalog")
+async def nodes_catalog_resource() -> str:
+    """Full node catalog from ComfyUI."""
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    result = await _shared_client.get_object_info()
+    return json.dumps({"node_count": len(result), "nodes": list(result.keys())[:100]})
+
+
+@mcp.resource("comfy://models/{folder}")
+async def models_resource(folder: str) -> str:
+    """List models in a specific folder (checkpoints, loras, etc)."""
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    result = await _shared_client.get_models(folder)
+    return json.dumps(result, indent=2)
+
+
+@mcp.resource("comfy://embeddings")
+async def embeddings_resource() -> str:
+    """List all available embeddings."""
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    result = await _shared_client.get_embeddings()
+    return json.dumps(result, indent=2)
 
 
 def _register_tools():
