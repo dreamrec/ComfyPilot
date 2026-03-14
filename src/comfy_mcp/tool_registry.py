@@ -16,6 +16,6 @@ from comfy_mcp.tools import history     # noqa: F401  -- Task 11
 from comfy_mcp.tools import monitoring  # noqa: F401  -- Task 13
 from comfy_mcp.tools import snapshots   # noqa: F401  -- Task 15
 from comfy_mcp.tools import memory      # noqa: F401  -- Task 16
-# from comfy_mcp.tools import safety      # noqa: F401  -- Task 17
+from comfy_mcp.tools import safety      # noqa: F401  -- Task 17
 # from comfy_mcp.tools import builder     # noqa: F401  -- Task 18
 # from comfy_mcp.tools import output_routing  # noqa: F401 -- Task 19
