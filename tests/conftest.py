@@ -77,6 +77,9 @@ def mock_ctx(mock_client):
         "job_tracker": _make_job_tracker_mock(),
         "docs_store": MagicMock(),
         "docs_fetcher": AsyncMock(),
+        "template_index": MagicMock(),
+        "template_discovery": AsyncMock(),
+        "install_graph": MagicMock(snapshot={"node_classes": set(), "models": {}, "embeddings": [], "object_info": {}}),
     }
     ctx.report_progress = AsyncMock()
     ctx.log_info = AsyncMock()

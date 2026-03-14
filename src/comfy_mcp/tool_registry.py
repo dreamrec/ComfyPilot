@@ -22,3 +22,4 @@ from comfy_mcp.tools import output_routing  # noqa: F401 -- Task 19
 from comfy_mcp.tools import install         # noqa: F401 -- v0.3 Install Graph
 from comfy_mcp.tools import compat          # noqa: F401 -- v0.3 Compatibility Engine
 from comfy_mcp.tools import docs            # noqa: F401 -- v0.4 Documentation Engine
+from comfy_mcp.tools import templates       # noqa: F401 -- v0.5 Template Engine
