@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("comfypilot.install")
@@ -28,10 +29,11 @@ def _hash(obj: Any) -> str:
 class InstallGraph:
     """Canonical machine state snapshot."""
 
-    def __init__(self, client):
+    def __init__(self, client, cache_dir: str | None = None):
         self._client = client
         self._snapshot: dict[str, Any] | None = None
         self._hashes: dict[str, str] = {}
+        self._cache_dir = Path(cache_dir) if cache_dir else Path.home() / ".comfypilot" / "cache"
 
     @property
     def snapshot(self) -> dict[str, Any] | None:
@@ -164,3 +166,48 @@ class InstallGraph:
             if matches:
                 results[f] = matches
         return results
+
+    # --- KnowledgeStore protocol methods ---
+
+    def content_hash(self) -> str:
+        """SHA-256 prefix of the combined hashes dict for change detection."""
+        raw = json.dumps(self._hashes, sort_keys=True)
+        return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+    def clear(self) -> None:
+        """Remove all cached data (in-memory and on disk)."""
+        self._snapshot = None
+        self._hashes = {}
+        path = self._cache_dir / "install_graph.json"
+        if path.exists():
+            path.unlink()
+
+    # --- Disk cache methods ---
+
+    def save_to_disk(self) -> None:
+        """Persist current snapshot to disk cache."""
+        if not self._snapshot:
+            return
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
+        # Convert set to sorted list for JSON serialization
+        serializable = dict(self._snapshot)
+        serializable["node_classes"] = sorted(serializable["node_classes"])
+        path = self._cache_dir / "install_graph.json"
+        from comfy_mcp.knowledge.store import atomic_write
+        atomic_write(path, json.dumps(serializable, indent=2))
+
+    def load_from_disk(self) -> bool:
+        """Load snapshot from disk cache. Returns True if loaded successfully."""
+        path = self._cache_dir / "install_graph.json"
+        if not path.exists():
+            return False
+        try:
+            data = json.loads(path.read_text())
+            # Restore node_classes as set
+            data["node_classes"] = set(data.get("node_classes", []))
+            self._snapshot = data
+            self._hashes = data.get("hashes", {})
+            return True
+        except (json.JSONDecodeError, OSError, KeyError) as exc:
+            logger.warning("Failed to load install graph cache: %s", exc)
+            return False

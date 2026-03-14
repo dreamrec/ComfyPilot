@@ -220,3 +220,67 @@ class TestInstallGraphChangeDetection:
         await graph.refresh()
         h2 = graph.hashes["nodes"]
         assert h1 != h2
+
+
+class TestInstallGraphDiskCache:
+    @pytest.mark.asyncio
+    async def test_save_to_disk(self, tmp_path, mock_client):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        await graph.refresh()
+        graph.save_to_disk()
+        assert (tmp_path / "install_graph.json").exists()
+
+    @pytest.mark.asyncio
+    async def test_load_from_disk(self, tmp_path, mock_client):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        await graph.refresh()
+        graph.save_to_disk()
+
+        graph2 = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        loaded = graph2.load_from_disk()
+        assert loaded is True
+        assert graph2.snapshot is not None
+        assert graph2.snapshot["node_count"] == graph.snapshot["node_count"]
+
+    def test_load_from_disk_returns_false_when_no_cache(self, tmp_path, mock_client):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        loaded = graph.load_from_disk()
+        assert loaded is False
+
+    def test_load_from_disk_handles_corruption(self, tmp_path, mock_client):
+        from comfy_mcp.install.install_graph import InstallGraph
+        (tmp_path / "install_graph.json").write_text("{{invalid")
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        loaded = graph.load_from_disk()
+        assert loaded is False
+
+
+class TestInstallGraphProtocolCompliance:
+    """Verify InstallGraph satisfies the KnowledgeStore protocol."""
+
+    def test_isinstance_check(self, mock_client, tmp_path):
+        from comfy_mcp.install.install_graph import InstallGraph
+        from comfy_mcp.knowledge.store import KnowledgeStore
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        assert isinstance(graph, KnowledgeStore)
+
+    def test_content_hash_returns_string(self, mock_client, tmp_path):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        h = graph.content_hash()
+        assert isinstance(h, str) and len(h) > 0
+
+    def test_summary_returns_dict(self, mock_client, tmp_path):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        s = graph.summary()
+        assert isinstance(s, dict)
+
+    def test_clear_resets_state(self, mock_client, tmp_path):
+        from comfy_mcp.install.install_graph import InstallGraph
+        graph = InstallGraph(mock_client, cache_dir=str(tmp_path))
+        graph.clear()
+        assert graph._snapshot is None

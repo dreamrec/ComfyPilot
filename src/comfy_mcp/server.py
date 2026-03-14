@@ -6,7 +6,9 @@ Initializes the MCP server with lifespan management for persistent connections.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -15,17 +17,20 @@ from mcp.server.fastmcp import FastMCP
 
 from comfy_mcp.comfy_client import ComfyClient
 
+logger = logging.getLogger("comfypilot.server")
+
 # Module-level references for resources (set during lifespan)
 _shared_client: ComfyClient | None = None
 _shared_install_graph = None
 _shared_docs_store = None
 _shared_template_index = None
+_shared_knowledge_manager = None
 
 
 @asynccontextmanager
 async def comfy_lifespan(server: FastMCP):
     """Manage ComfyClient and subsystem lifecycles."""
-    global _shared_client, _shared_install_graph, _shared_docs_store, _shared_template_index
+    global _shared_client, _shared_install_graph, _shared_docs_store, _shared_template_index, _shared_knowledge_manager
 
     url = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
     api_key = os.environ.get("COMFY_API_KEY", "")
@@ -52,7 +57,24 @@ async def comfy_lifespan(server: FastMCP):
     vram_guard = VRAMGuard(client)
     job_tracker = JobTracker(client, event_mgr)
     install_graph = InstallGraph(client)
-    await install_graph.refresh()
+    # Try loading install graph from disk cache for faster startup
+    if install_graph.load_from_disk() and not install_graph.is_stale():
+        logger.info("Loaded install graph from disk cache")
+    elif install_graph.load_from_disk():
+        # Cache exists but is stale — use it immediately, refresh in background
+        logger.info("Install graph cache stale, scheduling background refresh")
+        async def _bg_refresh():
+            try:
+                await install_graph.refresh()
+                install_graph.save_to_disk()
+                logger.info("Background install graph refresh complete")
+            except Exception as exc:
+                logger.warning("Background refresh failed: %s", exc)
+        asyncio.create_task(_bg_refresh())
+    else:
+        # No cache at all — must block on first refresh
+        await install_graph.refresh()
+        install_graph.save_to_disk()
     _shared_install_graph = install_graph
 
     from comfy_mcp.docs.store import DocsStore
@@ -66,6 +88,21 @@ async def comfy_lifespan(server: FastMCP):
     template_discovery = TemplateDiscovery(client)
     template_index = TemplateIndex()
     _shared_template_index = template_index
+
+    from comfy_mcp.knowledge.config import ConfigManager
+    from comfy_mcp.knowledge.manager import KnowledgeManager
+
+    config_manager = ConfigManager()
+
+    # Build stores dict dynamically — only include subsystems that are available
+    stores: dict = {"install_graph": install_graph}
+    if docs_store is not None:
+        stores["docs"] = docs_store
+    if template_index is not None:
+        stores["templates"] = template_index
+
+    knowledge_manager = KnowledgeManager(stores)
+    _shared_knowledge_manager = knowledge_manager
 
     if client.capabilities.get("ws_available", False):
         await event_mgr.start()
@@ -83,12 +120,15 @@ async def comfy_lifespan(server: FastMCP):
             "docs_fetcher": docs_fetcher,
             "template_discovery": template_discovery,
             "template_index": template_index,
+            "knowledge_manager": knowledge_manager,
+            "config_manager": config_manager,
         }
     finally:
         _shared_client = None
         _shared_install_graph = None
         _shared_docs_store = None
         _shared_template_index = None
+        _shared_knowledge_manager = None
         await event_mgr.shutdown()
         await docs_fetcher.close()
         await client.close()
@@ -146,16 +186,12 @@ async def install_graph_resource() -> str:
     return json.dumps(_shared_install_graph.summary(), indent=2)
 
 
-@mcp.resource("comfy://knowledge/status")
-async def knowledge_status_resource() -> str:
-    """Knowledge freshness status — staleness check and content hashes."""
-    if _shared_install_graph is None:
+@mcp.resource("comfy://knowledge/full")
+async def knowledge_full_resource() -> str:
+    """Complete knowledge status across all subsystems."""
+    if _shared_knowledge_manager is None:
         return json.dumps({"status": "not_initialized"})
-    return json.dumps({
-        "stale": _shared_install_graph.is_stale(),
-        "refreshed_at": _shared_install_graph.snapshot["refreshed_at"] if _shared_install_graph.snapshot else None,
-        "hashes": _shared_install_graph.hashes,
-    }, indent=2)
+    return json.dumps(_shared_knowledge_manager.status(), indent=2)
 
 
 @mcp.resource("comfy://server/capabilities")
