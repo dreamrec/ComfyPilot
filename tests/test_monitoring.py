@@ -95,7 +95,7 @@ class TestDescribeDynamics:
         mock_ctx.request_context.lifespan_context["event_manager"].drain_events = MagicMock(
             return_value=[{"type": "progress", "data": {}, "timestamp": 1.0}]
         )
-        mock_ctx.request_context.lifespan_context["job_tracker"].get_active_jobs = MagicMock(return_value=[])
+        mock_ctx.request_context.lifespan_context["job_tracker"].list_active = MagicMock(return_value=[])
         result = json.loads(await comfy_describe_dynamics(ctx=mock_ctx))
         assert "queue" in result
         assert "events" in result
@@ -110,7 +110,7 @@ class TestDescribeDynamics:
             "queue_pending": ["prompt2", "prompt3"],
         }
         mock_ctx.request_context.lifespan_context["event_manager"].drain_events = MagicMock(return_value=None)
-        mock_ctx.request_context.lifespan_context["job_tracker"].get_active_jobs = MagicMock(return_value=[])
+        mock_ctx.request_context.lifespan_context["job_tracker"].list_active = MagicMock(return_value=[])
         result = json.loads(await comfy_describe_dynamics(ctx=mock_ctx))
         assert result["queue"]["running"] == 1
         assert result["queue"]["pending"] == 2
@@ -133,3 +133,16 @@ class TestGetStatus:
         result = json.loads(await comfy_get_status(ctx=mock_ctx))
         assert result["queue"]["running"] == 1
         assert result["queue"]["pending"] == 1
+
+
+@pytest.mark.asyncio
+async def test_describe_dynamics_uses_list_active(mock_ctx, mock_client):
+    """describe_dynamics should call job_tracker.list_active(), not get_active_jobs()."""
+    mock_ctx.request_context.lifespan_context["event_manager"].drain_events = MagicMock(return_value=None)
+    job_tracker = mock_ctx.request_context.lifespan_context["job_tracker"]
+    job_tracker.list_active = MagicMock(return_value=[{"prompt_id": "x", "status": "running"}])
+
+    result = json.loads(await comfy_describe_dynamics(ctx=mock_ctx))
+
+    job_tracker.list_active.assert_called_once()
+    assert result["jobs"]["active"] == 1

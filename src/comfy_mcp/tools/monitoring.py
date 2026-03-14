@@ -162,9 +162,7 @@ async def comfy_describe_dynamics(ctx: Context = None) -> str:
             event_types.add(event.get("type", "unknown"))
 
     # Get active jobs from job_tracker
-    active_jobs = getattr(job_tracker, "get_active_jobs", lambda: [])()
-    if hasattr(active_jobs, "__aiter__"):
-        active_jobs = []  # If it's async, just leave empty for snapshot
+    active_jobs = job_tracker.list_active()
 
     return json.dumps({
         "queue": {
