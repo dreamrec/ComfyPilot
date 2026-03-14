@@ -1,6 +1,6 @@
 [project]
 name = "comfypilot"
-version = "0.7.0"
+version = "0.7.1"
 description = "MCP server for live AI control of ComfyUI"
 readme = "README.md"
 license = "MIT"

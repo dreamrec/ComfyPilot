@@ -15,12 +15,16 @@ All notable changes to ComfyPilot will be documented in this file.
 - WebSocket binary frame handling (skip instead of crash)
 - Progress cache memory leak (LRU-capped dict, maxsize=500)
 - Cloud URL detection expanded (`cloud.comfy.org`)
+- Core cloud route branching for system stats, queue, prompt, object info, history, image view, and upload
+- Cloud history v2 responses normalized to the local history dict shape
 - Template discovery route (`/api/workflow_templates`)
+- Template discovery now probes both `/workflow_templates` and `/api/workflow_templates` in profile-aware order
 - InstallGraph preserves object-shaped feature payloads
 - Compatibility wording: `basic_check_passed` instead of misleading `compatible`
 - Atomic writes for TechniqueStore, DocsStore, TemplateIndex
 - Schema versioning for TechniqueStore with backfill migration
 - Private member access fix in `comfy_replay_technique`
+- Invalid base64 uploads now return a structured tool error
 
 ### Removed
 - `comfy_subscribe` / `comfy_unsubscribe` (placebo tools with no real subscription semantics)
@@ -37,6 +41,7 @@ All notable changes to ComfyPilot will be documented in this file.
 - Tool count: 92 → 90 (removed 2 placebo tools)
 - Built-in templates: 2 → 8
 - Test suite: 541 → 598
+- Release metadata aligned to `0.7.1` across package/docs
 
 ## [0.7.0] — 2026-03-14
 

@@ -7,6 +7,7 @@ WebSocket methods (ws_connect, watch_execution) are implemented in Task 10.
 from __future__ import annotations
 
 import uuid
+from urllib.parse import urlencode
 from typing import Any
 
 import httpx
@@ -176,26 +177,83 @@ class ComfyClient:
 
     # ── High-Level Methods ──
 
+    def _route(self, local_path: str, cloud_path: str | None = None) -> str:
+        """Return the correct local/cloud route for a path."""
+        if self._is_cloud():
+            return cloud_path or f"/api{local_path}"
+        return local_path
+
+    @staticmethod
+    def _normalize_history_item(result: Any, prompt_id: str) -> dict[str, Any]:
+        """Normalize a single cloud history item to the local dict shape."""
+        if isinstance(result, dict):
+            if prompt_id in result:
+                return result
+            if result.get("prompt_id") == prompt_id:
+                return {prompt_id: result}
+        return {}
+
+    @staticmethod
+    def _normalize_history_list(result: Any) -> dict[str, Any]:
+        """Normalize cloud history list responses to the local dict shape."""
+        if not isinstance(result, dict):
+            return {}
+        history = result.get("history")
+        if not isinstance(history, list):
+            return result
+        normalized: dict[str, Any] = {}
+        for entry in history:
+            if not isinstance(entry, dict):
+                continue
+            prompt_id = entry.get("prompt_id")
+            if prompt_id:
+                normalized[str(prompt_id)] = entry
+        return normalized
+
+    def build_view_url(self, filename: str, subfolder: str = "", image_type: str = "output") -> str:
+        """Build the correct local/cloud URL for viewing an image."""
+        params = urlencode({"filename": filename, "type": image_type, "subfolder": subfolder})
+        return f"{self.base_url}{self._route('/view')}?{params}"
+
     async def get_system_stats(self) -> dict[str, Any]:
-        return await self.get("/system_stats")
+        return await self.get(self._route("/system_stats"))
 
     async def get_queue(self) -> dict[str, Any]:
-        return await self.get("/queue")
+        return await self.get(self._route("/queue"))
 
     async def get_history(self, prompt_id: str | None = None, max_items: int = 200) -> dict[str, Any]:
         if prompt_id:
-            return await self.get(f"/history/{prompt_id}")
-        return await self.get(f"/history?max_items={max_items}")
+            result = await self.get(
+                self._route(
+                    f"/history/{prompt_id}",
+                    f"/api/history_v2/{prompt_id}",
+                )
+            )
+            if self._is_cloud():
+                return self._normalize_history_item(result, prompt_id)
+            return result
+        result = await self.get(
+            self._route(
+                f"/history?max_items={max_items}",
+                f"/api/history_v2?max_items={max_items}",
+            )
+        )
+        if self._is_cloud():
+            return self._normalize_history_list(result)
+        return result
 
     async def get_object_info(self, node_type: str | None = None) -> dict[str, Any]:
         if node_type:
-            return await self.get(f"/object_info/{node_type}")
-        return await self.get("/object_info")
+            return await self.get(self._route(f"/object_info/{node_type}"))
+        return await self.get(self._route("/object_info"))
 
     async def get_models(self, folder: str) -> list[str]:
-        result = await self.get(f"/models/{folder}")
-        # ComfyUI returns a list directly for /models/{folder}
+        result = await self.get(self._route(f"/models/{folder}", f"/api/experiment/models/{folder}"))
+        # Local ComfyUI returns a list directly; cloud experimental models return
+        # objects that include a "name" field.
         if isinstance(result, list):
+            if result and isinstance(result[0], dict):
+                return [item.get("name", "") for item in result if isinstance(item, dict) and item.get("name")]
             return result
         return result.get("models", [])
 
@@ -226,16 +284,16 @@ class ComfyClient:
         }
         if front:
             data["front"] = True
-        return await self.post("/prompt", data)
+        return await self.post(self._route("/prompt"), data)
 
     async def cancel_prompt(self, prompt_id: str) -> dict[str, Any]:
-        return await self.post("/queue", {"delete": [prompt_id]})
+        return await self.post(self._route("/queue"), {"delete": [prompt_id]})
 
     async def interrupt(self) -> dict[str, Any]:
-        return await self.post("/interrupt")
+        return await self.post(self._route("/interrupt"), {})
 
     async def clear_queue(self) -> dict[str, Any]:
-        return await self.post("/queue", {"clear": True})
+        return await self.post(self._route("/queue"), {"clear": True})
 
     async def free_vram(self, unload_models: bool = False, free_memory: bool = False) -> dict[str, Any]:
         data = {}
@@ -243,7 +301,7 @@ class ComfyClient:
             data["unload_models"] = True
         if free_memory:
             data["free_memory"] = True
-        return await self.post("/free", data)
+        return await self.post(self._route("/free"), data)
 
     async def upload_image(
         self,
@@ -259,8 +317,9 @@ class ComfyClient:
         data = {"type": image_type, "overwrite": str(overwrite).lower()}
         if subfolder:
             data["subfolder"] = subfolder
-        resp = await http.post("/upload/image", files=files, data=data)
-        self._check_status(resp, "/upload/image")
+        upload_path = self._route("/upload/image")
+        resp = await http.post(upload_path, files=files, data=data)
+        self._check_status(resp, upload_path)
         return resp.json()
 
     async def get_image(
@@ -274,12 +333,13 @@ class ComfyClient:
         params = {"filename": filename, "type": image_type}
         if subfolder:
             params["subfolder"] = subfolder
-        resp = await http.get("/view", params=params)
-        self._check_status(resp, "/view")
+        view_path = self._route("/view")
+        resp = await http.get(view_path, params=params)
+        self._check_status(resp, view_path)
         return resp.content
 
     async def delete_history(self, prompt_id: str) -> dict[str, Any]:
-        return await self.post("/history", {"delete": [prompt_id]})
+        return await self.post(self._route("/history"), {"delete": [prompt_id]})
 
     async def clear_history(self) -> dict[str, Any]:
-        return await self.post("/history", {"clear": True})
+        return await self.post(self._route("/history"), {"clear": True})

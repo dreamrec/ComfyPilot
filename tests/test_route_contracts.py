@@ -2,7 +2,8 @@
 
 These tests ensure that route paths match the official ComfyUI API contracts:
 - Local ComfyUI: /features, /extensions, /system_stats
-- Cloud ComfyUI: /api/features, /api/extensions, /api/system_stats
+- Cloud ComfyUI: /api/features, /api/extensions, /api/system_stats, and
+  /api-prefixed execution/history/view routes where documented.
 """
 import httpx
 import pytest
@@ -15,6 +16,15 @@ def _recording_transport(recorded: list):
 
     def handler(request: httpx.Request) -> httpx.Response:
         recorded.append(request.url.path)
+        if request.url.path == "/api/history_v2":
+            return httpx.Response(200, json={"history": []})
+        if request.url.path.startswith("/api/history_v2/"):
+            prompt_id = request.url.path.rsplit("/", 1)[-1]
+            return httpx.Response(200, json={"prompt_id": prompt_id, "outputs": {}})
+        if request.url.path == "/api/experiment/models/checkpoints":
+            return httpx.Response(200, json=[{"name": "flux1-dev.safetensors"}])
+        if request.url.path in {"/view", "/api/view"}:
+            return httpx.Response(200, content=b"img")
         return httpx.Response(200, json={})
 
     return httpx.MockTransport(handler)
@@ -83,7 +93,7 @@ class TestLocalRoutes:
 
 
 class TestCloudRoutes:
-    """Cloud ComfyUI should use /api/ prefixed routes for features/extensions."""
+    """Cloud ComfyUI should use cloud-specific routes where applicable."""
 
     @pytest.mark.asyncio
     async def test_features_uses_cloud_route(self, cloud_client):
@@ -96,6 +106,80 @@ class TestCloudRoutes:
         client, recorded = cloud_client
         await client.get_extensions()
         assert "/api/extensions" in recorded
+
+    @pytest.mark.asyncio
+    async def test_system_stats_uses_cloud_route(self, cloud_client):
+        client, recorded = cloud_client
+        await client.get_system_stats()
+        assert "/api/system_stats" in recorded
+
+    @pytest.mark.asyncio
+    async def test_queue_uses_cloud_route(self, cloud_client):
+        client, recorded = cloud_client
+        await client.get_queue()
+        assert "/api/queue" in recorded
+
+    @pytest.mark.asyncio
+    async def test_object_info_uses_cloud_route(self, cloud_client):
+        client, recorded = cloud_client
+        await client.get_object_info()
+        assert "/api/object_info" in recorded
+
+    @pytest.mark.asyncio
+    async def test_prompt_uses_cloud_route(self, cloud_client):
+        client, recorded = cloud_client
+        await client.queue_prompt({"1": {"class_type": "KSampler", "inputs": {}}})
+        assert "/api/prompt" in recorded
+
+    @pytest.mark.asyncio
+    async def test_cancel_uses_cloud_queue_route(self, cloud_client):
+        client, recorded = cloud_client
+        await client.cancel_prompt("p-cloud")
+        assert "/api/queue" in recorded
+
+    @pytest.mark.asyncio
+    async def test_interrupt_uses_cloud_route(self, cloud_client):
+        client, recorded = cloud_client
+        await client.interrupt()
+        assert "/api/interrupt" in recorded
+
+    @pytest.mark.asyncio
+    async def test_history_list_uses_cloud_route(self, cloud_client):
+        client, recorded = cloud_client
+        history = await client.get_history()
+        assert "/api/history_v2" in recorded
+        assert history == {}
+
+    @pytest.mark.asyncio
+    async def test_history_item_uses_cloud_route_and_normalizes_shape(self, cloud_client):
+        client, recorded = cloud_client
+        history = await client.get_history(prompt_id="p-cloud")
+        assert "/api/history_v2/p-cloud" in recorded
+        assert "p-cloud" in history
+
+    @pytest.mark.asyncio
+    async def test_view_uses_cloud_route(self, cloud_client):
+        client, recorded = cloud_client
+        await client.get_image("out.png")
+        assert "/api/view" in recorded
+
+    @pytest.mark.asyncio
+    async def test_upload_uses_cloud_route(self, cloud_client):
+        client, recorded = cloud_client
+        await client.upload_image(b"img", "out.png")
+        assert "/api/upload/image" in recorded
+
+    @pytest.mark.asyncio
+    async def test_models_use_cloud_experimental_route(self, cloud_client):
+        client, recorded = cloud_client
+        models = await client.get_models("checkpoints")
+        assert "/api/experiment/models/checkpoints" in recorded
+        assert models == ["flux1-dev.safetensors"]
+
+    def test_view_url_uses_cloud_route(self, cloud_client):
+        client, _ = cloud_client
+        url = client.build_view_url("out.png")
+        assert "/api/view?" in url
 
 
 class TestFeaturePayloadPreservation:

@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v0.7.0
+# ComfyPilot v0.7.1
 
 **ComfyPilot** is an MCP server for ComfyUI.
 It lets an AI agent build workflows, queue generations, monitor progress, retrieve images, and manage VRAM — all through structured tool calls with visual output return.
@@ -43,7 +43,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (92 Tools)
+## Tool Map (90 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -227,7 +227,7 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 | Feature | Status | Notes |
 |---|---|---|
 | Local ComfyUI (self-hosted) | Supported | Primary target |
-| Comfy Cloud API | Auth probing only | X-API-Key auth supported; workflow execution paths use local routes |
+| Comfy Cloud API | Partial | X-API-Key auth plus cloud-aware routes for stats, queue, prompt, object info, history, and image view. Model discovery remains partial/experimental |
 | stdio transport | Supported | Default |
 | Streamable HTTP transport | Not yet | Planned |
 | API Prompt Format | Supported | Multi-pass validation (schema + catalog + graph) |
@@ -303,7 +303,7 @@ Run a specific category:
 uv run pytest tests/test_builder.py -v
 ```
 
-Full suite: 541 tests across 53 test files.
+Full suite: 598 tests across 56 test files.
 
 ## Contributing
 

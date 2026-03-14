@@ -18,7 +18,7 @@ from urllib.parse import quote
 logger = logging.getLogger("comfypilot.registry")
 
 BASE_URL = "https://api.comfy.org"
-USER_AGENT = "ComfyPilot/0.7"
+USER_AGENT = "ComfyPilot/0.7.1"
 MAX_RETRIES = 3
 INITIAL_BACKOFF = 1.0
 MAX_BACKOFF = 30.0

@@ -157,7 +157,7 @@ wheels = [
 
 [[package]]
 name = "comfypilot"
-version = "1.0.0"
+version = "0.7.1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
