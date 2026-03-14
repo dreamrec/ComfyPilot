@@ -135,7 +135,9 @@ class EventManager:
         """Return and remove buffered events, optionally filtered by type."""
         if event_type is None:
             events = list(self._event_buffer)[:limit]
-            self._event_buffer.clear()
+            # Remove only the returned events from the front
+            for _ in range(len(events)):
+                self._event_buffer.popleft()
             return events
 
         matched = []
