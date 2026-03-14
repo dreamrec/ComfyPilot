@@ -14,7 +14,7 @@
       "author": {
         "name": "dreamrec"
       },
-      "source": ".",
+      "source": "./",
       "category": "integration"
     }
   ]
