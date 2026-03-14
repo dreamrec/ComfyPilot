@@ -440,7 +440,20 @@ async def comfy_build_workflow(
             "error": f"Unknown template: {template}",
             "available": list(_TEMPLATES.keys()),
         })
-    workflow = _TEMPLATES[template](params or {})
+
+    resolved_params = dict(params or {})
+
+    # If ctx available, try to detect installed models
+    if ctx and "checkpoint" not in resolved_params:
+        try:
+            client = ctx.request_context.lifespan_context["comfy_client"]
+            models = await client.get_models("checkpoints")
+            if models:
+                resolved_params["checkpoint"] = models[0]
+        except Exception:
+            pass  # Fallback to template default
+
+    workflow = _TEMPLATES[template](resolved_params)
     return json.dumps(
         {"template": template, "node_count": len(workflow), "workflow": workflow},
         indent=2,

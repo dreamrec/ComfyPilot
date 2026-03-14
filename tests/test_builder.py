@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -131,6 +131,18 @@ class TestBuildWorkflow:
         result = json.loads(await comfy_build_workflow("txt2img", params=params, ctx=builder_ctx))
         wf = result["workflow"]
         assert wf["1"]["inputs"]["ckpt_name"] == "dreamshaper_8.safetensors"
+
+    @pytest.mark.asyncio
+    async def test_build_workflow_detects_installed_checkpoint(self, builder_ctx):
+        """If no checkpoint specified, builder should detect first available."""
+        builder_ctx.request_context.lifespan_context["comfy_client"] = MagicMock()
+        builder_ctx.request_context.lifespan_context["comfy_client"].get_models = AsyncMock(
+            return_value=["sdxl_base.safetensors", "v1-5-pruned.safetensors"]
+        )
+
+        result = json.loads(await comfy_build_workflow("txt2img", params={}, ctx=builder_ctx))
+        ckpt = result["workflow"]["1"]["inputs"]["ckpt_name"]
+        assert ckpt == "sdxl_base.safetensors"
 
 
 # ---------------------------------------------------------------------------
