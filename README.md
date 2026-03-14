@@ -49,7 +49,7 @@ Use this loop for every non-trivial task:
 Use for connection health, GPU diagnostics, and VRAM management.
 
 - `comfy_get_system_stats`, `comfy_get_gpu_info`, `comfy_get_features`
-- `comfy_get_extensions`, `comfy_restart_server`, `comfy_free_vram`
+- `comfy_list_extensions`, `comfy_restart`, `comfy_free_vram`
 
 ### 2) Models
 Use for discovering and managing checkpoints, LoRAs, VAEs, and other model files.
@@ -60,7 +60,7 @@ Use for discovering and managing checkpoints, LoRAs, VAEs, and other model files
 ### 3) Workflow Execution
 Use for queueing, cancelling, and managing prompt execution.
 
-- `comfy_queue_prompt`, `comfy_get_queue`, `comfy_cancel_job`
+- `comfy_queue_prompt`, `comfy_get_queue`, `comfy_cancel_run`
 - `comfy_interrupt`, `comfy_clear_queue`
 - `comfy_validate_workflow`, `comfy_export_workflow`, `comfy_import_workflow`
 
@@ -68,12 +68,12 @@ Use for queueing, cancelling, and managing prompt execution.
 Use for exploring ComfyUI's node catalog and understanding widget schemas.
 
 - `comfy_list_node_types`, `comfy_get_node_info`, `comfy_search_nodes`
-- `comfy_list_categories`, `comfy_get_embeddings`, `comfy_inspect_widget`
+- `comfy_get_categories`, `comfy_get_embeddings`, `comfy_inspect_widget`
 
 ### 5) Images + Visual Output
 Use for retrieving generated images (returned as image content blocks in chat).
 
-- `comfy_get_output_image`, `comfy_upload_image`, `comfy_list_outputs`
+- `comfy_get_output_image`, `comfy_upload_image`, `comfy_list_output_images`
 - `comfy_download_batch`, `comfy_get_image_url`
 
 ### 6) History
@@ -85,7 +85,7 @@ Use for inspecting past generations and their outputs.
 ### 7) Monitoring + Progress
 Use for tracking active jobs and observing workflow dynamics.
 
-- `comfy_watch_progress`, `comfy_subscribe_events`, `comfy_unsubscribe_events`
+- `comfy_watch_progress`, `comfy_subscribe`, `comfy_unsubscribe`
 - `comfy_get_events`, `comfy_describe_dynamics`, `comfy_get_status`
 
 ### 8) Workflow Snapshots

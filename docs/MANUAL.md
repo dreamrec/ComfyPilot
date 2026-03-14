@@ -47,8 +47,8 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_get_system_stats` | GPU info, VRAM, ComfyUI version, Python/PyTorch versions | readOnly |
 | `comfy_get_gpu_info` | Detailed GPU device information | readOnly |
 | `comfy_get_features` | Enabled ComfyUI features | readOnly |
-| `comfy_get_extensions` | Installed custom node extensions | readOnly |
-| `comfy_restart_server` | Restart the ComfyUI server process | destructive |
+| `comfy_list_extensions` | Installed custom node extensions | readOnly |
+| `comfy_restart` | Restart the ComfyUI server process | destructive |
 | `comfy_free_vram` | Unload models and free GPU memory | destructive |
 
 ### Model Tools (5)
@@ -67,7 +67,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 |------|-------------|
 | `comfy_queue_prompt` | Submit a workflow (API-format JSON) for execution |
 | `comfy_get_queue` | Get current queue state (running + pending) |
-| `comfy_cancel_job` | Cancel a specific queued job by prompt ID |
+| `comfy_cancel_run` | Cancel a specific queued job by prompt ID |
 | `comfy_interrupt` | Interrupt the currently running generation |
 | `comfy_clear_queue` | Clear all pending jobs from the queue |
 | `comfy_validate_workflow` | Validate a workflow against the node catalog |
@@ -81,7 +81,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_list_node_types` | List available node types with pagination |
 | `comfy_get_node_info` | Detailed schema for a specific node type (inputs, outputs, widgets) |
 | `comfy_search_nodes` | Search nodes by name, category, or description |
-| `comfy_list_categories` | List all node categories |
+| `comfy_get_categories` | List all node categories |
 | `comfy_get_embeddings` | List available text embeddings |
 | `comfy_inspect_widget` | Inspect a specific widget's schema and valid values |
 
@@ -91,7 +91,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 |------|-------------|
 | `comfy_get_output_image` | Retrieve a generated image — returns as image content block in chat |
 | `comfy_upload_image` | Upload an image to ComfyUI's input directory |
-| `comfy_list_outputs` | List generated output images |
+| `comfy_list_output_images` | List generated output images |
 | `comfy_download_batch` | Download multiple output images |
 | `comfy_get_image_url` | Get the direct URL for an output image |
 
@@ -112,8 +112,8 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | Tool | Description |
 |------|-------------|
 | `comfy_watch_progress` | Poll-based progress monitoring for an active job |
-| `comfy_subscribe_events` | Subscribe to WebSocket event types |
-| `comfy_unsubscribe_events` | Unsubscribe from event types |
+| `comfy_subscribe` | Subscribe to WebSocket event types |
+| `comfy_unsubscribe` | Unsubscribe from event types |
 | `comfy_get_events` | Get buffered events with optional type filter |
 | `comfy_describe_dynamics` | Observe system dynamics over a time window |
 | `comfy_get_status` | Get current execution status |
