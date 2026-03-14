@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import base64
-from urllib.parse import urlencode
+import binascii
 import json
+from urllib.parse import urlencode
 
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent, ImageContent
@@ -84,7 +85,10 @@ async def comfy_upload_image(
     if len(image_data) > MAX_UPLOAD_BYTES * 4 // 3:
         return json.dumps({"error": f"Image too large. Maximum {MAX_UPLOAD_BYTES // (1024 * 1024)} MB"})
 
-    file_bytes = base64.b64decode(image_data)
+    try:
+        file_bytes = base64.b64decode(image_data, validate=True)
+    except (binascii.Error, ValueError):
+        return json.dumps({"error": "Invalid base64 image_data"})
     result = await _client(ctx).upload_image(file_bytes, filename, subfolder, overwrite=overwrite)
     return json.dumps(result, indent=2)
 
@@ -176,7 +180,12 @@ async def comfy_get_image_url(
         subfolder: Optional subfolder
         image_type: Image type (output, input, temp)
     """
-    base_url = _client(ctx).base_url
-    params = urlencode({"filename": filename, "type": image_type, "subfolder": subfolder})
-    url = f"{base_url}/view?{params}"
+    from comfy_mcp.comfy_client import ComfyClient
+
+    client = _client(ctx)
+    if isinstance(client, ComfyClient):
+        url = client.build_view_url(filename, subfolder=subfolder, image_type=image_type)
+    else:
+        params = urlencode({"filename": filename, "type": image_type, "subfolder": subfolder})
+        url = f"{client.base_url}/view?{params}"
     return json.dumps({"url": url, "filename": filename, "type": image_type}, indent=2)

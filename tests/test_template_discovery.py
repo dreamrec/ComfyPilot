@@ -12,6 +12,7 @@ import pytest
 def mock_comfy_client():
     client = AsyncMock()
     client.base_url = "http://localhost:8188"
+    client.capabilities = {"profile": "local"}
     # Official templates endpoint
     client.get = AsyncMock()
     return client
@@ -65,13 +66,33 @@ class TestDiscoverCustomNode:
 
 class TestRequestPaths:
     @pytest.mark.asyncio
-    async def test_custom_node_uses_api_prefix(self, mock_comfy_client):
-        """Ensure discover_custom_node hits /api/workflow_templates, not /workflow_templates."""
+    async def test_local_custom_node_prefers_unprefixed_route(self, mock_comfy_client):
+        """Local profile should prefer /workflow_templates first."""
         from comfy_mcp.templates.discovery import TemplateDiscovery
         mock_comfy_client.get = AsyncMock(return_value=[])
         discovery = TemplateDiscovery(mock_comfy_client)
         await discovery.discover_custom_node()
+        mock_comfy_client.get.assert_called_once_with("/workflow_templates")
+
+    @pytest.mark.asyncio
+    async def test_cloud_custom_node_prefers_api_prefix(self, mock_comfy_client):
+        """Cloud profile should prefer /api/workflow_templates first."""
+        from comfy_mcp.templates.discovery import TemplateDiscovery
+        mock_comfy_client.capabilities["profile"] = "cloud"
+        mock_comfy_client.get = AsyncMock(return_value=[])
+        discovery = TemplateDiscovery(mock_comfy_client)
+        await discovery.discover_custom_node()
         mock_comfy_client.get.assert_called_once_with("/api/workflow_templates")
+
+    @pytest.mark.asyncio
+    async def test_local_custom_node_falls_back_to_api_prefix(self, mock_comfy_client):
+        """If the local route fails, the API-prefixed route should be tried next."""
+        from comfy_mcp.templates.discovery import TemplateDiscovery
+        mock_comfy_client.get = AsyncMock(side_effect=[Exception("404"), []])
+        discovery = TemplateDiscovery(mock_comfy_client)
+        await discovery.discover_custom_node()
+        assert mock_comfy_client.get.call_args_list[0].args == ("/workflow_templates",)
+        assert mock_comfy_client.get.call_args_list[1].args == ("/api/workflow_templates",)
 
 
 class TestDiscoverOfficialDictReturn:

@@ -18,7 +18,7 @@ Complete reference for operating ComfyPilot — the MCP server for live AI contr
                                        └── VRAMGuard (safety thresholds)
 ```
 
-ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent HTTP connection to ComfyUI's REST API and a WebSocket connection for real-time progress events. All subsystems are initialized during the lifespan phase and shared across tool invocations.
+ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent HTTP connection to ComfyUI's REST API and, for local/self-hosted instances, a WebSocket connection for real-time progress events. All subsystems are initialized during the lifespan phase and shared across tool invocations.
 
 ## Connection Model
 
@@ -164,7 +164,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_add_node` | Add a node to a workflow-in-progress |
 | `comfy_connect_nodes` | Wire node outputs to inputs |
 | `comfy_set_widget_value` | Set widget values on existing nodes |
-| `comfy_apply_template` | Apply a template modification to an existing workflow |
+| `comfy_apply_template` | Convenience alias for `comfy_build_workflow` |
 
 **Templates** provide sensible defaults (checkpoint, dimensions, steps, CFG, sampler) that can be overridden. They generate ComfyUI API-format JSON ready for `comfy_queue_prompt`.
 
@@ -186,9 +186,15 @@ Resources provide static/semi-static data without tool call overhead:
 | URI | Description |
 |-----|-------------|
 | `comfy://system/info` | System stats, GPU info, ComfyUI version |
+| `comfy://server/capabilities` | Detected server profile, version, and auth method |
 | `comfy://nodes/catalog` | First 100 node types from the catalog |
 | `comfy://models/{folder}` | Models in a specific folder |
 | `comfy://embeddings` | Available embeddings |
+| `comfy://install/graph` | Install graph summary with counts and change hashes |
+| `comfy://knowledge/full` | Unified knowledge/cache status across subsystems |
+| `comfy://docs/status` | Documentation cache freshness and hash state |
+| `comfy://templates/index` | Template index counts, categories, and sources |
+| `comfy://registry/status` | Registry cache stats and index coverage |
 
 ## Safety Protocol
 

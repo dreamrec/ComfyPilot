@@ -2,7 +2,7 @@
 
 Sources:
 1. Official ComfyUI templates (GET /templates/index.json)
-2. Custom node example workflows (GET /api/workflow_templates)
+2. Custom node example workflows (GET /workflow_templates or /api/workflow_templates)
 3. Built-in templates (hardcoded fallbacks for basic workflows)
 """
 
@@ -48,9 +48,22 @@ class TemplateDiscovery:
         """Fetch custom node example workflows from ComfyUI server."""
         if self._client is None:
             return []
+        profile = getattr(self._client, "capabilities", {}).get("profile", "unknown")
+        if profile == "cloud":
+            candidate_paths = ["/api/workflow_templates", "/workflow_templates"]
+        else:
+            candidate_paths = ["/workflow_templates", "/api/workflow_templates"]
+        last_exc: Exception | None = None
         try:
-            response = await self._client.get("/api/workflow_templates")
-            data = self._unwrap_response(response)
+            data = None
+            for path in candidate_paths:
+                try:
+                    response = await self._client.get(path)
+                    data = self._unwrap_response(response)
+                    if data is not None:
+                        break
+                except Exception as exc:
+                    last_exc = exc
             if data is None:
                 return []
             templates = []
@@ -61,7 +74,10 @@ class TemplateDiscovery:
                 templates.append(item)
             return templates
         except Exception as exc:
-            logger.debug("Custom node template discovery failed: %s", exc)
+            logger.debug(
+                "Custom node template discovery failed: %s",
+                exc if last_exc is None else last_exc,
+            )
             return []
 
     @staticmethod

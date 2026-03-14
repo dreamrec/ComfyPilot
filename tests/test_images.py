@@ -87,6 +87,15 @@ class TestUploadImage:
         call_args = mock_client.upload_image.call_args
         assert call_args[0][0] == original
 
+    @pytest.mark.asyncio
+    async def test_invalid_base64_returns_structured_error(self, mock_ctx, mock_client):
+        from comfy_mcp.tools.images import comfy_upload_image
+
+        result = json.loads(await comfy_upload_image(image_data="%%%not-base64%%%", filename="bad.png", ctx=mock_ctx))
+        assert "error" in result
+        assert "Invalid base64" in result["error"]
+        mock_client.upload_image.assert_not_called()
+
 
 class TestListOutputImages:
     @pytest.mark.asyncio
@@ -213,3 +222,16 @@ class TestGetImageUrl:
         result = json.loads(await comfy_get_image_url(filename="portrait.png", ctx=mock_ctx))
         assert result["filename"] == "portrait.png"
         assert result["type"] == "output"
+
+    @pytest.mark.asyncio
+    async def test_cloud_client_uses_api_view_route(self):
+        from comfy_mcp.comfy_client import ComfyClient
+        from comfy_mcp.tools.images import comfy_get_image_url
+
+        client = ComfyClient("https://cloud.comfy.org", api_key="key")
+        client.capabilities["profile"] = "cloud"
+        ctx = AsyncMock()
+        ctx.request_context.lifespan_context = {"comfy_client": client}
+
+        result = json.loads(await comfy_get_image_url(filename="portrait.png", ctx=ctx))
+        assert "/api/view?" in result["url"]
