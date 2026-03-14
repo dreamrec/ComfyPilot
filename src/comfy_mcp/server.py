@@ -75,11 +75,16 @@ async def system_info_resource() -> str:
 
 @mcp.resource("comfy://nodes/catalog")
 async def nodes_catalog_resource() -> str:
-    """Full node catalog from ComfyUI."""
+    """Node catalog preview (first 100 names). Use comfy_list_node_types for full paginated access."""
     if _shared_client is None:
         return json.dumps({"error": "Server not initialized"})
     result = await _shared_client.get_object_info()
-    return json.dumps({"node_count": len(result), "nodes": list(result.keys())[:100]})
+    return json.dumps({
+        "node_count": len(result),
+        "preview_count": min(100, len(result)),
+        "nodes": list(result.keys())[:100],
+        "note": "Preview only. Use comfy_list_node_types tool for full paginated catalog.",
+    })
 
 
 @mcp.resource("comfy://models/{folder}")

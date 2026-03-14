@@ -62,10 +62,13 @@ async def comfy_list_models(
     }
 )
 async def comfy_get_model_info(node_type: str, ctx: Context = None) -> str:
-    """Get info about a specific model type.
+    """Get node schema for a model-related node type.
+
+    Returns the node's input/output definition from ComfyUI's object_info,
+    not model file metadata.
 
     Args:
-        node_type: The node/model type to get info for
+        node_type: The node class type to inspect (e.g., "CheckpointLoaderSimple")
     """
     result = await _client(ctx).get_object_info(node_type)
     return json.dumps(result, indent=2)
@@ -150,13 +153,15 @@ async def comfy_search_models(
     }
 )
 async def comfy_refresh_models(ctx: Context = None) -> str:
-    """Force ComfyUI to rescan model directories.
+    """Re-fetch the model list from ComfyUI.
 
-    Re-fetches model list to ensure latest state.
+    Note: This re-reads ComfyUI's current model cache. It does NOT
+    trigger a server-side filesystem rescan.
     """
-    await _client(ctx).get_models("checkpoints")
+    models = await _client(ctx).get_models("checkpoints")
     result = {
         "status": "ok",
-        "message": "Model directories refreshed",
+        "message": "Model list re-fetched from ComfyUI cache",
+        "checkpoint_count": len(models),
     }
     return json.dumps(result, indent=2)

@@ -188,5 +188,6 @@ class TestRefreshModels:
         result = await comfy_refresh_models(ctx=mock_ctx)
         data = json.loads(result)
         assert data["status"] == "ok"
-        assert "refreshed" in data["message"].lower()
+        assert "fetched" in data["message"].lower()
+        assert data["checkpoint_count"] == 1
         mock_client.get_models.assert_awaited_once_with("checkpoints")

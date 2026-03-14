@@ -134,7 +134,7 @@ Use for agent-orchestrated cross-app delivery of generated images.
 ## MCP Resources (4)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
-- `comfy://nodes/catalog` — Full node type catalog
+- `comfy://nodes/catalog` — Node catalog preview (first 100 names)
 - `comfy://models/{folder}` — Model listing by folder (checkpoints, loras, etc.)
 - `comfy://embeddings` — Available embeddings
 

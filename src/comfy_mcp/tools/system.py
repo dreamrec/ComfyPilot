@@ -92,7 +92,11 @@ async def comfy_list_extensions(ctx: Context) -> str:
     }
 )
 async def comfy_restart(ctx: Context) -> str:
-    """Restart the ComfyUI server. Warning: interrupts all running jobs."""
+    """Restart ComfyUI (not supported via API).
+
+    ComfyUI does not expose a restart endpoint. Use system-level
+    restart (e.g., systemctl, docker restart) instead.
+    """
     return json.dumps({
         "status": "not_supported",
         "message": "ComfyUI does not expose a restart endpoint in the standard API. Use system-level restart.",
