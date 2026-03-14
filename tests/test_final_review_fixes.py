@@ -243,3 +243,90 @@ class TestMimeTypeInference:
         from comfy_mcp.tools.images import comfy_get_output_image
         result = await comfy_get_output_image("out.png", ctx=mock_ctx)
         assert result[1].mimeType == "image/png"
+
+
+# ---------------------------------------------------------------------------
+# Fix 5: interrupt uses queue truth, not just progress cache
+# ---------------------------------------------------------------------------
+
+
+class TestInterruptQueueTruth:
+    """comfy_interrupt must use authoritative queue state to find running jobs."""
+
+    @pytest.mark.asyncio
+    async def test_interrupt_upgrades_from_queue_running(self, mock_ctx):
+        """A job with no progress events but present in queue_running gets interrupted."""
+        client = mock_ctx.request_context.lifespan_context["comfy_client"]
+        client.interrupt = AsyncMock()
+        # Queue says prompt "p-queue" is running (ComfyUI queue format: [index, prompt_id, ...])
+        client.get_queue = AsyncMock(return_value={
+            "queue_running": [[0, "p-queue", {}, {}, []]],
+            "queue_pending": [],
+        })
+
+        jt = mock_ctx.request_context.lifespan_context["job_tracker"]
+        jt.list_active = MagicMock(return_value=[
+            {"prompt_id": "p-queue", "status": "running"},
+        ])
+        jt.mark_interrupted = AsyncMock()
+        jt.refresh_active_states = MagicMock()
+
+        from comfy_mcp.tools.workflow import comfy_interrupt
+        result = await comfy_interrupt(ctx=mock_ctx)
+        data = json.loads(result)
+
+        # refresh_active_states should receive the running IDs from queue
+        call_kwargs = jt.refresh_active_states.call_args
+        assert "p-queue" in call_kwargs.kwargs.get("running_prompt_ids", set())
+        assert "p-queue" in data["interrupted_prompt_ids"]
+
+    @pytest.mark.asyncio
+    async def test_refresh_active_states_prefers_queue_over_progress(self):
+        """Queue truth upgrades a job even without progress events."""
+        from comfy_mcp.jobs.job_tracker import JobTracker
+        client = MagicMock()
+        event_mgr = MagicMock()
+        event_mgr.get_latest_progress = MagicMock(return_value=None)  # no progress
+        tracker = JobTracker(client, event_mgr)
+        await tracker.track("p-noevents")
+        assert tracker._active_jobs["p-noevents"]["status"] == "queued"
+
+        # Queue says it is running
+        tracker.refresh_active_states(running_prompt_ids={"p-noevents"})
+        assert tracker._active_jobs["p-noevents"]["status"] == "running"
+
+
+# ---------------------------------------------------------------------------
+# Fix 6: URL encoding in comfy_get_image_url
+# ---------------------------------------------------------------------------
+
+
+class TestImageUrlEncoding:
+    """comfy_get_image_url must URL-encode special characters."""
+
+    @pytest.mark.asyncio
+    async def test_filename_with_spaces_encoded(self, mock_ctx):
+        from comfy_mcp.tools.images import comfy_get_image_url
+        result = json.loads(await comfy_get_image_url(filename="my file.png", ctx=mock_ctx))
+        assert "my+file.png" in result["url"] or "my%20file.png" in result["url"]
+        assert "my file.png" not in result["url"]
+
+    @pytest.mark.asyncio
+    async def test_filename_with_hash_encoded(self, mock_ctx):
+        from comfy_mcp.tools.images import comfy_get_image_url
+        result = json.loads(await comfy_get_image_url(filename="img#1.png", ctx=mock_ctx))
+        assert "%23" in result["url"]
+
+    @pytest.mark.asyncio
+    async def test_subfolder_with_ampersand_encoded(self, mock_ctx):
+        from comfy_mcp.tools.images import comfy_get_image_url
+        result = json.loads(await comfy_get_image_url(
+            filename="ok.png", subfolder="a&b", ctx=mock_ctx
+        ))
+        assert "%26" in result["url"]
+
+    @pytest.mark.asyncio
+    async def test_normal_filename_unchanged(self, mock_ctx):
+        from comfy_mcp.tools.images import comfy_get_image_url
+        result = json.loads(await comfy_get_image_url(filename="ComfyUI_00001_.png", ctx=mock_ctx))
+        assert "filename=ComfyUI_00001_.png" in result["url"]

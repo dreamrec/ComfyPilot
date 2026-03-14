@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from urllib.parse import quote, urlencode
 import json
 from typing import Any
 
@@ -173,5 +174,6 @@ async def comfy_get_image_url(
         image_type: Image type (output, input, temp)
     """
     base_url = _client(ctx).base_url
-    url = f"{base_url}/view?filename={filename}&type={image_type}&subfolder={subfolder}"
+    params = urlencode({"filename": filename, "type": image_type, "subfolder": subfolder})
+    url = f"{base_url}/view?{params}"
     return json.dumps({"url": url, "filename": filename, "type": image_type}, indent=2)

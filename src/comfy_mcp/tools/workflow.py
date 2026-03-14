@@ -119,9 +119,18 @@ async def comfy_cancel_run(
 )
 async def comfy_interrupt(ctx: Context = None) -> str:
     """Interrupt the currently executing prompt."""
-    await _client(ctx).interrupt()
+    client = _client(ctx)
+    await client.interrupt()
+    # Get authoritative running prompt IDs from ComfyUI queue
+    queue = await client.get_queue()
+    running_ids = set()
+    for entry in queue.get("queue_running", []):
+        if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            running_ids.add(str(entry[1]))
+        elif isinstance(entry, dict) and "prompt_id" in entry:
+            running_ids.add(entry["prompt_id"])
     job_tracker = ctx.request_context.lifespan_context["job_tracker"]
-    job_tracker.refresh_active_states()
+    job_tracker.refresh_active_states(running_prompt_ids=running_ids)
     interrupted_ids = []
     queued_ids = []
     for job in job_tracker.list_active():

@@ -107,10 +107,22 @@ class JobTracker:
         # Timeout
         return {"status": "timeout", "prompt_id": prompt_id, "elapsed": time.time() - start}
 
-    def refresh_active_states(self) -> None:
-        """Refresh status of active jobs from EventManager progress cache."""
+    def refresh_active_states(self, running_prompt_ids: set[str] | None = None) -> None:
+        """Refresh status of active jobs from queue truth and progress cache.
+
+        Args:
+            running_prompt_ids: Authoritative set of prompt IDs currently
+                running on ComfyUI (from /queue). If provided, any tracked
+                job whose ID appears here is upgraded to 'running' regardless
+                of whether a progress event has been seen.
+        """
         for prompt_id, job in self._active_jobs.items():
             if job['status'] == 'queued':
+                # Authoritative: queue says it is running
+                if running_prompt_ids and prompt_id in running_prompt_ids:
+                    job['status'] = 'running'
+                    continue
+                # Fallback: progress event observed
                 progress = self._event_mgr.get_latest_progress(prompt_id)
                 if progress:
                     job['status'] = 'running'
