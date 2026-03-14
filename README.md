@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v0.5.0
+# ComfyPilot v0.6.0
 
 **ComfyPilot** is an MCP server for ComfyUI.
 It lets an AI agent build workflows, queue generations, monitor progress, retrieve images, and manage VRAM — all through structured tool calls with visual output return.
@@ -25,7 +25,7 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 - A structured toolset for workflow building, image generation, model management, and output routing.
 - A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
 - A technique memory system that learns your workflow patterns and builds a reusable library.
-- 82-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, and template engine.
+- 87-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, and persistent knowledge management.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -43,7 +43,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (82 Tools)
+## Tool Map (87 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -163,7 +163,16 @@ Use for discovering, searching, and instantiating workflow templates from offici
 - `comfy_template_status` -- Show template index status (counts, categories, cache freshness).
 - `comfy_instantiate_template` -- Instantiate a template with automatic model substitution and parameter overrides.
 
-## MCP Resources (9)
+### 17) Knowledge Management
+Use for unified knowledge status, cache management, and persistent user preferences.
+
+- `comfy_knowledge_status` -- Unified view of all knowledge subsystem staleness, hashes, and cache sizes.
+- `comfy_refresh_all` -- Refresh all knowledge stores (docs, templates, install graph).
+- `comfy_clear_cache` -- Clear cached data for a specific subsystem or all caches.
+- `comfy_get_config` -- Read persisted user preferences (safety thresholds, output dirs, cache settings).
+- `comfy_set_config` -- Write a persisted user preference.
+
+## MCP Resources (10)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
 - `comfy://server/capabilities` — Detected server profile, version, auth method
@@ -171,7 +180,7 @@ Use for discovering, searching, and instantiating workflow templates from offici
 - `comfy://models/{folder}` — Model listing by folder (checkpoints, loras, etc.)
 - `comfy://embeddings` — Available embeddings
 - `comfy://install/graph` — Install graph summary with change detection hashes
-- `comfy://knowledge/status` — Knowledge freshness status (staleness check + content hashes)
+- `comfy://knowledge/full` — Complete knowledge status across all subsystems (staleness, hashes, summaries)
 - `comfy://docs/status` — Documentation cache status (embedded doc counts, llms-full.txt freshness, content hashes)
 - `comfy://templates/index` — Template index summary (counts, categories, sources, freshness)
 
