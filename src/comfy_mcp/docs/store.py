@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,11 @@ from typing import Any
 def _content_hash(text: str) -> str:
     """SHA-256 prefix for change detection."""
     return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+def _sanitize_filename(class_name: str) -> str:
+    """Convert a node class name to a filesystem-safe filename."""
+    return re.sub(r'[^\w\-.]', '_', class_name)
 
 
 class DocsStore:

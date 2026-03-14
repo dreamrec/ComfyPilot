@@ -22,3 +22,25 @@ class TestDocsStoreInit:
         from comfy_mcp.docs.store import DocsStore
         store = DocsStore()
         assert (tmp_path / ".comfypilot" / "docs").exists()
+
+
+class TestFilenameSanitization:
+    def test_simple_name_unchanged(self):
+        from comfy_mcp.docs.store import _sanitize_filename
+        assert _sanitize_filename("KSampler") == "KSampler"
+
+    def test_plus_sign_replaced(self):
+        from comfy_mcp.docs.store import _sanitize_filename
+        assert _sanitize_filename("Node+Plus") == "Node_Plus"
+
+    def test_parentheses_replaced(self):
+        from comfy_mcp.docs.store import _sanitize_filename
+        assert _sanitize_filename("Node(v2)") == "Node_v2_"
+
+    def test_spaces_replaced(self):
+        from comfy_mcp.docs.store import _sanitize_filename
+        assert _sanitize_filename("My Custom Node") == "My_Custom_Node"
+
+    def test_already_safe_with_dots(self):
+        from comfy_mcp.docs.store import _sanitize_filename
+        assert _sanitize_filename("ADE_AnimateDiff.v2") == "ADE_AnimateDiff.v2"
