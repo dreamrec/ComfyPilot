@@ -93,6 +93,8 @@ class TestTranslateWorkflow:
         result = translate_workflow(UI_WORKFLOW, OBJECT_INFO)
         assert result["status"] == "translated"
         assert result["workflow"] is not None
+        assert result["translation_assessment"]["confidence"] == "high"
+        assert result["translation_assessment"]["ready_for_queue"] is True
         assert result["workflow"]["1"]["class_type"] == "CheckpointLoaderSimple"
         assert result["workflow"]["5"]["inputs"]["seed"] == 42
         assert result["workflow"]["5"]["inputs"]["steps"] == 20
@@ -110,6 +112,8 @@ class TestTranslateWorkflow:
         }
         result = translate_workflow(workflow, OBJECT_INFO)
         assert result["status"] == "partial"
+        assert result["translation_assessment"]["confidence"] == "low"
+        assert result["translation_assessment"]["recommended_action"] == "reference-only"
         assert result["unsupported_nodes"][0]["node_type"] == "MysteryCustomNode"
 
     def test_translate_inlines_primitive_node(self):
@@ -125,3 +129,63 @@ class TestTranslateWorkflow:
         result = translate_workflow(workflow, OBJECT_INFO)
         assert result["status"] == "translated"
         assert result["workflow"]["2"]["inputs"]["ckpt_name"] == "model.safetensors"
+
+    def test_translate_uuid_wrapper_with_proxy_widgets_without_schema(self):
+        from comfy_mcp.workflow_translation import translate_workflow
+
+        workflow = {
+            "nodes": [
+                {
+                    "id": 76,
+                    "type": "9b9009e4-2d3d-445f-9be5-6063f465757e",
+                    "inputs": [
+                        {
+                            "label": "prompt",
+                            "name": "text",
+                            "type": "STRING",
+                            "widget": {"name": "text"},
+                            "link": None,
+                        }
+                    ],
+                    "outputs": [{"name": "IMAGE", "type": "IMAGE", "links": [86]}],
+                    "properties": {
+                        "proxyWidgets": [
+                            ["-1", "text"],
+                            ["-1", "width"],
+                            ["-1", "height"],
+                            ["69", "seed"],
+                            ["69", "control_after_generate"],
+                            ["-1", "unet_name"],
+                            ["-1", "clip_name"],
+                            ["-1", "vae_name"],
+                        ]
+                    },
+                    "widgets_values": [
+                        "prompt text",
+                        1024,
+                        1024,
+                        123,
+                        None,
+                        "z_image_bf16.safetensors",
+                        "qwen_3_4b.safetensors",
+                        "ae.safetensors",
+                    ],
+                },
+                {
+                    "id": 77,
+                    "type": "SaveImage",
+                    "inputs": [{"name": "images", "link": 86}],
+                    "widgets_values": ["ComfyPilot"],
+                },
+            ],
+            "links": [[86, 76, 0, 77, 0, "IMAGE"]],
+        }
+        result = translate_workflow(workflow, OBJECT_INFO)
+        assert result["status"] == "translated"
+        node = result["workflow"]["76"]["inputs"]
+        assert node["text"] == "prompt text"
+        assert node["width"] == 1024
+        assert node["unet_name"] == "z_image_bf16.safetensors"
+        assert result["translation_assessment"]["confidence"] in {"medium", "high"}
+        assert result["workflow"]["77"]["inputs"]["images"] == ["76", 0]
+        assert any("metadata fallback" in warning for warning in result["warnings"])

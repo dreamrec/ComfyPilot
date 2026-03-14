@@ -218,6 +218,8 @@ class TestBuildWorkflow:
                 "tags": ["Text to Image", "Image"],
                 "model_names": ["Qwen-Image"],
                 "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+                "workflow_file": "image_qwen_image.json",
+                "workflow_url": "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/refs/heads/main/templates/image_qwen_image.json",
                 "open_source": True,
                 "usage": 120,
                 "distribution_targets": ["local"],
@@ -225,6 +227,17 @@ class TestBuildWorkflow:
             }
         ])
         builder_ctx.request_context.lifespan_context["template_index"].get = MagicMock(return_value=None)
+        builder_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(return_value={
+            "id": "official_image_qwen_image",
+            "workflow_format": "comfyui-ui",
+            "workflow_summary": {"node_count": 12, "node_types": ["SaveImage", "QwenNode"]},
+            "translation_status": "translated",
+            "translation_assessment": {
+                "confidence": "high",
+                "score": 0.86,
+                "ready_for_queue": True,
+            },
+        })
         builder_ctx.request_context.lifespan_context["install_graph"] = MagicMock(snapshot={
             "models": {
                 "diffusion_models": ["qwen_image_fp8.safetensors"],
@@ -239,7 +252,9 @@ class TestBuildWorkflow:
         assert result["warnings"]
         assert "Qwen-Image" in result["warnings"][0]
         assert result["suggested_template"]["template_id"] == "official_image_qwen_image"
-        assert result["suggested_template"]["actionability"] == "template-reference"
+        assert result["suggested_template"]["actionability"] == "translatable-template"
+        assert "comfy_instantiate_template" in result["warnings"][1]
+        assert "confidence looks high" in result["warnings"][1]
 
 
 # ---------------------------------------------------------------------------

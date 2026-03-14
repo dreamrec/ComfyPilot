@@ -183,6 +183,70 @@ class TestWorkflowHydration:
         assert (tmp_path / "workflows" / "official_qwen_image.json").exists()
 
     @pytest.mark.asyncio
+    async def test_hydrate_template_can_assess_translation(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild([
+            {
+                "id": "official_simple_ui",
+                "name": "simple_ui",
+                "source": "official",
+                "workflow": {
+                    "nodes": [
+                        {
+                            "id": 1,
+                            "type": "CheckpointLoaderSimple",
+                            "inputs": [],
+                            "widgets_values": ["model.safetensors"],
+                        }
+                    ],
+                    "links": [],
+                },
+            }
+        ])
+
+        hydrated = await idx.hydrate_template(
+            "official_simple_ui",
+            object_info={
+                "CheckpointLoaderSimple": {
+                    "input": {"required": {"ckpt_name": [["model.safetensors"]]}},
+                    "output": ["MODEL", "CLIP", "VAE"],
+                }
+            },
+            assess_translation=True,
+        )
+        assert hydrated is not None
+        assert hydrated["translation_status"] == "translated"
+        assert hydrated["translation_assessment"]["ready_for_queue"] is True
+        assert hydrated["translation_assessment"]["confidence"] == "high"
+
+    @pytest.mark.asyncio
+    async def test_hydrate_template_marks_ui_workflow_unscored_without_object_info(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild([
+            {
+                "id": "official_simple_ui",
+                "name": "simple_ui",
+                "source": "official",
+                "workflow": {
+                    "nodes": [{"id": 1, "type": "CheckpointLoaderSimple", "inputs": [], "widgets_values": ["model.safetensors"]}],
+                    "links": [],
+                },
+            }
+        ])
+
+        hydrated = await idx.hydrate_template(
+            "official_simple_ui",
+            assess_translation=True,
+        )
+        assert hydrated is not None
+        assert hydrated["translation_status"] == "needs_object_info"
+        assert hydrated["translation_assessment"]["confidence"] == "unscored"
+
+    @pytest.mark.asyncio
     async def test_hydrate_template_uses_cache(self, tmp_path):
         from comfy_mcp.templates.index import TemplateIndex
 

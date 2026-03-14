@@ -66,6 +66,14 @@ def _template_matches_family(model_names: list[str], family_display_name: str) -
     return any(family_tokens in _normalize_text(name) for name in model_names)
 
 
+def _template_actionability(entry: dict[str, Any]) -> tuple[str, str]:
+    if entry.get("supports_instantiation"):
+        return "buildable-template", "comfy_instantiate_template"
+    if entry.get("workflow_url") or entry.get("workflow_file"):
+        return "translatable-template", "comfy_instantiate_template"
+    return "template-reference", "comfy_get_template"
+
+
 def _normalize_task(task: str) -> str:
     return TASK_ALIASES.get(task.strip().lower(), task.strip().lower()) if task else ""
 
@@ -262,11 +270,13 @@ class WorkflowPlanner:
                         f"Template aligns with detected family {matched_family.display_name}"
                     )
 
-                actionability = (
-                    "buildable-template"
-                    if entry.get("supports_instantiation")
-                    else "template-reference"
-                )
+                actionability, next_step_tool = _template_actionability(entry)
+                if actionability == "translatable-template":
+                    score += 0.05
+                    reasons.append("Template can likely be hydrated and translated into an API prompt")
+                elif actionability == "buildable-template":
+                    score += 0.08
+                    reasons.append("Template is already directly instantiable")
                 candidates.append({
                     "strategy_id": f"template-{entry['id']}",
                     "type": "template",
@@ -288,11 +298,7 @@ class WorkflowPlanner:
                     "supports_instantiation": entry.get("supports_instantiation", False),
                     "required_custom_nodes": entry.get("required_custom_nodes", []),
                     "actionability": actionability,
-                    "next_step_tool": (
-                        "comfy_instantiate_template"
-                        if entry.get("supports_instantiation")
-                        else "comfy_get_template"
-                    ),
+                    "next_step_tool": next_step_tool,
                 })
 
         candidates.sort(key=lambda item: item["score"], reverse=True)

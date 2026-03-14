@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -32,12 +32,28 @@ def planner_ctx(mock_ctx):
             "tags": ["Text to Image", "Image"],
             "model_names": ["Qwen-Image"],
             "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+            "workflow_file": "image_qwen_image.json",
+            "workflow_url": "https://raw.githubusercontent.com/Comfy-Org/workflow_templates/refs/heads/main/templates/image_qwen_image.json",
             "open_source": True,
             "usage": 120,
             "distribution_targets": ["local"],
             "supports_instantiation": False,
         }
     ])
+    mock_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(return_value={
+        "id": "official_image_qwen_image",
+        "name": "image_qwen_image",
+        "workflow_format": "comfyui-ui",
+        "workflow_summary": {"node_count": 12, "node_types": ["SaveImage", "QwenNode"]},
+        "workflow_source": "remote",
+        "translation_status": "translated",
+        "translation_assessment": {
+            "confidence": "high",
+            "score": 0.86,
+            "ready_for_queue": True,
+            "recommended_action": "queue-or-instantiate",
+        },
+    })
     mock_ctx.request_context.lifespan_context["install_graph"] = MagicMock(snapshot={
         "models": {
             "checkpoints": ["ponyDiffusionV6XL.safetensors", "flux1-dev.safetensors"],
@@ -77,7 +93,9 @@ class TestRecommendWorkflowTool:
         assert templates
         assert templates[0]["template_id"] == "official_image_qwen_image"
         assert templates[0]["tutorial_url"] == "https://docs.comfy.org/tutorials/image/qwen/qwen-image"
-        assert templates[0]["actionability"] == "template-reference"
+        assert templates[0]["actionability"] == "translatable-template"
+        assert templates[0]["next_step_tool"] == "comfy_instantiate_template"
+        assert templates[0]["translation_assessment"]["confidence"] == "high"
 
 
 class TestPlannerResource:

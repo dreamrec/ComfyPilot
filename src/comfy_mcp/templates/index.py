@@ -112,6 +112,8 @@ class TemplateIndex:
         *,
         include_workflow: bool = False,
         refresh_remote: bool = False,
+        object_info: dict[str, Any] | None = None,
+        assess_translation: bool = False,
     ) -> dict[str, Any] | None:
         """Return a template with remote workflow metadata hydrated when available."""
         template = self.get(template_id)
@@ -145,6 +147,26 @@ class TemplateIndex:
         hydrated["supports_instantiation"] = bool(
             hydrated.get("supports_instantiation", False) or description["format"] == "api-prompt"
         )
+
+        if assess_translation and workflow_payload is not None:
+            if description["format"] == "comfyui-ui" and not object_info:
+                hydrated["translation_status"] = "needs_object_info"
+                hydrated["translation_assessment"] = {
+                    "mode": "unknown",
+                    "confidence": "unscored",
+                    "score": None,
+                    "ready_for_queue": False,
+                    "recommended_action": "refresh-install-graph",
+                    "reasons": [
+                        "Installed node schema was not available, so this UI workflow could not be assessed safely."
+                    ],
+                }
+            else:
+                from comfy_mcp.workflow_translation import translate_workflow
+
+                translation_report = translate_workflow(workflow_payload, object_info or {})
+                hydrated["translation_status"] = translation_report["status"]
+                hydrated["translation_assessment"] = translation_report.get("translation_assessment", {})
 
         if workflow_payload is not None:
             if include_workflow or "workflow" in template:

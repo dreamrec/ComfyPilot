@@ -92,6 +92,12 @@ class TestGetTemplate:
                 "workflow_format": "comfyui-ui",
                 "workflow_summary": {"node_count": 2, "node_types": ["SaveImage", "QwenNode"]},
                 "workflow_source": "remote",
+                "translation_status": "translated",
+                "translation_assessment": {
+                    "confidence": "high",
+                    "score": 0.87,
+                    "ready_for_queue": True,
+                },
                 "supports_instantiation": False,
             }
         )
@@ -99,6 +105,7 @@ class TestGetTemplate:
         result = json.loads(await comfy_get_template(template_id="official_qwen_template", ctx=template_ctx))
         assert result["workflow_format"] == "comfyui-ui"
         assert result["workflow_source"] == "remote"
+        assert result["translation_assessment"]["confidence"] == "high"
 
 
 class TestListCategories:

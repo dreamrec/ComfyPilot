@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 
 from mcp.server.fastmcp import Context
@@ -15,6 +16,16 @@ def _index(ctx: Context):
 
 def _discovery(ctx: Context):
     return ctx.request_context.lifespan_context["template_discovery"]
+
+
+def _object_info(ctx: Context) -> dict:
+    install_graph = ctx.request_context.lifespan_context.get("install_graph")
+    snapshot = getattr(install_graph, "snapshot", None) if install_graph is not None else None
+    return snapshot.get("object_info", {}) if snapshot else {}
+
+
+def _can_hydrate(index) -> bool:
+    return inspect.iscoroutinefunction(getattr(index, "hydrate_template", None))
 
 
 @mcp.tool(
@@ -83,11 +94,13 @@ async def comfy_get_template(
         refresh_remote: If True, re-fetch the remote workflow instead of using the cached copy.
     """
     index = _index(ctx)
-    if hasattr(index, "hydrate_template"):
+    if _can_hydrate(index):
         template = await index.hydrate_template(
             template_id,
             include_workflow=include_workflow,
             refresh_remote=refresh_remote,
+            object_info=_object_info(ctx),
+            assess_translation=True,
         )
     else:
         template = index.get(template_id)
@@ -174,11 +187,13 @@ async def comfy_instantiate_template(
         refresh_remote: If True, re-fetch the remote workflow instead of using the cached copy.
     """
     index = _index(ctx)
-    if hasattr(index, "hydrate_template"):
+    if _can_hydrate(index):
         template = await index.hydrate_template(
             template_id,
             include_workflow=True,
             refresh_remote=refresh_remote,
+            object_info=_object_info(ctx),
+            assess_translation=True,
         )
     else:
         template = index.get(template_id)
@@ -190,7 +205,7 @@ async def comfy_instantiate_template(
         return json.dumps({"error": "Install graph not available. Run comfy_refresh_install_graph first."}, indent=2)
 
     workflow_format = template.get("workflow_format", "unknown")
-    object_info = install_graph.snapshot.get("object_info", {})
+    object_info = _object_info(ctx)
     translation_report = None
     from comfy_mcp.templates.instantiator import TemplateInstantiator
     if workflow_format != "api-prompt":

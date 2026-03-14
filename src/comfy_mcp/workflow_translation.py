@@ -113,6 +113,44 @@ def _candidate_widget_names(
     return names
 
 
+def _fallback_widget_names(
+    node: dict[str, Any],
+    linked_names: set[str],
+) -> list[str]:
+    names: list[str] = []
+
+    for input_entry in node.get("inputs", []):
+        if not isinstance(input_entry, dict):
+            continue
+        if input_entry.get("link") is not None:
+            continue
+        if "widget" not in input_entry:
+            continue
+        name = input_entry.get("name")
+        if name and name not in linked_names and name not in names:
+            names.append(name)
+
+    proxy_widgets = node.get("properties", {}).get("proxyWidgets", [])
+    for entry in proxy_widgets:
+        if not isinstance(entry, list) or len(entry) < 2:
+            continue
+        name = entry[1]
+        if isinstance(name, str) and name not in linked_names and name not in names:
+            names.append(name)
+
+    return names
+
+
+def _allow_schema_free_translation(node: dict[str, Any]) -> bool:
+    properties = node.get("properties", {})
+    if properties.get("proxyWidgets"):
+        return True
+    if properties.get("cnr_id") == "comfy-core":
+        return True
+    node_type = node.get("type", "")
+    return node_type.startswith(OUTPUT_TYPE_PREFIXES)
+
+
 def _resolve_link_value(
     link_id: Any,
     links: dict[str, dict[str, Any]],
@@ -268,6 +306,110 @@ def _assign_widget_values(
         )
 
 
+def _translation_assessment(report: dict[str, Any]) -> dict[str, Any]:
+    status = report.get("status", "unsupported")
+    summary = report.get("summary", {})
+    warnings = report.get("warnings", [])
+    errors = report.get("errors", [])
+    relevant_node_count = summary.get("relevant_node_count", summary.get("node_count", 0))
+    translated_node_count = summary.get("translated_node_count", 0)
+    unsupported_node_count = summary.get(
+        "unsupported_node_count",
+        len(report.get("unsupported_nodes", [])),
+    )
+    coverage = (
+        translated_node_count / relevant_node_count
+        if relevant_node_count
+        else 1.0
+    )
+    ready_for_queue = bool(summary.get("ready_for_queue", status in {"translated", "already_api_prompt"}))
+    warning_count = len(warnings)
+    error_count = len(errors)
+    fallback_count = sum(1 for item in warnings if "metadata fallback" in item.lower())
+    unmapped_count = sum(
+        1
+        for item in warnings
+        if "unmapped" in item.lower() or "could not map widget" in item.lower()
+    )
+
+    reasons: list[str] = []
+    if status == "already_api_prompt":
+        score = 1.0
+        confidence = "direct"
+        mode = "direct"
+        reasons.append("Workflow is already in ComfyUI API prompt format.")
+    elif status == "translated":
+        score = 0.84 + min(coverage * 0.12, 0.12)
+        confidence = "high"
+        mode = "translated"
+        reasons.append("Workflow translated into an API prompt without blocking nodes.")
+    elif status == "partial":
+        score = 0.28 + min(coverage * 0.25, 0.25)
+        confidence = "low"
+        mode = "partial"
+        reasons.append("Workflow translation is incomplete and still needs manual review.")
+    else:
+        score = 0.08
+        confidence = "reference"
+        mode = "reference"
+        reasons.append("Workflow could not be translated into a queueable API prompt.")
+
+    if fallback_count:
+        score -= min(0.04 * fallback_count, 0.16)
+        reasons.append(f"Used schema-free UI metadata fallback on {fallback_count} node(s).")
+    if unmapped_count:
+        score -= min(0.03 * unmapped_count, 0.12)
+        reasons.append(f"Some widget values could not be mapped cleanly on {unmapped_count} node(s).")
+    if warning_count and not fallback_count and not unmapped_count:
+        score -= min(0.015 * warning_count, 0.12)
+        reasons.append(f"Translator emitted {warning_count} warning(s).")
+    if error_count:
+        score -= min(0.08 * error_count, 0.24)
+        reasons.append(f"Translation still has {error_count} blocking error(s).")
+    if unsupported_node_count:
+        score -= min(0.07 * unsupported_node_count, 0.28)
+        reasons.append(f"{unsupported_node_count} node(s) are still unsupported.")
+    if coverage and coverage < 1.0:
+        reasons.append(
+            f"Only {translated_node_count} of {relevant_node_count} relevant node(s) were translated."
+        )
+
+    score = round(max(0.0, min(score, 1.0)), 3)
+    if confidence not in {"direct", "reference"}:
+        if score >= 0.78:
+            confidence = "high"
+        elif score >= 0.55:
+            confidence = "medium"
+        elif score >= 0.25:
+            confidence = "low"
+        else:
+            confidence = "reference"
+
+    if ready_for_queue and score >= 0.78:
+        recommended_action = "queue-or-instantiate"
+    elif ready_for_queue:
+        recommended_action = "inspect-then-instantiate"
+    elif status in {"partial", "unsupported"}:
+        recommended_action = "reference-only"
+    else:
+        recommended_action = "inspect"
+
+    return {
+        "mode": mode,
+        "confidence": confidence,
+        "score": score,
+        "ready_for_queue": ready_for_queue,
+        "coverage": round(coverage, 3),
+        "warning_count": warning_count,
+        "error_count": error_count,
+        "fallback_count": fallback_count,
+        "unmapped_count": unmapped_count,
+        "unsupported_node_count": unsupported_node_count,
+        "recommended_action": recommended_action,
+        "reasons": reasons,
+    }
+
+
 def translate_workflow(
     workflow: dict[str, Any],
     object_info: dict[str, Any],
@@ -281,7 +423,7 @@ def translate_workflow(
     workflow_format = workflow_info["format"]
 
     if workflow_format == "api-prompt":
-        return {
+        report = {
             "status": "already_api_prompt",
             "workflow_format": workflow_format,
             "workflow": workflow,
@@ -289,15 +431,19 @@ def translate_workflow(
             "errors": [],
             "summary": workflow_info["summary"],
         }
+        report["translation_assessment"] = _translation_assessment(report)
+        return report
 
     if workflow_format != "comfyui-ui":
-        return {
+        report = {
             "status": "unsupported",
             "workflow_format": workflow_format,
             "warnings": [],
             "errors": ["Workflow is not in a recognized ComfyUI UI workflow format."],
             "summary": workflow_info["summary"],
         }
+        report["translation_assessment"] = _translation_assessment(report)
+        return report
 
     nodes = {
         str(node["id"]): node
@@ -328,15 +474,6 @@ def translate_workflow(
             skipped_nodes.append({"node_id": node_id, "node_type": node_type, "reason": "ui_helper"})
             continue
 
-        schema = object_info.get(node_type)
-        if schema is None:
-            unsupported_nodes.append({
-                "node_id": node_id,
-                "node_type": node_type,
-                "reason": "missing_object_info_schema",
-            })
-            continue
-
         inputs: dict[str, Any] = {}
         linked_names: set[str] = set()
         for input_entry in node.get("inputs", []):
@@ -354,7 +491,42 @@ def translate_workflow(
             if resolved["kind"] == "link":
                 linked_names.add(name)
 
+        schema = object_info.get(node_type)
         widget_values = node.get("widgets_values", [])
+        if schema is None:
+            if not _allow_schema_free_translation(node):
+                unsupported_nodes.append({
+                    "node_id": node_id,
+                    "node_type": node_type,
+                    "reason": "missing_object_info_schema",
+                })
+                continue
+
+            widget_names = _fallback_widget_names(node, linked_names)
+            if isinstance(widget_values, list) and widget_values:
+                if widget_names:
+                    _assign_widget_values(
+                        inputs,
+                        widget_names,
+                        widget_values,
+                        warnings,
+                        node_type=node_type,
+                        node_id=node_id,
+                    )
+                else:
+                    warnings.append(
+                        f"Could not map widget values for {node_type} ({node_id}) without schema."
+                    )
+
+            translated[node_id] = {
+                "class_type": node_type,
+                "inputs": inputs,
+            }
+            warnings.append(
+                f"Translated {node_type} ({node_id}) using UI metadata fallback because schema was unavailable."
+            )
+            continue
+
         if isinstance(widget_values, list) and widget_values:
             widget_names = _candidate_widget_names(node, schema, linked_names)
             _assign_widget_values(
@@ -381,7 +553,7 @@ def translate_workflow(
     ready_for_queue = bool(translated) and not blocking_nodes and not errors
     status = "translated" if ready_for_queue else ("partial" if translated else "unsupported")
 
-    return {
+    report = {
         "status": status,
         "workflow_format": workflow_format,
         "workflow": translated if ready_for_queue else None,
@@ -398,3 +570,5 @@ def translate_workflow(
         "unsupported_nodes": unsupported_nodes,
         "skipped_nodes": skipped_nodes,
     }
+    report["translation_assessment"] = _translation_assessment(report)
+    return report
