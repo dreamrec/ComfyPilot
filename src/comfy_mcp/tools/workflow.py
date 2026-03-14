@@ -120,9 +120,9 @@ async def comfy_cancel_run(
 async def comfy_interrupt(ctx: Context = None) -> str:
     """Interrupt the currently executing prompt."""
     client = _client(ctx)
-    await client.interrupt()
-    # Get authoritative running prompt IDs from ComfyUI queue
+    # Snapshot queue BEFORE interrupt so running entries are still present
     queue = await client.get_queue()
+    await client.interrupt()
     running_ids = set()
     for entry in queue.get("queue_running", []):
         if isinstance(entry, (list, tuple)) and len(entry) >= 2:

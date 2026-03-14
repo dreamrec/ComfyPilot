@@ -295,6 +295,34 @@ class TestInterruptQueueTruth:
         tracker.refresh_active_states(running_prompt_ids={"p-noevents"})
         assert tracker._active_jobs["p-noevents"]["status"] == "running"
 
+    @pytest.mark.asyncio
+    async def test_queue_queried_before_interrupt_signal(self, mock_ctx):
+        """Queue must be read BEFORE interrupt() to avoid the cleared-queue race."""
+        call_order = []
+        client = mock_ctx.request_context.lifespan_context["comfy_client"]
+
+        async def fake_get_queue():
+            call_order.append("get_queue")
+            return {"queue_running": [[0, "p-race", {}, {}, []]], "queue_pending": []}
+
+        async def fake_interrupt():
+            call_order.append("interrupt")
+
+        client.get_queue = fake_get_queue
+        client.interrupt = fake_interrupt
+
+        jt = mock_ctx.request_context.lifespan_context["job_tracker"]
+        jt.list_active = MagicMock(return_value=[
+            {"prompt_id": "p-race", "status": "running"},
+        ])
+        jt.mark_interrupted = AsyncMock()
+        jt.refresh_active_states = MagicMock()
+
+        from comfy_mcp.tools.workflow import comfy_interrupt
+        await comfy_interrupt(ctx=mock_ctx)
+
+        assert call_order == ["get_queue", "interrupt"]
+
 
 # ---------------------------------------------------------------------------
 # Fix 6: URL encoding in comfy_get_image_url

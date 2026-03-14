@@ -248,7 +248,7 @@ Run a specific category:
 uv run pytest tests/test_builder.py -v
 ```
 
-Full suite: 333 tests across 25 test files.
+Full suite: 334 tests across 25 test files.
 
 ## Reliability Habit
 
