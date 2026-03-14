@@ -72,7 +72,7 @@ async def comfy_get_node_docs(class_name: str, ctx: Context) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_search_docs(query: str, limit: int = 10, ctx: Context = None) -> str:
+async def comfy_search_docs(query: str, limit: int = 10, *, ctx: Context) -> str:
     """Full-text search across cached ComfyUI documentation.
 
     Args:
