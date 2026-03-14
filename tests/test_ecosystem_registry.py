@@ -23,6 +23,11 @@ class TestEcosystemRegistry:
         result = registry.classify_model("qwen_image_fp8.safetensors", "diffusion_models")
         assert result["family"] == "qwen-image"
 
+    def test_classifies_omnigen2(self):
+        registry = EcosystemRegistry()
+        result = registry.classify_model("omnigen2_fp8_e4m3fn.safetensors", "diffusion_models")
+        assert result["family"] == "omnigen2"
+
     def test_classifies_pony_as_sdxl_with_ecosystem_tag(self):
         registry = EcosystemRegistry()
         result = registry.classify_model("ponyDiffusionV6XL.safetensors", "checkpoints")

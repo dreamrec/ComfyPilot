@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from comfy_mcp.ecosystem import EcosystemRegistry, ModelAwarenessScanner
@@ -52,6 +53,17 @@ TASK_MODALITY = {
 }
 
 BUILDER_COMPATIBLE_FAMILIES = {"sd15", "sdxl", "flux1"}
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def _template_matches_family(model_names: list[str], family_display_name: str) -> bool:
+    if not model_names or not family_display_name:
+        return False
+    family_tokens = _normalize_text(family_display_name)
+    return any(family_tokens in _normalize_text(name) for name in model_names)
 
 
 def _normalize_task(task: str) -> str:
@@ -199,25 +211,88 @@ class WorkflowPlanner:
                 snapshot.get("node_classes", set()),
                 snapshot.get("models", {}),
             )
-            scored = scorer.score(goal or inferred_task, template_index.list_all(), limit=min(limit, 3))
+            query_parts = [goal or inferred_task, inferred_task]
+            for family_id in awareness.get("detected_architectures", []):
+                family = self._registry.family_by_id(family_id)
+                if family is not None and _task_supported(inferred_task, family.tasks):
+                    query_parts.extend([family.display_name, family.id])
+            for provider in awareness.get("provider_details", []):
+                if _task_supported(inferred_task, provider.get("tasks", [])):
+                    query_parts.append(provider["display_name"])
+            scored = scorer.score(
+                " ".join(part for part in query_parts if part),
+                template_index.list_all(),
+                limit=min(limit + 2, 8),
+            )
             for entry in scored:
                 if entry["score"] < 0.4:
                     continue
                 score = 0.3 + entry["score"] * 0.4
-                reasons = [f"Template search found {entry['name']}"]
+                reasons = [f"Template search found {entry.get('title') or entry['name']}"]
                 if not entry["warnings"]:
                     score += 0.1
                     reasons.append("Template looks compatible with the current install")
+
+                if entry.get("open_source"):
+                    score += 0.03
+                    reasons.append("Template is open source")
+
+                distributions = set(entry.get("distribution_targets", []))
+                if prefer_local:
+                    if not distributions or "local" in distributions:
+                        score += 0.04
+                        reasons.append("Template is suitable for local installs")
+                    elif distributions == {"cloud"}:
+                        score -= 0.08
+                        reasons.append("Template appears targeted at cloud-only distributions")
+
+                if entry.get("usage", 0):
+                    score += min(entry["usage"] / 5000.0, 0.05)
+                    reasons.append("Template has community usage signal")
+
+                matched_family = None
+                for family_id in awareness.get("detected_architectures", []):
+                    family = self._registry.family_by_id(family_id)
+                    if family and _template_matches_family(entry.get("model_names", []), family.display_name):
+                        matched_family = family
+                        break
+                if matched_family is not None:
+                    score += 0.08
+                    reasons.append(
+                        f"Template aligns with detected family {matched_family.display_name}"
+                    )
+
+                actionability = (
+                    "buildable-template"
+                    if entry.get("supports_instantiation")
+                    else "template-reference"
+                )
                 candidates.append({
                     "strategy_id": f"template-{entry['id']}",
                     "type": "template",
                     "runtime": "template-index",
                     "template_id": entry["id"],
-                    "display_name": entry["name"],
+                    "display_name": entry.get("title") or entry["name"],
                     "task": inferred_task,
                     "score": round(score, 3),
                     "why": reasons,
                     "warnings": entry["warnings"],
+                    "title": entry.get("title", ""),
+                    "model_names": entry.get("model_names", []),
+                    "tutorial_url": entry.get("tutorial_url", ""),
+                    "workflow_file": entry.get("workflow_file", ""),
+                    "workflow_url": entry.get("workflow_url", ""),
+                    "open_source": entry.get("open_source", False),
+                    "distribution_targets": entry.get("distribution_targets", []),
+                    "usage": entry.get("usage", 0),
+                    "supports_instantiation": entry.get("supports_instantiation", False),
+                    "required_custom_nodes": entry.get("required_custom_nodes", []),
+                    "actionability": actionability,
+                    "next_step_tool": (
+                        "comfy_instantiate_template"
+                        if entry.get("supports_instantiation")
+                        else "comfy_get_template"
+                    ),
                 })
 
         candidates.sort(key=lambda item: item["score"], reverse=True)

@@ -119,6 +119,7 @@ Use for guardrails, pre-flight checks, and emergency control.
 Use for template-based workflow construction and editing.
 
 - `comfy_build_workflow` — Build from templates: txt2img, img2img, upscale, inpaint, controlnet.
+  When a newer family is detected but not yet natively buildable, the response now includes `suggested_template` metadata pointing at the closest modern official template.
 - `comfy_add_node` — Add a node to a workflow-in-progress.
 - `comfy_connect_nodes` — Wire node outputs to inputs.
 - `comfy_set_widget_value` — Set widget values on nodes.
@@ -185,7 +186,7 @@ Use for looking up, resolving, and checking compatibility of ComfyUI registry pa
 ### 19) Workflow Planning
 Use for choosing the best current workflow strategy based on installed models, templates, and providers.
 
-- `comfy_recommend_workflow` -- Rank local families, compatible templates, and provider options for a goal or task.
+- `comfy_recommend_workflow` -- Rank local families, compatible templates, and provider options for a goal or task, including richer official template metadata such as model names, tutorial links, usage, and open-source availability.
 
 ## MCP Resources (13)
 

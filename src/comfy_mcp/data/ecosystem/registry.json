@@ -114,6 +114,37 @@
     "last_verified_at": "2026-03-14"
   },
   {
+    "id": "omnigen2",
+    "kind": "family",
+    "display_name": "OmniGen2",
+    "priority": 109,
+    "modality": ["image"],
+    "tasks": ["t2i", "edit"],
+    "runtime_modes": ["local-native"],
+    "required_folders": ["diffusion_models", "text_encoders", "vae"],
+    "optional_folders": ["loras", "model_patches"],
+    "community_tags": [],
+    "matchers": [
+      {
+        "folder": "diffusion_models",
+        "terms": ["omnigen2", "omni gen2", "omni-gen2"],
+        "patterns": ["omni[._ -]?gen[._ -]?2"]
+      },
+      {
+        "folder": "text_encoders",
+        "terms": ["qwen 2.5 vl", "qwen2.5 vl"],
+        "patterns": ["qwen.*2[._ -]?5.*vl"]
+      }
+    ],
+    "asset_requirements": [
+      {"folder": "diffusion_models", "patterns": ["omni[._ -]?gen[._ -]?2"]},
+      {"folder": "text_encoders", "patterns": ["qwen.*2[._ -]?5.*vl"]},
+      {"folder": "vae", "patterns": ["omni", "vae"]}
+    ],
+    "source_urls": ["https://docs.comfy.org/tutorials/image/omnigen/omnigen2"],
+    "last_verified_at": "2026-03-14"
+  },
+  {
     "id": "z-image",
     "kind": "family",
     "display_name": "Z-Image",

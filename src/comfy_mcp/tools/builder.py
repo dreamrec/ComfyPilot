@@ -465,6 +465,7 @@ async def comfy_build_workflow(
 
     recommendation_bundle = None
     recommendation = None
+    suggested_template = None
     warnings: list[str] = []
 
     if ctx:
@@ -490,9 +491,17 @@ async def comfy_build_workflow(
                     limit=3,
                 )
                 recommendation = recommendation_bundle.get("default_recommendation")
+                suggested_template = next(
+                    (
+                        item for item in recommendation_bundle.get("recommendations", [])
+                        if item.get("type") == "template"
+                    ),
+                    None,
+                )
         except Exception:
             recommendation_bundle = None
             recommendation = None
+            suggested_template = None
 
     template_index = lc.get("template_index")
     install_graph = lc.get("install_graph")
@@ -561,6 +570,12 @@ async def comfy_build_workflow(
             f"Best detected family {recommendation.get('display_name', recommendation.get('family', 'unknown'))} uses a modern workflow stack. "
             f"Falling back to the legacy {template} builder template."
         )
+        if suggested_template is not None:
+            warnings.append(
+                f"Closest template match is {suggested_template.get('display_name', suggested_template.get('template_id', 'unknown'))} "
+                f"({suggested_template.get('template_id', 'template')}). Use {suggested_template.get('next_step_tool', 'comfy_get_template')} "
+                "for a modern workflow reference."
+            )
 
     # Detect model family for appropriate defaults
     from comfy_mcp.builder.families import family_defaults
@@ -584,6 +599,7 @@ async def comfy_build_workflow(
             "node_count": len(workflow),
             "workflow": workflow,
             "recommendation": recommendation,
+            "suggested_template": suggested_template,
             "warnings": warnings,
         },
         indent=2,

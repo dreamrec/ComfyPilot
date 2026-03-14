@@ -162,7 +162,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 
 | Tool | Description |
 |------|-------------|
-| `comfy_build_workflow` | Build from template: txt2img, img2img, upscale, inpaint, controlnet |
+| `comfy_build_workflow` | Build from template: txt2img, img2img, upscale, inpaint, controlnet. When a newer family is detected but not yet safely synthesizeable, the response includes a `suggested_template` reference to the closest modern template. |
 | `comfy_add_node` | Add a node to a workflow-in-progress |
 | `comfy_connect_nodes` | Wire node outputs to inputs |
 | `comfy_set_widget_value` | Set widget values on existing nodes |
@@ -174,7 +174,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 
 | Tool | Description |
 |------|-------------|
-| `comfy_recommend_workflow` | Rank local families, compatible templates, and provider options for a goal or task |
+| `comfy_recommend_workflow` | Rank local families, compatible templates, and provider options for a goal or task, carrying richer official template metadata such as model names, tutorial URLs, usage, and open-source availability |
 
 The planner uses installed models, detected providers, template compatibility, and local-first preferences to recommend the best current strategy before building or queueing anything.
 

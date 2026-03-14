@@ -21,7 +21,23 @@ def planner_ctx(mock_ctx):
     mock_ctx.request_context.lifespan_context["model_awareness_scanner"] = scanner
     mock_ctx.request_context.lifespan_context["workflow_planner"] = planner
     mock_ctx.request_context.lifespan_context["template_index"] = MagicMock()
-    mock_ctx.request_context.lifespan_context["template_index"].list_all = MagicMock(return_value=[])
+    mock_ctx.request_context.lifespan_context["template_index"].list_all = MagicMock(return_value=[
+        {
+            "id": "official_image_qwen_image",
+            "name": "image_qwen_image",
+            "title": "Qwen-Image Starter",
+            "category": "text-to-image",
+            "source": "official",
+            "description": "Official starter workflow for Qwen-Image.",
+            "tags": ["Text to Image", "Image"],
+            "model_names": ["Qwen-Image"],
+            "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+            "open_source": True,
+            "usage": 120,
+            "distribution_targets": ["local"],
+            "supports_instantiation": False,
+        }
+    ])
     mock_ctx.request_context.lifespan_context["install_graph"] = MagicMock(snapshot={
         "models": {
             "checkpoints": ["ponyDiffusionV6XL.safetensors", "flux1-dev.safetensors"],
@@ -51,6 +67,17 @@ class TestRecommendWorkflowTool:
         result = json.loads(await comfy_recommend_workflow(task="t2i", allow_providers=True, ctx=planner_ctx))
         strategies = result["recommendations"]
         assert any(item.get("provider") == "google" for item in strategies)
+
+    @pytest.mark.asyncio
+    async def test_recommend_workflow_includes_official_template_context(self, planner_ctx):
+        from comfy_mcp.tools.planner import comfy_recommend_workflow
+
+        result = json.loads(await comfy_recommend_workflow(task="t2i", ctx=planner_ctx))
+        templates = [item for item in result["recommendations"] if item.get("type") == "template"]
+        assert templates
+        assert templates[0]["template_id"] == "official_image_qwen_image"
+        assert templates[0]["tutorial_url"] == "https://docs.comfy.org/tutorials/image/qwen/qwen-image"
+        assert templates[0]["actionability"] == "template-reference"
 
 
 class TestPlannerResource:

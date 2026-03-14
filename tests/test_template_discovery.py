@@ -45,6 +45,45 @@ class TestDiscoverOfficial:
         templates = await discovery.discover_official()
         assert templates == []
 
+    @pytest.mark.asyncio
+    async def test_flattens_nested_official_index_payload(self, mock_comfy_client):
+        from comfy_mcp.templates.discovery import TemplateDiscovery
+
+        index_data = [
+            {
+                "moduleName": "default",
+                "title": "Getting Started",
+                "type": "image",
+                "templates": [
+                    {
+                        "name": "image_qwen_image",
+                        "title": "Qwen Image",
+                        "description": "Generate images with Qwen-Image.",
+                        "tags": ["Text to Image", "Image"],
+                        "models": ["Qwen-Image"],
+                        "openSource": True,
+                        "usage": 42,
+                        "tutorialUrl": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+                    }
+                ],
+            }
+        ]
+        mock_comfy_client.get = AsyncMock(return_value=index_data)
+
+        discovery = TemplateDiscovery(mock_comfy_client)
+        templates = await discovery.discover_official()
+
+        assert len(templates) == 1
+        template = templates[0]
+        assert template["name"] == "image_qwen_image"
+        assert template["title"] == "Qwen Image"
+        assert template["category"] == "text-to-image"
+        assert template["model_names"] == ["Qwen-Image"]
+        assert template["workflow_file"] == "image_qwen_image.json"
+        assert template["workflow_url"].endswith("/image_qwen_image.json")
+        assert template["open_source"] is True
+        assert template["source"] == "official"
+
 
 class TestDiscoverCustomNode:
     @pytest.mark.asyncio

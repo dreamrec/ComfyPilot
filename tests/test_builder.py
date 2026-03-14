@@ -206,6 +206,25 @@ class TestBuildWorkflow:
         builder_ctx.request_context.lifespan_context["comfy_client"] = MagicMock()
         builder_ctx.request_context.lifespan_context["comfy_client"].capabilities = {"profile": "local"}
         builder_ctx.request_context.lifespan_context["comfy_client"].get_models = AsyncMock(return_value=[])
+        builder_ctx.request_context.lifespan_context["template_index"] = MagicMock()
+        builder_ctx.request_context.lifespan_context["template_index"].list_all = MagicMock(return_value=[
+            {
+                "id": "official_image_qwen_image",
+                "name": "image_qwen_image",
+                "title": "Qwen-Image Starter",
+                "category": "text-to-image",
+                "source": "official",
+                "description": "Official starter workflow for Qwen-Image.",
+                "tags": ["Text to Image", "Image"],
+                "model_names": ["Qwen-Image"],
+                "tutorial_url": "https://docs.comfy.org/tutorials/image/qwen/qwen-image",
+                "open_source": True,
+                "usage": 120,
+                "distribution_targets": ["local"],
+                "supports_instantiation": False,
+            }
+        ])
+        builder_ctx.request_context.lifespan_context["template_index"].get = MagicMock(return_value=None)
         builder_ctx.request_context.lifespan_context["install_graph"] = MagicMock(snapshot={
             "models": {
                 "diffusion_models": ["qwen_image_fp8.safetensors"],
@@ -219,6 +238,8 @@ class TestBuildWorkflow:
         assert result["recommendation"]["family"] == "qwen-image"
         assert result["warnings"]
         assert "Qwen-Image" in result["warnings"][0]
+        assert result["suggested_template"]["template_id"] == "official_image_qwen_image"
+        assert result["suggested_template"]["actionability"] == "template-reference"
 
 
 # ---------------------------------------------------------------------------
