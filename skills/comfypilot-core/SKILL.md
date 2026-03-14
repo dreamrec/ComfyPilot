@@ -1,6 +1,6 @@
 ---
 name: comfypilot-core
-description: Core workflow for ComfyPilot — the AI assistant for ComfyUI
+description: Core patching discipline for working with ComfyUI through MCP tools. Use this skill whenever the user mentions ComfyUI, Stable Diffusion workflows, image generation pipelines, or wants to build/queue/monitor ComfyUI workflows.
 ---
 
 # ComfyPilot Core Skill
@@ -22,7 +22,7 @@ Use this when working with ComfyUI through MCP tools.
 - Use `comfy_snapshot_workflow` before modifications
 - `comfy_emergency_stop` if anything goes wrong
 
-## Tool Categories (71 tools)
+## Tool Categories (66 tools)
 - **System (6):** stats, GPU info, features, extensions, restart, free VRAM
 - **Models (5):** list, info, folders, search, refresh
 - **Workflow (8):** queue, get queue, cancel, interrupt, clear, validate, export, import
