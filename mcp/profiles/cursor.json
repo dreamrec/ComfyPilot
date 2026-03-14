@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "comfypilot": {
+      "command": "uv",
+      "args": ["run", "comfypilot"],
+      "env": {
+        "COMFY_URL": "http://127.0.0.1:8188",
+        "COMFY_API_KEY": ""
+      }
+    }
+  }
+}
