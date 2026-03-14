@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-ComfyPilot is a production-grade MCP server for live AI control of ComfyUI. It provides 66 tools across 12 categories, connecting to any ComfyUI instance via REST API and WebSocket.
+ComfyPilot is a production-grade MCP server for live AI control of ComfyUI. It provides 71 tools across 12 categories, connecting to any ComfyUI instance via REST API and WebSocket.
 
 **Target:** ComfyUI v0.17.0+ (remote instance at `https://desktop-3lurf0p.tail88651a.ts.net/`, RTX 5090, 34GB VRAM)
 
@@ -40,7 +40,7 @@ ComfyPilot is a production-grade MCP server for live AI control of ComfyUI. It p
 │       ├── __init__.py
 │       ├── server.py              # FastMCP init + lifespan + CLI
 │       ├── comfy_client.py        # Async HTTP + WebSocket client
-│       ├── tool_registry.py       # Central registration (imports all tools/)
+│       ├── tool_registry.py       # Import aggregator: imports all tools/ modules so @mcp.tool decorators execute at startup. Also wires auto-snapshot hooks.
 │       ├── tools/
 │       │   ├── __init__.py
 │       │   ├── system.py          # 6 tools: stats, GPU, features, extensions, restart, free VRAM
@@ -140,8 +140,11 @@ class ComfyClient:
 - `get_system_stats()` — GET /system_stats
 - `get_object_info(node_type=None)` — GET /object_info or /object_info/{type}
 - `get_models(folder)` — GET /models/{folder}
+- `get_features()` — GET /api/features (v0.17+)
+- `get_extensions()` — GET /api/extensions
 - `upload_image(file, subfolder, overwrite)` — POST /upload/image
 - `get_image(filename, subfolder, type)` — GET /view?filename=...
+- `cancel_prompt(prompt_id)` — POST /queue with `{"delete": [prompt_id]}`
 - `interrupt()` — POST /interrupt
 - `free_vram(unload_models, free_memory)` — POST /free
 - `watch_execution(prompt_id)` — async generator over WebSocket events
@@ -151,12 +154,31 @@ class ComfyClient:
 
 ```python
 class ComfyError(Exception):
-    """Base error with structured fields."""
-    error_code: str
-    message: str
-    suggestion: str
-    retry_possible: bool
-    details: dict | None
+    """Base error with structured fields for actionable error reporting."""
+
+    def __init__(
+        self,
+        error_code: str,
+        message: str,
+        suggestion: str = "",
+        retry_possible: bool = False,
+        details: dict | None = None,
+    ):
+        self.error_code = error_code
+        self.message = message
+        self.suggestion = suggestion
+        self.retry_possible = retry_possible
+        self.details = details
+        super().__init__(message)
+
+    def to_dict(self) -> dict:
+        return {
+            "error_code": self.error_code,
+            "message": self.message,
+            "suggestion": self.suggestion,
+            "retry_possible": self.retry_possible,
+            "details": self.details,
+        }
 
 class ComfyConnectionError(ComfyError): ...   # Cannot reach ComfyUI
 class ComfyAPIError(ComfyError): ...           # HTTP 4xx/5xx
@@ -173,10 +195,13 @@ class ComfyVRAMError(ComfyError): ...          # Out of VRAM
 | `COMFY_WS_RECONNECT_MAX` | `5` | Max WebSocket reconnect attempts |
 | `COMFY_SNAPSHOT_LIMIT` | `50` | Max snapshots before LRU eviction |
 | `COMFY_TIMEOUT` | `300` | Default execution timeout (seconds) |
+| `COMFY_OUTPUT_DIR` | `""` | Default disk output directory for saved images |
+| `COMFY_TD_OUTPUT_DIR` | `""` | TouchDesigner output directory (enables TD routing) |
+| `COMFY_BLENDER_OUTPUT_DIR` | `""` | Blender output directory (enables Blender routing) |
 
 ---
 
-## 5. Tool Registry (66 Tools)
+## 5. Tool Registry (71 Tools)
 
 ### 5.1 System (6 tools)
 
@@ -231,7 +256,7 @@ class ComfyVRAMError(ComfyError): ...          # Out of VRAM
 | `comfy_get_output_image` | readOnly | Get generated image (returns image content block) |
 | `comfy_list_outputs` | readOnly | List output images with pagination |
 | `comfy_get_temp_image` | readOnly | Get temporary/preview image |
-| `comfy_download_batch` | readOnly | Download multiple output images as ZIP |
+| `comfy_download_batch` | readOnly | Get metadata for multiple output images. Returns list of `{filename, size_bytes, url}` objects (max 20 per call). Does NOT return image bytes — use `comfy_get_output_image` for individual images. Avoids multi-MB base64 payloads. |
 
 ### 5.6 History (5 tools)
 
@@ -268,12 +293,12 @@ class ComfyVRAMError(ComfyError): ...          # Out of VRAM
 
 | Tool | Annotation | Description |
 |------|-----------|-------------|
-| `comfy_watch_progress` | readOnly | Watch execution progress via WebSocket |
-| `comfy_subscribe` | not readOnly | Subscribe to execution events |
+| `comfy_watch_progress` | readOnly | Poll execution progress for a prompt_id. Returns current step/total, node being executed, and completion status. Not streaming — call repeatedly to poll. |
+| `comfy_subscribe` | not readOnly | Register interest in event types. Events are buffered internally and retrieved via `comfy_get_events`. |
 | `comfy_unsubscribe` | not readOnly | Remove event subscription |
-| `comfy_get_events` | readOnly | Get recent event history |
-| `comfy_describe_dynamics` | readOnly | Observe execution patterns over time window |
-| `comfy_stream_status` | readOnly | Continuous queue/execution status stream |
+| `comfy_get_events` | readOnly | Get buffered events since last call (drains the buffer). Returns list of recent events with timestamps. |
+| `comfy_describe_dynamics` | readOnly | Collect execution metrics over a time window (default 3s), then return a summary snapshot. Blocks for the observation window, then returns. |
+| `comfy_get_status` | readOnly | One-shot snapshot of queue state + current execution status. Renamed from `comfy_stream_status` — this is a poll, not a stream. |
 
 ### 5.10 Safety (5 tools)
 
@@ -289,7 +314,7 @@ class ComfyVRAMError(ComfyError): ...          # Out of VRAM
 
 | Tool | Annotation | Description |
 |------|-----------|-------------|
-| `comfy_build_workflow` | not readOnly | Create workflow from high-level description |
+| `comfy_build_workflow` | not readOnly | Create workflow from a structured template spec (not NLP). Input: `BuildWorkflowInput(template: str, params: dict)` where `template` is one of the predefined types ("txt2img", "img2img", "upscale", "inpaint", "controlnet") and `params` overrides specific widget values. Output: API-format workflow dict ready for `comfy_queue_prompt`. |
 | `comfy_add_node` | not readOnly | Add a node to an in-progress workflow |
 | `comfy_connect_nodes` | not readOnly | Connect two nodes in a workflow |
 | `comfy_set_widget_value` | not readOnly | Set a widget/input value on a node |
@@ -335,7 +360,7 @@ Static/infrequently-changing data exposed as MCP Resources (not tools):
 - LRU eviction when exceeding `COMFY_SNAPSHOT_LIMIT` (default 50)
 - Diff engine: compares two snapshots or snapshot vs live workflow
 - Restore: replaces current workflow with snapshot state
-- Auto-snapshot: optional hook before any workflow modification tool
+- Auto-snapshot: in-memory flag (default: off, not persisted across restarts). When enabled, automatically creates a snapshot before any tool in the builder category (`comfy_build_workflow`, `comfy_add_node`, `comfy_connect_nodes`, `comfy_set_widget_value`, `comfy_apply_template`) and before `comfy_queue_prompt`. Triggered by the tool_registry wrapper, not by individual tools.
 
 ### 7.3 TechniqueStore (`memory/technique_store.py`)
 
@@ -343,13 +368,13 @@ Static/infrequently-changing data exposed as MCP Resources (not tools):
 - Search by text query or tags
 - Replay: instantiate a technique as a new workflow
 - Storage: JSON files in `~/.comfypilot/techniques/`
-- Scopes: project-level and global
+- Scopes: global only (stored in `~/.comfypilot/techniques/`). Unlike TDPilot which has per-project techniques tied to TouchDesigner project files, ComfyUI workflows are standalone — a single global library is simpler and sufficient for v1.0. Project-scoping can be added later if users request it.
 
 ### 7.4 VRAMGuard (`safety/vram_guard.py`)
 
 - Polls `system_stats` for VRAM usage
 - Configurable thresholds (warn at 80%, block at 95%)
-- Pre-flight validation before queueing (estimate VRAM needs)
+- Pre-flight validation before queueing: checks current VRAM headroom against thresholds. Does NOT estimate per-workflow VRAM cost (ComfyUI has no such API). Simply verifies enough free VRAM exists above the configured floor before allowing queue submission.
 - Emergency stop: interrupt + free + notify
 
 ### 7.5 JobTracker (`jobs/job_tracker.py`)
@@ -493,8 +518,8 @@ if len(matches) > 1:
     "transport": "stdio"
   },
   "surface": {
-    "tool_count": 66,
-    "resource_template_count": 2
+    "tool_count": 71,
+    "resource_template_count": 1
   },
   "artifacts": ["skills/comfypilot-core"]
 }
@@ -538,20 +563,25 @@ These patterns should backport to TDPilot v1.2.
 
 ## 11. Cross-App Output Routing
 
-Output routing connects ComfyPilot to other creative tools:
+Output routing connects ComfyPilot to other creative tools.
 
-- **TouchDesigner**: Send generated images to TDPilot's `td_exec_python` to load into TOPs
-- **Blender**: Send to Blender MCP's `execute_blender_code` to load as textures/references
-- **Disk**: Save to configurable paths with naming patterns
+**Mechanism:** Output routing does NOT call other MCP servers directly (MCP servers cannot invoke each other). Instead, routing tools:
 
-Routing is one-directional (ComfyUI → other apps). The other MCP servers must be running alongside ComfyPilot.
+1. **Disk routing** (`comfy_send_to_disk`): Downloads the image from ComfyUI and saves it to a configured local path. This is the foundation — other apps watch these paths or the agent orchestrates the next step.
+2. **TD routing** (`comfy_send_to_td`): Saves image to disk, then returns a response indicating the file path and a suggested `td_exec_python` command the agent should execute next via TDPilot. The *agent* (Claude) orchestrates the cross-app call, not ComfyPilot.
+3. **Blender routing** (`comfy_send_to_blender`): Same pattern — saves to disk, returns suggested `execute_blender_code` command for the agent to run via Blender MCP.
+4. **Destination discovery** (`comfy_list_destinations`): Checks env vars (`COMFY_TD_OUTPUT_DIR`, `COMFY_BLENDER_OUTPUT_DIR`, `COMFY_OUTPUT_DIR`) and reports which destinations are configured.
+
+This is agent-orchestrated routing, not server-to-server RPC. The LLM agent coordinates the pipeline across MCP servers.
 
 ---
 
 ## 12. Testing Strategy
 
-- Unit tests for ComfyClient (mocked HTTP/WS)
-- Unit tests for each tool module (mocked client)
-- Integration tests against live ComfyUI instance
-- Snapshot/memory tests with temp directories
-- WebSocket reconnection tests with simulated disconnects
+- **Framework:** pytest + pytest-asyncio
+- **Unit tests** for ComfyClient: mock `httpx.AsyncClient` responses using `httpx.MockTransport`. Mock WebSocket via `unittest.mock.AsyncMock`.
+- **Unit tests** for each tool module: fixture provides a mock `ComfyClient` injected via lifespan context dict. Each tool module gets its own test file (`tests/test_system.py`, etc.).
+- **Integration tests** against live ComfyUI: gated by `COMFY_TEST_URL` env var. Skipped when not set. Only runs read-only tools by default.
+- **Snapshot/memory tests**: use `tmp_path` pytest fixture for isolated file storage.
+- **WebSocket reconnection tests**: simulate disconnects via mock, verify exponential backoff timing and max retry behavior.
+- **CI**: GitHub Actions with unit tests only (no live ComfyUI). Integration tests run manually.
