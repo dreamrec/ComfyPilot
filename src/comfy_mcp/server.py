@@ -28,9 +28,11 @@ async def comfy_lifespan(server: FastMCP):
     api_key = os.environ.get("COMFY_API_KEY", "")
     timeout = float(os.environ.get("COMFY_TIMEOUT", "300"))
     snapshot_limit = int(os.environ.get("COMFY_SNAPSHOT_LIMIT", "50"))
+    auth_method = os.environ.get("COMFY_AUTH_METHOD", "auto")
 
-    client = ComfyClient(url, api_key=api_key, timeout=timeout)
+    client = ComfyClient(url, api_key=api_key, auth_method=auth_method, timeout=timeout)
     await client.connect()
+    await client.probe_capabilities()
     _shared_client = client
 
     # Subsystem managers — imported lazily to avoid circular deps
@@ -105,6 +107,14 @@ async def embeddings_resource() -> str:
         return json.dumps({"error": "Server not initialized"})
     result = await _shared_client.get_embeddings()
     return json.dumps(result, indent=2)
+
+
+@mcp.resource("comfy://server/capabilities")
+async def capabilities_resource() -> str:
+    """Detected ComfyUI server capabilities and profile."""
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    return json.dumps(_shared_client.capabilities, indent=2)
 
 
 def _register_tools():

@@ -21,23 +21,38 @@ class ComfyClient:
         self,
         base_url: str,
         api_key: str = "",
+        auth_method: str = "auto",  # "auto", "bearer", "x-api-key"
         ws_reconnect_max: int = 5,
         timeout: float = 30.0,
         max_retries: int = 2,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
+        self.auth_method = auth_method
         self.ws_reconnect_max = ws_reconnect_max
         self.timeout = timeout
         self.max_retries = max_retries
         self._http: httpx.AsyncClient | None = None
         self._client_id: str = str(uuid.uuid4())
+        self.capabilities: dict = {
+            "profile": "unknown",
+            "version": None,
+            "ws_available": True,
+            "features": [],
+            "auth_method": auth_method if api_key else "none",
+        }
 
     async def connect(self) -> None:
         """Initialize the HTTP client with connection pooling."""
         headers = {}
         if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+            method = self.auth_method
+            if method == "auto":
+                method = "x-api-key" if "api.comfy" in self.base_url else "bearer"
+            if method == "x-api-key":
+                headers["X-API-Key"] = self.api_key
+            else:
+                headers["Authorization"] = f"Bearer {self.api_key}"
         self._http = httpx.AsyncClient(
             base_url=self.base_url,
             headers=headers,
@@ -50,6 +65,30 @@ class ComfyClient:
         if self._http:
             await self._http.aclose()
             self._http = None
+
+    async def probe_capabilities(self) -> dict:
+        """Probe the connected ComfyUI instance for capabilities."""
+        try:
+            stats = await self.get("/system_stats")
+            system = stats.get("system", {})
+            self.capabilities["version"] = system.get("comfyui_version")
+            self.capabilities["profile"] = "local"
+        except Exception:
+            try:
+                stats = await self.get("/api/system_stats")
+                self.capabilities["profile"] = "cloud"
+                self.capabilities["version"] = stats.get("system", {}).get("comfyui_version")
+            except Exception:
+                self.capabilities["profile"] = "unknown"
+
+        try:
+            features = await self.get_features()
+            self.capabilities["features"] = features if isinstance(features, list) else []
+        except Exception:
+            self.capabilities["features"] = []
+
+        self.capabilities["ws_available"] = self.capabilities["profile"] == "local"
+        return self.capabilities
 
     def _ensure_connected(self) -> httpx.AsyncClient:
         if self._http is None:
