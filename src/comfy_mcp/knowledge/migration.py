@@ -36,7 +36,7 @@ def migrate_manifest_to_state(data_dir: Path) -> bool:
         return False
 
     try:
-        manifest_data = json.loads(manifest_path.read_text())
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning("Cannot read manifest.json for migration: %s", exc)
         return False

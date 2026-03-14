@@ -26,7 +26,7 @@ class TechniqueStore:
         """Load all technique JSON files from storage directory."""
         for path in self._dir.glob("*.json"):
             try:
-                data = json.loads(path.read_text())
+                data = json.loads(path.read_text(encoding="utf-8"))
                 self._techniques[data["id"]] = data
             except (json.JSONDecodeError, KeyError):
                 continue
@@ -36,7 +36,7 @@ class TechniqueStore:
         tech = self._techniques.get(technique_id)
         if tech:
             path = self._dir / f"{technique_id}.json"
-            path.write_text(json.dumps(tech, indent=2))
+            path.write_text(json.dumps(tech, indent=2), encoding="utf-8")
 
     def save(self, workflow: dict, name: str, description: str = "", tags: list[str] | None = None, metadata: dict | None = None) -> dict:
         """Save a workflow as a reusable technique. Returns metadata."""

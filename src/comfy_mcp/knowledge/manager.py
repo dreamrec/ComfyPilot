@@ -58,6 +58,9 @@ class KnowledgeManager:
         """Refresh all registered stores."""
         results = {}
         for name, store in self._stores.items():
+            if not hasattr(store, "refresh"):
+                results[name] = {"status": "skipped", "reason": "no refresh method"}
+                continue
             try:
                 await store.refresh()
                 results[name] = {"status": "ok"}
@@ -71,13 +74,21 @@ class KnowledgeManager:
     def clear(self, subsystem: str = "all") -> dict[str, Any]:
         """Clear cached data for one or all subsystems."""
         cleared = []
+        skipped = []
         if subsystem == "all":
             for name, store in self._stores.items():
-                store.clear()
-                cleared.append(name)
+                if hasattr(store, "clear"):
+                    store.clear()
+                    cleared.append(name)
+                else:
+                    skipped.append(name)
         elif subsystem in self._stores:
-            self._stores[subsystem].clear()
-            cleared.append(subsystem)
+            store = self._stores[subsystem]
+            if hasattr(store, "clear"):
+                store.clear()
+                cleared.append(subsystem)
+            else:
+                return {"error": f"Subsystem {subsystem} does not support clear()"}
         else:
             return {"error": f"Unknown subsystem: {subsystem}", "available": list(self._stores.keys())}
 

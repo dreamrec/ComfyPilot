@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("comfypilot.templates")
 
 
 def _content_hash(text: str) -> str:
@@ -19,11 +22,12 @@ def _content_hash(text: str) -> str:
 class TemplateIndex:
     """Unified template index across all sources."""
 
-    def __init__(self, storage_dir: str | None = None):
+    def __init__(self, storage_dir: str | None = None, discovery: Any | None = None):
         self._dir = Path(storage_dir or Path.home() / ".comfypilot" / "templates")
         self._dir.mkdir(parents=True, exist_ok=True)
         self._templates: list[dict[str, Any]] = []
         self._manifest: dict[str, Any] = {}
+        self._discovery = discovery
         self._load()
 
     def _index_path(self) -> Path:
@@ -36,13 +40,13 @@ class TemplateIndex:
         idx_path = self._index_path()
         if idx_path.exists():
             try:
-                self._templates = json.loads(idx_path.read_text())
+                self._templates = json.loads(idx_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 self._templates = []
         mfst_path = self._manifest_path()
         if mfst_path.exists():
             try:
-                self._manifest = json.loads(mfst_path.read_text())
+                self._manifest = json.loads(mfst_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 self._manifest = {}
 
@@ -54,14 +58,14 @@ class TemplateIndex:
                 t["id"] = f"{t.get('source', 'unknown')}_{t.get('name', 'unnamed')}"
         self._templates = templates
         self._dir.mkdir(parents=True, exist_ok=True)
-        self._index_path().write_text(json.dumps(templates, indent=2))
+        self._index_path().write_text(json.dumps(templates, indent=2), encoding="utf-8")
         self._manifest = {
             "last_updated": time.time(),
             "template_count": len(templates),
             "content_hash": _content_hash(json.dumps(templates, sort_keys=True)),
             "source_counts": self._count_sources(templates),
         }
-        self._manifest_path().write_text(json.dumps(self._manifest, indent=2))
+        self._manifest_path().write_text(json.dumps(self._manifest, indent=2), encoding="utf-8")
 
     def _count_sources(self, templates: list[dict]) -> dict[str, int]:
         counts: dict[str, int] = {}
@@ -101,6 +105,25 @@ class TemplateIndex:
 
     def content_hash(self) -> str:
         return self._manifest.get("content_hash", "")
+
+    def clear(self) -> None:
+        """Clear all cached templates and manifest."""
+        self._templates = []
+        self._manifest = {}
+        idx_path = self._index_path()
+        if idx_path.exists():
+            idx_path.unlink()
+        mfst_path = self._manifest_path()
+        if mfst_path.exists():
+            mfst_path.unlink()
+
+    async def refresh(self) -> None:
+        """Re-discover templates from all sources and rebuild the index."""
+        if self._discovery is None:
+            logger.warning("TemplateIndex.refresh() called without discovery instance, skipping")
+            return
+        templates = await self._discovery.discover_all()
+        self.rebuild(templates)
 
     def summary(self) -> dict:
         return {

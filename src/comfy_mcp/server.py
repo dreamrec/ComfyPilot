@@ -58,6 +58,7 @@ async def comfy_lifespan(server: FastMCP):
     vram_guard = VRAMGuard(client)
     job_tracker = JobTracker(client, event_mgr)
     install_graph = InstallGraph(client)
+    _bg_task = None
     # Try loading install graph from disk cache for faster startup
     if install_graph.load_from_disk() and not install_graph.is_stale():
         logger.info("Loaded install graph from disk cache")
@@ -71,7 +72,7 @@ async def comfy_lifespan(server: FastMCP):
                 logger.info("Background install graph refresh complete")
             except Exception as exc:
                 logger.warning("Background refresh failed: %s", exc)
-        asyncio.create_task(_bg_refresh())
+        _bg_task = asyncio.create_task(_bg_refresh())
     else:
         # No cache at all — must block on first refresh
         await install_graph.refresh()
@@ -80,14 +81,14 @@ async def comfy_lifespan(server: FastMCP):
 
     from comfy_mcp.docs.store import DocsStore
     from comfy_mcp.docs.fetcher import DocsFetcher
-    docs_store = DocsStore()
     docs_fetcher = DocsFetcher()
+    docs_store = DocsStore(fetcher=docs_fetcher)
     _shared_docs_store = docs_store
 
     from comfy_mcp.templates.discovery import TemplateDiscovery
     from comfy_mcp.templates.index import TemplateIndex
     template_discovery = TemplateDiscovery(client)
-    template_index = TemplateIndex()
+    template_index = TemplateIndex(discovery=template_discovery)
     _shared_template_index = template_index
 
     from comfy_mcp.knowledge.config import ConfigManager
@@ -140,6 +141,8 @@ async def comfy_lifespan(server: FastMCP):
         _shared_template_index = None
         _shared_knowledge_manager = None
         _shared_registry_index = None
+        if _bg_task is not None and not _bg_task.done():
+            _bg_task.cancel()
         await registry_client.close()
         await event_mgr.shutdown()
         await docs_fetcher.close()

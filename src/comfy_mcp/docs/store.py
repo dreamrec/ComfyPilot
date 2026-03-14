@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("comfypilot.docs")
 
 
 def _content_hash(text: str) -> str:
@@ -23,7 +26,8 @@ def _sanitize_filename(class_name: str) -> str:
 class DocsStore:
     """Manages on-disk documentation cache at ~/.comfypilot/docs/."""
 
-    def __init__(self, storage_dir: str | None = None):
+    def __init__(self, storage_dir: str | None = None, fetcher: Any | None = None):
+        self._fetcher = fetcher
         self._dir = Path(storage_dir or Path.home() / ".comfypilot" / "docs")
         self._dir.mkdir(parents=True, exist_ok=True)
         self._embedded_dir = self._dir / "embedded"
@@ -39,14 +43,14 @@ class DocsStore:
         path = self._manifest_path()
         if path.exists():
             try:
-                return json.loads(path.read_text())
+                return json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 return {}
         return {}
 
     def _save_manifest(self) -> None:
         path = self._manifest_path()
-        path.write_text(json.dumps(self._manifest, indent=2))
+        path.write_text(json.dumps(self._manifest, indent=2), encoding="utf-8")
 
     def _rebuild_name_map(self) -> None:
         self._name_to_file = {}
@@ -56,7 +60,7 @@ class DocsStore:
     def save_embedded(self, class_name: str, content: str) -> None:
         safe_name = _sanitize_filename(class_name)
         path = self._embedded_dir / f"{safe_name}.md"
-        path.write_text(content)
+        path.write_text(content, encoding="utf-8")
         if "embedded" not in self._manifest:
             self._manifest["embedded"] = {}
         self._manifest["embedded"][class_name] = {
@@ -72,7 +76,7 @@ class DocsStore:
         safe_name = self._name_to_file.get(class_name, _sanitize_filename(class_name))
         path = self._embedded_dir / f"{safe_name}.md"
         if path.exists():
-            return path.read_text()
+            return path.read_text(encoding="utf-8")
         return None
 
     def is_stale(self, max_age: float = 300) -> bool:
@@ -102,6 +106,15 @@ class DocsStore:
         self._name_to_file = {}
         self._save_manifest()
 
+    async def refresh(self) -> None:
+        """Re-fetch documentation from source."""
+        if self._fetcher is None:
+            logger.warning("DocsStore.refresh() called without fetcher instance, skipping")
+            return
+        content = await self._fetcher.fetch_llms_full()
+        if content:
+            self.save_llms(content)
+
     def list_embedded_classes(self) -> list[str]:
         return list(self._manifest.get("embedded", {}).keys())
 
@@ -120,7 +133,7 @@ class DocsStore:
 
     def save_llms(self, content: str) -> None:
         llms_path = self._dir / "llms-full.txt"
-        llms_path.write_text(content)
+        llms_path.write_text(content, encoding="utf-8")
         self._manifest["llms_hash"] = _content_hash(content)
         self._manifest["llms_cached_at"] = time.time()
         self._manifest["last_updated"] = time.time()
@@ -148,7 +161,7 @@ class DocsStore:
             current["end_line"] = len(lines) - 1
             sections.append(current)
         sections_path = self._dir / "sections.json"
-        sections_path.write_text(json.dumps(sections, indent=2))
+        sections_path.write_text(json.dumps(sections, indent=2), encoding="utf-8")
 
     def get_section(self, topic: str) -> dict | None:
         sections_path = self._dir / "sections.json"
@@ -157,7 +170,7 @@ class DocsStore:
         llms_path = self._dir / "llms-full.txt"
         if not llms_path.exists():
             return None
-        sections = json.loads(sections_path.read_text())
+        sections = json.loads(sections_path.read_text(encoding="utf-8"))
         topic_lower = topic.lower()
         best = None
         for s in sections:
@@ -168,7 +181,7 @@ class DocsStore:
                 best = s
         if best is None:
             return None
-        lines = llms_path.read_text().split("\n")
+        lines = llms_path.read_text(encoding="utf-8").split("\n")
         content = "\n".join(lines[best["start_line"]:best["end_line"] + 1])
         return {
             "title": best["title"],

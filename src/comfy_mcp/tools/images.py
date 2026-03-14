@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from urllib.parse import quote, urlencode
+from urllib.parse import urlencode
 import json
 from typing import Any
 

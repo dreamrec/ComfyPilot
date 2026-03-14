@@ -97,6 +97,36 @@ class TestEmbeddedDocCache:
             assert "+" not in f.name
 
 
+class TestRefresh:
+    @pytest.mark.asyncio
+    async def test_refresh_without_fetcher_is_safe(self, tmp_path):
+        from comfy_mcp.docs.store import DocsStore
+        store = DocsStore(storage_dir=str(tmp_path / "docs"))
+        # Should not raise, just log warning
+        await store.refresh()
+
+    @pytest.mark.asyncio
+    async def test_refresh_with_fetcher_saves_llms(self, tmp_path):
+        from unittest.mock import AsyncMock
+        from comfy_mcp.docs.store import DocsStore
+        mock_fetcher = AsyncMock()
+        mock_fetcher.fetch_llms_full = AsyncMock(return_value="# Docs\nHello world")
+        store = DocsStore(storage_dir=str(tmp_path / "docs"), fetcher=mock_fetcher)
+        await store.refresh()
+        assert (tmp_path / "docs" / "llms-full.txt").exists()
+        mock_fetcher.fetch_llms_full.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_refresh_with_none_content_is_safe(self, tmp_path):
+        from unittest.mock import AsyncMock
+        from comfy_mcp.docs.store import DocsStore
+        mock_fetcher = AsyncMock()
+        mock_fetcher.fetch_llms_full = AsyncMock(return_value=None)
+        store = DocsStore(storage_dir=str(tmp_path / "docs"), fetcher=mock_fetcher)
+        await store.refresh()
+        assert not (tmp_path / "docs" / "llms-full.txt").exists()
+
+
 class TestSectionIndexing:
     SAMPLE_LLMS = """# Getting Started
 This is the intro section.

@@ -100,6 +100,39 @@ class TestContentHash:
         assert idx.content_hash() == ""
 
 
+class TestClear:
+    def test_clear_removes_templates(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        idx.rebuild(SAMPLE_TEMPLATES)
+        assert len(idx.list_all()) == 2
+        idx.clear()
+        assert len(idx.list_all()) == 0
+        assert not (tmp_path / "index.json").exists()
+        assert not (tmp_path / "manifest.json").exists()
+
+
+class TestRefresh:
+    @pytest.mark.asyncio
+    async def test_refresh_without_discovery_is_safe(self, tmp_path):
+        from comfy_mcp.templates.index import TemplateIndex
+        idx = TemplateIndex(storage_dir=str(tmp_path))
+        # Should not raise, just log warning
+        await idx.refresh()
+        assert len(idx.list_all()) == 0
+
+    @pytest.mark.asyncio
+    async def test_refresh_with_discovery_rebuilds(self, tmp_path):
+        from unittest.mock import AsyncMock
+        from comfy_mcp.templates.index import TemplateIndex
+        mock_discovery = AsyncMock()
+        mock_discovery.discover_all = AsyncMock(return_value=SAMPLE_TEMPLATES.copy())
+        idx = TemplateIndex(storage_dir=str(tmp_path), discovery=mock_discovery)
+        await idx.refresh()
+        assert len(idx.list_all()) == 2
+        mock_discovery.discover_all.assert_awaited_once()
+
+
 class TestDiskPersistence:
     def test_reload_from_disk(self, tmp_path):
         from comfy_mcp.templates.index import TemplateIndex
