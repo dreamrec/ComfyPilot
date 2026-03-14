@@ -13,6 +13,7 @@ import time
 from typing import Any
 
 import httpx
+from urllib.parse import quote
 
 logger = logging.getLogger("comfypilot.registry")
 
@@ -35,23 +36,30 @@ class RegistryClient:
         )
         self._last_request_time = 0.0
 
-    async def _throttled_get(self, url: str, params: dict | None = None) -> httpx.Response:
-        """GET with rate limiting and retry."""
-        for attempt in range(MAX_RETRIES):
-            # Throttle
-            now = time.time()
-            elapsed = now - self._last_request_time
-            if elapsed < REQUEST_THROTTLE:
-                await asyncio.sleep(REQUEST_THROTTLE - elapsed)
-            self._last_request_time = time.time()
+    async def _throttle(self) -> None:
+        """Enforce minimum delay between requests."""
+        now = time.time()
+        elapsed = now - self._last_request_time
+        if elapsed < REQUEST_THROTTLE:
+            await asyncio.sleep(REQUEST_THROTTLE - elapsed)
+        self._last_request_time = time.time()
 
+    async def _throttled_request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        """HTTP request with rate limiting and retry."""
+        last_response = None
+        for attempt in range(MAX_RETRIES):
+            await self._throttle()
             try:
-                response = await self._http.get(url, params=params)
+                response = await self._http.request(method, url, **kwargs)
                 if response.status_code == 429 or response.status_code >= 500:
-                    retry_after = float(response.headers.get("Retry-After", INITIAL_BACKOFF * (2 ** attempt)))
+                    try:
+                        retry_after = float(response.headers.get("Retry-After", INITIAL_BACKOFF * (2 ** attempt)))
+                    except (ValueError, TypeError):
+                        retry_after = INITIAL_BACKOFF * (2 ** attempt)
                     wait = min(retry_after, MAX_BACKOFF)
                     logger.debug("Rate limited or server error (%d), retrying in %.1fs", response.status_code, wait)
                     await asyncio.sleep(wait)
+                    last_response = response
                     continue
                 return response
             except httpx.HTTPError as exc:
@@ -61,8 +69,12 @@ class RegistryClient:
                     await asyncio.sleep(wait)
                 else:
                     raise
-        # Should not reach here, but just in case
-        return await self._http.get(url, params=params)
+        # All retries exhausted — return last error response instead of unprotected request
+        return last_response
+
+    async def _throttled_get(self, url: str, params: dict | None = None) -> httpx.Response:
+        """GET with rate limiting and retry."""
+        return await self._throttled_request("GET", url, params=params)
 
     async def search_nodes(self, query: str, page: int = 1, limit: int = 10, **filters) -> dict[str, Any]:
         """Search registry packages."""
@@ -83,7 +95,7 @@ class RegistryClient:
     async def get_node(self, node_id: str) -> dict[str, Any] | None:
         """Get full package metadata by ID."""
         try:
-            response = await self._throttled_get(f"{self._base}/nodes/{node_id}")
+            response = await self._throttled_get(f"{self._base}/nodes/{quote(node_id, safe='')}")
             if response.status_code == 200:
                 return response.json()
             return None
@@ -94,7 +106,7 @@ class RegistryClient:
     async def get_versions(self, node_id: str) -> list[dict[str, Any]]:
         """List all versions of a package."""
         try:
-            response = await self._throttled_get(f"{self._base}/nodes/{node_id}/versions")
+            response = await self._throttled_get(f"{self._base}/nodes/{quote(node_id, safe='')}/versions")
             if response.status_code == 200:
                 return response.json()
             return []
@@ -104,7 +116,7 @@ class RegistryClient:
     async def get_comfy_nodes(self, node_id: str, version: str) -> list[dict[str, Any]]:
         """List all node classes in a specific package version."""
         try:
-            response = await self._throttled_get(f"{self._base}/nodes/{node_id}/versions/{version}/comfy-nodes")
+            response = await self._throttled_get(f"{self._base}/nodes/{quote(node_id, safe='')}/versions/{quote(version, safe='')}/comfy-nodes")
             if response.status_code == 200:
                 return response.json()
             return []
@@ -114,7 +126,7 @@ class RegistryClient:
     async def reverse_lookup(self, class_name: str) -> dict[str, Any] | None:
         """Map a node class name back to its registry package."""
         try:
-            response = await self._throttled_get(f"{self._base}/comfy-nodes/{class_name}/node")
+            response = await self._throttled_get(f"{self._base}/comfy-nodes/{quote(class_name, safe='')}/node")
             if response.status_code == 200:
                 return response.json()
             if response.status_code in (404, 410):
@@ -125,14 +137,14 @@ class RegistryClient:
             return None
 
     async def bulk_resolve(self, pairs: list[dict[str, str]]) -> dict[str, Any]:
-        """Batch resolve multiple (nodeId, version) pairs."""
+        """Batch resolve multiple node class lookups."""
         try:
-            response = await self._http.post(
+            response = await self._throttled_request(
+                "POST",
                 f"{self._base}/bulk/nodes/versions",
                 json=pairs,
-                headers={"User-Agent": USER_AGENT},
             )
-            if response.status_code == 200:
+            if response and response.status_code == 200:
                 return response.json()
             return {}
         except Exception:

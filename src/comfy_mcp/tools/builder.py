@@ -436,8 +436,12 @@ async def comfy_build_workflow(
         params: Optional parameters to override template defaults
     """
     # Template fallthrough: check if a matching template exists in the v0.5 index
-    template_index = ctx.request_context.lifespan_context.get("template_index") if ctx else None
-    install_graph = ctx.request_context.lifespan_context.get("install_graph") if ctx else None
+    try:
+        lc = ctx.request_context.lifespan_context if ctx else {}
+    except AttributeError:
+        lc = {}
+    template_index = lc.get("template_index")
+    install_graph = lc.get("install_graph")
     if template_index and install_graph and install_graph.snapshot:
         from comfy_mcp.templates.scorer import TemplateScorer
         scorer = TemplateScorer(
@@ -445,7 +449,7 @@ async def comfy_build_workflow(
             install_graph.snapshot.get("models", {}),
         )
         candidates = scorer.score(template, template_index.list_all(), limit=1)
-        if candidates and candidates[0]["score"] >= 0.5:
+        if candidates and candidates[0]["score"] >= 0.7:
             matched = template_index.get(candidates[0]["id"])
             if matched and "workflow" in matched:
                 from comfy_mcp.templates.instantiator import TemplateInstantiator
@@ -465,7 +469,7 @@ async def comfy_build_workflow(
     # If ctx available, try to detect installed models
     if ctx and "checkpoint" not in resolved_params:
         try:
-            client = ctx.request_context.lifespan_context["comfy_client"]
+            client = lc["comfy_client"]
             models = await client.get_models("checkpoints")
             if models:
                 resolved_params["checkpoint"] = models[0]

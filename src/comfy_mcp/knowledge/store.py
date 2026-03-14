@@ -28,27 +28,28 @@ class KnowledgeStore(Protocol):
         """Return compact status summary."""
         ...
 
+    async def refresh(self) -> Any:
+        """Refresh cached data from source."""
+        ...
+
     def clear(self) -> None:
         """Remove all cached data."""
         ...
 
 
 def atomic_write(path: Path, content: str) -> None:
-    """Write content to path atomically (write to temp, then rename).
+    """Write content to path atomically (write to temp, then os.replace).
 
-    Prevents corruption from concurrent writes or crashes mid-write.
+    Uses os.replace() which is atomic on both POSIX and Windows.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     closed = False
     try:
-        os.write(fd, content.encode())
+        os.write(fd, content.encode("utf-8"))
         os.close(fd)
         closed = True
-        # On Windows, need to remove target first
-        if path.exists():
-            path.unlink()
-        os.rename(tmp_path, str(path))
+        os.replace(tmp_path, str(path))
     except Exception:
         if not closed:
             os.close(fd)

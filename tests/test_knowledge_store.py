@@ -26,13 +26,13 @@ class TestAtomicWrite:
     def test_cleanup_on_failure(self, tmp_path, monkeypatch):
         from comfy_mcp.knowledge.store import atomic_write
 
-        # Force os.rename to fail to simulate write failure
-        def failing_rename(src, dst):
-            raise OSError("simulated rename failure")
-        monkeypatch.setattr(os, "rename", failing_rename)
+        # Force os.replace to fail to simulate write failure
+        def failing_replace(src, dst):
+            raise OSError("simulated replace failure")
+        monkeypatch.setattr(os, "replace", failing_replace)
 
         target = tmp_path / "test.json"
-        with pytest.raises(OSError, match="simulated rename failure"):
+        with pytest.raises(OSError, match="simulated replace failure"):
             atomic_write(target, "content")
 
         # Temp file should be cleaned up
@@ -63,6 +63,8 @@ class TestKnowledgeStoreProtocol:
                 return "abc123"
             def summary(self) -> dict:
                 return {}
+            async def refresh(self):
+                pass
             def clear(self) -> None:
                 pass
 

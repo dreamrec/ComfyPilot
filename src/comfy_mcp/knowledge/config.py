@@ -57,15 +57,16 @@ class ConfigManager:
         path = self._config_path()
         if path.exists():
             try:
-                disk = json.loads(path.read_text())
+                disk = json.loads(path.read_text(encoding="utf-8"))
                 # Deep merge disk values into defaults
                 for section, values in disk.items():
                     if section in config and isinstance(values, dict):
                         config[section].update(values)
                     else:
                         config[section] = values
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (json.JSONDecodeError, OSError) as exc:
+                import logging
+                logging.getLogger("comfypilot.knowledge").warning("Config corrupted, using defaults: %s", exc)
         return config
 
     def _save(self) -> None:

@@ -116,12 +116,12 @@ class InstallGraph:
                      len(node_classes), len(extensions), len(embeddings))
         return self._snapshot
 
-    def is_stale(self, max_age_seconds: float = 300) -> bool:
-        """Check if the snapshot is missing or older than max_age_seconds."""
+    def is_stale(self, max_age: float = 300) -> bool:
+        """Check if the snapshot is missing or older than max_age seconds."""
         if not self._snapshot:
             return True
         age = time.time() - self._snapshot["refreshed_at"]
-        return age >= max_age_seconds
+        return age >= max_age
 
     def summary(self) -> dict[str, Any]:
         """Return a compact summary of the install graph."""
@@ -172,7 +172,7 @@ class InstallGraph:
     def content_hash(self) -> str:
         """SHA-256 prefix of the combined hashes dict for change detection."""
         raw = json.dumps(self._hashes, sort_keys=True)
-        return hashlib.sha256(raw.encode()).hexdigest()[:12]
+        return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
     def clear(self) -> None:
         """Remove all cached data (in-memory and on disk)."""
@@ -202,7 +202,7 @@ class InstallGraph:
         if not path.exists():
             return False
         try:
-            data = json.loads(path.read_text())
+            data = json.loads(path.read_text(encoding="utf-8"))
             # Restore node_classes as set
             data["node_classes"] = set(data.get("node_classes", []))
             self._snapshot = data

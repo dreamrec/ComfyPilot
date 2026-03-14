@@ -74,6 +74,8 @@ class TemplateDiscovery:
         if isinstance(response, list):
             return response
         if isinstance(response, dict):
+            if "error" in response:
+                return None
             return [response]
         # Response-like object
         if hasattr(response, "status_code"):

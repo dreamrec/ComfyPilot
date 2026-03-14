@@ -36,7 +36,7 @@ class RegistryIndex:
         if not path.exists():
             return
         try:
-            self._cache = json.loads(path.read_text())
+            self._cache = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Registry index corrupted, starting fresh: %s", exc)
             self._cache = {}
@@ -56,6 +56,7 @@ class RegistryIndex:
             age = time.time() - entry.get("cached_at", 0)
             if age >= self._negative_ttl:
                 del self._cache[class_name]
+                self.save()
                 return None
 
         return entry
@@ -78,19 +79,9 @@ class RegistryIndex:
         }
 
     def save(self) -> None:
-        """Persist cache to disk."""
-        # TODO: replace with knowledge.store.atomic_write after v0.6
-        import tempfile
-        data = json.dumps(self._cache, indent=2)
-        path = self._index_path()
-        fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-        try:
-            with open(fd, "w") as f:
-                f.write(data)
-            Path(tmp).replace(path)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
+        """Persist cache to disk using atomic_write."""
+        from comfy_mcp.knowledge.store import atomic_write
+        atomic_write(self._index_path(), json.dumps(self._cache, indent=2))
 
     def clear(self) -> None:
         """Clear all cached entries."""
@@ -100,13 +91,16 @@ class RegistryIndex:
             path.unlink()
 
     def is_stale(self, max_age: float = 86400) -> bool:
-        """Check if cache has any entries (empty = stale)."""
-        return len(self._cache) == 0
+        """Check if cache is empty or all entries are older than max_age seconds."""
+        if len(self._cache) == 0:
+            return True
+        oldest = min(e.get("cached_at", 0) for e in self._cache.values())
+        return (time.time() - oldest) >= max_age
 
     def content_hash(self) -> str:
-        """Hash of all cached entries."""
+        """Hash of all cached entries (keys and values)."""
         import hashlib
-        content = json.dumps(sorted(self._cache.keys()))
+        content = json.dumps(self._cache, sort_keys=True, default=str)
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
     def summary(self) -> dict[str, Any]:

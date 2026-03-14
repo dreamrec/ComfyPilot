@@ -28,7 +28,7 @@ def run_preflight(workflow: Any, snapshot: dict, registry_resolutions: dict[str,
     """
     all_errors: list[str] = []
     all_warnings: list[str] = []
-    missing_nodes: list[str] = []
+    missing_nodes: list[str | dict] = []
     missing_models: list[dict] = []
 
     # Pass 1: Structural
@@ -57,15 +57,15 @@ def run_preflight(workflow: Any, snapshot: dict, registry_resolutions: dict[str,
     # report raw missing node class names. Enrichment happens here at the
     # engine level, between extraction and report assembly.
     if registry_resolutions and p3.get("missing_nodes"):
-        enriched_missing: list[str | dict] = []
+        enriched_missing = []
         for node_name in p3["missing_nodes"]:
             if node_name in registry_resolutions:
                 enriched_missing.append(registry_resolutions[node_name])
             else:
                 enriched_missing.append(node_name)
-        missing_nodes: list[str | dict] = enriched_missing
+        missing_nodes = enriched_missing
     else:
-        missing_nodes: list[str | dict] = p3.get("missing_nodes", [])
+        missing_nodes = p3.get("missing_nodes", [])
 
     # Determine status
     if missing_nodes or missing_models:

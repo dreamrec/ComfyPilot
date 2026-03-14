@@ -121,7 +121,7 @@ Use for template-based workflow construction and editing.
 - `comfy_add_node` — Add a node to a workflow-in-progress.
 - `comfy_connect_nodes` — Wire node outputs to inputs.
 - `comfy_set_widget_value` — Set widget values on nodes.
-- `comfy_apply_template` — Apply a named template to an existing workflow.
+- `comfy_apply_template` — Convenience alias for comfy_build_workflow.
 
 ### 12) Output Routing
 Use for agent-orchestrated cross-app delivery of generated images.
@@ -303,7 +303,7 @@ Run a specific category:
 uv run pytest tests/test_builder.py -v
 ```
 
-Full suite: 427 tests across 34 test files.
+Full suite: 534 tests across 53 test files.
 
 ## Reliability Habit
 

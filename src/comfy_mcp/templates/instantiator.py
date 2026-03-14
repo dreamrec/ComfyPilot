@@ -20,21 +20,12 @@ MODEL_INPUT_HINTS = {
     "upscale_model": "upscale_models",
 }
 
-# Input names that are common override targets
-OVERRIDE_TARGETS = {
-    "width", "height", "batch_size", "seed", "steps", "cfg",
-    "sampler_name", "scheduler", "denoise",
-    "positive_prompt", "negative_prompt",
-    "ckpt_name", "lora_name", "vae_name",
-}
-
 
 class TemplateInstantiator:
     """Substitutes model references and applies overrides to template workflows."""
 
     def __init__(self, snapshot: dict[str, Any]):
         self._models = snapshot.get("models", {})
-        self._nodes = snapshot.get("node_classes", set())
 
     def instantiate(
         self,

@@ -181,7 +181,7 @@ class TestInstallGraphStaleness:
         from comfy_mcp.install.install_graph import InstallGraph
         graph = InstallGraph(mock_client)
         await graph.refresh()
-        assert graph.is_stale(max_age_seconds=0) is True
+        assert graph.is_stale(max_age=0) is True
 
 
 class TestInstallGraphChangeDetection:

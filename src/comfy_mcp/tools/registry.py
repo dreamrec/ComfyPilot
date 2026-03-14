@@ -102,6 +102,8 @@ async def comfy_resolve_missing(
     classes = list(node_classes or [])
     if workflow:
         for node in workflow.values():
+            if not isinstance(node, dict):
+                continue
             ct = node.get("class_type", "")
             if ct and ct not in classes:
                 classes.append(ct)

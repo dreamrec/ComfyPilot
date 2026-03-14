@@ -19,7 +19,7 @@ class TestSearchNodes:
             "total": 1, "page": 1, "totalPages": 1,
         })
         with patch.object(client, "_http", AsyncMock()) as mock_http:
-            mock_http.get = AsyncMock(return_value=mock_response)
+            mock_http.request = AsyncMock(return_value=mock_response)
             result = await client.search_nodes("animatediff")
             assert len(result["nodes"]) == 1
 
@@ -29,7 +29,7 @@ class TestSearchNodes:
         import httpx
         client = RegistryClient()
         with patch.object(client, "_http", AsyncMock()) as mock_http:
-            mock_http.get = AsyncMock(side_effect=httpx.ConnectError("offline"))
+            mock_http.request = AsyncMock(side_effect=httpx.ConnectError("offline"))
             result = await client.search_nodes("test")
             assert result["nodes"] == []
 
@@ -46,7 +46,7 @@ class TestReverseLookup:
             "node": {"id": "comfyui-animatediff-evolved", "name": "AnimateDiff Evolved"},
         })
         with patch.object(client, "_http", AsyncMock()) as mock_http:
-            mock_http.get = AsyncMock(return_value=mock_response)
+            mock_http.request = AsyncMock(return_value=mock_response)
             result = await client.reverse_lookup("ADE_AnimateDiffLoaderWithContext")
             assert result is not None
             assert result["node"]["id"] == "comfyui-animatediff-evolved"
@@ -58,7 +58,7 @@ class TestReverseLookup:
         mock_response = MagicMock()
         mock_response.status_code = 404
         with patch.object(client, "_http", AsyncMock()) as mock_http:
-            mock_http.get = AsyncMock(return_value=mock_response)
+            mock_http.request = AsyncMock(return_value=mock_response)
             result = await client.reverse_lookup("FakeNode")
             assert result is None
 
@@ -75,9 +75,23 @@ class TestGetNode:
             "latest_version": {"version": "1.2.3"},
         })
         with patch.object(client, "_http", AsyncMock()) as mock_http:
-            mock_http.get = AsyncMock(return_value=mock_response)
+            mock_http.request = AsyncMock(return_value=mock_response)
             result = await client.get_node("comfyui-animatediff")
             assert result["id"] == "comfyui-animatediff"
+
+
+class TestBulkResolve:
+    @pytest.mark.asyncio
+    async def test_bulk_resolve_uses_throttled_request(self):
+        from comfy_mcp.registry.client import RegistryClient
+        client = RegistryClient()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json = MagicMock(return_value={"NodeA": {"node": {"id": "pkg-a"}}})
+        with patch.object(client, "_http", AsyncMock()) as mock_http:
+            mock_http.request = AsyncMock(return_value=mock_response)
+            result = await client.bulk_resolve([{"node_class": "NodeA"}])
+            assert "NodeA" in result
 
 
 class TestClose:
