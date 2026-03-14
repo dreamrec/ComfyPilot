@@ -131,9 +131,10 @@ Use for agent-orchestrated cross-app delivery of generated images.
 - `comfy_send_to_blender` — Route output to Blender project directory.
 - `comfy_list_destinations` — List configured output destinations.
 
-## MCP Resources (4)
+## MCP Resources (5)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
+- `comfy://server/capabilities` — Detected server profile, version, auth method
 - `comfy://nodes/catalog` — Node catalog preview (first 100 names)
 - `comfy://models/{folder}` — Model listing by folder (checkpoints, loras, etc.)
 - `comfy://embeddings` — Available embeddings
@@ -171,12 +172,12 @@ Use for agent-orchestrated cross-app delivery of generated images.
 | Feature | Status | Notes |
 |---|---|---|
 | Local ComfyUI (self-hosted) | Supported | Primary target |
-| Comfy Cloud API | Partial | Auth + route differences not yet handled |
+| Comfy Cloud API | Partial | X-API-Key auth supported, route probing added |
 | stdio transport | Supported | Default |
 | Streamable HTTP transport | Not yet | Planned |
-| Workflow JSON (v0.17+ spec) | Partial | Import/export works, schema validation limited |
+| Workflow JSON (v0.17+ spec) | Supported | Multi-pass validation (schema + catalog + graph) |
 | V3 custom nodes | Not tested | V3 migration is ongoing in ComfyUI |
-| WebSocket progress events | Partial | EventManager built but not started in lifespan (fix in v0.2.0) |
+| WebSocket progress events | Supported | EventManager started in lifespan, drain_events fixed |
 | Image content blocks | Supported | Inline image display in chat |
 | Cross-app routing | Filesystem only | Saves to disk with suggested commands |
 
@@ -230,6 +231,7 @@ Manual client configuration example (Claude Desktop):
 - `COMFY_OUTPUT_DIR` (default `~/comfypilot_output`) — Image output directory for disk routing
 - `COMFY_TD_OUTPUT_DIR` (default `~/comfypilot_output/touchdesigner`) — TouchDesigner output path
 - `COMFY_BLENDER_OUTPUT_DIR` (default `~/comfypilot_output/blender`) — Blender output path
+- `COMFY_AUTH_METHOD` (default `auto`) — Auth method: `auto`, `bearer`, or `x-api-key`
 
 ## Test Suite
 
