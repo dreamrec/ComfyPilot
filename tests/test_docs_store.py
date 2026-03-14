@@ -95,3 +95,62 @@ class TestEmbeddedDocCache:
         for f in files:
             assert "(" not in f.name
             assert "+" not in f.name
+
+
+class TestSectionIndexing:
+    SAMPLE_LLMS = """# Getting Started
+This is the intro section.
+
+## Installation
+Install ComfyUI from source.
+
+## First Workflow
+Create your first txt2img workflow.
+
+# Advanced Topics
+Deep dive into advanced features.
+
+## Custom Nodes
+How to write custom nodes.
+"""
+
+    def test_save_llms_creates_sections_index(self, tmp_path):
+        from comfy_mcp.docs.store import DocsStore
+        store = DocsStore(storage_dir=str(tmp_path / "docs"))
+        store.save_llms(self.SAMPLE_LLMS)
+        sections_path = tmp_path / "docs" / "sections.json"
+        assert sections_path.exists()
+        sections = json.loads(sections_path.read_text())
+        assert len(sections) > 0
+
+    def test_sections_have_correct_fields(self, tmp_path):
+        from comfy_mcp.docs.store import DocsStore
+        store = DocsStore(storage_dir=str(tmp_path / "docs"))
+        store.save_llms(self.SAMPLE_LLMS)
+        sections = json.loads((tmp_path / "docs" / "sections.json").read_text())
+        for s in sections:
+            assert "title" in s
+            assert "start_line" in s
+            assert "end_line" in s
+            assert "level" in s
+
+    def test_get_llms_section_by_topic(self, tmp_path):
+        from comfy_mcp.docs.store import DocsStore
+        store = DocsStore(storage_dir=str(tmp_path / "docs"))
+        store.save_llms(self.SAMPLE_LLMS)
+        result = store.get_section("installation")
+        assert result is not None
+        assert "Install ComfyUI" in result["content"]
+
+    def test_get_llms_section_returns_none_for_unknown(self, tmp_path):
+        from comfy_mcp.docs.store import DocsStore
+        store = DocsStore(storage_dir=str(tmp_path / "docs"))
+        store.save_llms(self.SAMPLE_LLMS)
+        result = store.get_section("quantum_computing")
+        assert result is None
+
+    def test_llms_stored_on_disk(self, tmp_path):
+        from comfy_mcp.docs.store import DocsStore
+        store = DocsStore(storage_dir=str(tmp_path / "docs"))
+        store.save_llms(self.SAMPLE_LLMS)
+        assert (tmp_path / "docs" / "llms-full.txt").exists()
