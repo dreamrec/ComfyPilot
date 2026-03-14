@@ -6,7 +6,6 @@ WebSocket methods (ws_connect, watch_execution) are implemented in Task 10.
 
 from __future__ import annotations
 
-import json
 import uuid
 from typing import Any
 
