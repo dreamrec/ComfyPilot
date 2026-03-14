@@ -46,6 +46,8 @@ async def comfy_lifespan(server: FastMCP):
     vram_guard = VRAMGuard(client)
     job_tracker = JobTracker(client, event_mgr)
 
+    await event_mgr.start()
+
     try:
         yield {
             "comfy_client": client,
