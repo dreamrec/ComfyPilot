@@ -157,32 +157,22 @@ async def comfy_validate_workflow(
     workflow: dict,
     ctx: Context = None,
 ) -> str:
-    """Validate a workflow dict structure without executing.
+    """Validate a workflow against ComfyUI's node catalog.
 
-    Performs client-side validation: checks it's a dict, each node has 'class_type', etc.
-    Does not call the ComfyUI API.
+    Performs three validation passes:
+    1. Schema: dict structure, class_type presence
+    2. Catalog: node types exist in object_info
+    3. Graph: link targets reference real nodes
     """
     errors: list[str] = []
+    warnings: list[str] = []
 
-    # Check it's a dict
+    # Pass 1: Schema
     if not isinstance(workflow, dict):
-        errors.append("Workflow must be a dict")
-        return json.dumps({
-            "valid": False,
-            "errors": errors,
-            "node_count": 0,
-        }, indent=2)
-
-    # Empty workflow is invalid
+        return json.dumps({"valid": False, "errors": ["Workflow must be a dict"], "warnings": [], "node_count": 0}, indent=2)
     if not workflow:
-        errors.append("Workflow cannot be empty")
-        return json.dumps({
-            "valid": False,
-            "errors": errors,
-            "node_count": 0,
-        }, indent=2)
+        return json.dumps({"valid": False, "errors": ["Workflow cannot be empty"], "warnings": [], "node_count": 0}, indent=2)
 
-    # Check each node has class_type
     for node_id, node in workflow.items():
         if not isinstance(node, dict):
             errors.append(f"Node '{node_id}' is not a dict: {type(node)}")
@@ -190,10 +180,52 @@ async def comfy_validate_workflow(
         if "class_type" not in node:
             errors.append(f"Node '{node_id}' missing 'class_type' field")
 
+    # Pass 2: Catalog (if we can reach ComfyUI)
+    catalog = None
+    catalog_available = False
+    try:
+        result = await _client(ctx).get_object_info()
+        if isinstance(result, dict) and result:
+            catalog = result
+            catalog_available = True
+    except Exception:
+        warnings.append("Could not fetch object_info — skipping catalog validation")
+
+    if catalog_available and catalog:
+        for node_id, node in workflow.items():
+            if not isinstance(node, dict):
+                continue
+            class_type = node.get("class_type", "")
+            if class_type and class_type not in catalog:
+                errors.append(f"Node '{node_id}': unknown class_type '{class_type}' — not in ComfyUI catalog")
+
+    # Pass 3: Graph — check link targets
+    node_ids = set(workflow.keys())
+    for node_id, node in workflow.items():
+        if not isinstance(node, dict):
+            continue
+        for input_name, input_val in node.get("inputs", {}).items():
+            if isinstance(input_val, list) and len(input_val) == 2:
+                source_id = str(input_val[0])
+                if source_id not in node_ids:
+                    errors.append(f"Node '{node_id}'.{input_name}: links to non-existent node '{source_id}'")
+
+    # Check for output nodes
+    has_output = False
+    output_types = {"SaveImage", "PreviewImage", "SaveAnimatedWEBP", "SaveAnimatedPNG"}
+    for node in workflow.values():
+        if isinstance(node, dict) and node.get("class_type") in output_types:
+            has_output = True
+            break
+    if not has_output:
+        warnings.append("No output node found (SaveImage, PreviewImage, etc.) — workflow may produce no visible output")
+
     return json.dumps({
         "valid": len(errors) == 0,
         "errors": errors,
+        "warnings": warnings,
         "node_count": len(workflow),
+        "passes": ["schema", "catalog" if catalog_available else "catalog_skipped", "graph"],
     }, indent=2)
 
 

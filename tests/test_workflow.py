@@ -181,6 +181,51 @@ class TestValidateWorkflow:
         assert data["valid"] is True
         assert data["node_count"] == 3
 
+    @pytest.mark.asyncio
+    async def test_validate_detects_unknown_node_type(self, mock_ctx, mock_client):
+        """Validator should flag node types not in object_info."""
+        mock_client.get_object_info = AsyncMock(return_value={
+            "KSampler": {"input": {}, "output": []},
+        })
+        result = await comfy_validate_workflow(
+            workflow={"1": {"class_type": "FakeNode", "inputs": {}}},
+            ctx=mock_ctx,
+        )
+        result_dict = json.loads(result)
+        assert not result_dict["valid"]
+        assert any("FakeNode" in e for e in result_dict["errors"])
+
+    @pytest.mark.asyncio
+    async def test_validate_passes_valid_workflow(self, mock_ctx, mock_client):
+        """Validator should pass when all node types are in object_info."""
+        mock_client.get_object_info = AsyncMock(return_value={
+            "CheckpointLoaderSimple": {"input": {}, "output": []},
+            "KSampler": {"input": {}, "output": []},
+        })
+        result = await comfy_validate_workflow(
+            workflow={
+                "1": {"class_type": "CheckpointLoaderSimple", "inputs": {}},
+                "2": {"class_type": "KSampler", "inputs": {}},
+            },
+            ctx=mock_ctx,
+        )
+        result_dict = json.loads(result)
+        assert result_dict["valid"]
+
+    @pytest.mark.asyncio
+    async def test_validate_checks_broken_links(self, mock_ctx, mock_client):
+        """Validator should flag links to non-existent nodes."""
+        mock_client.get_object_info = AsyncMock(return_value={
+            "KSampler": {"input": {}, "output": []},
+        })
+        result = await comfy_validate_workflow(
+            workflow={"1": {"class_type": "KSampler", "inputs": {"model": ["99", 0]}}},
+            ctx=mock_ctx,
+        )
+        result_dict = json.loads(result)
+        assert not result_dict["valid"]
+        assert any("99" in e for e in result_dict["errors"])
+
 
 class TestExportWorkflow:
     @pytest.mark.asyncio
