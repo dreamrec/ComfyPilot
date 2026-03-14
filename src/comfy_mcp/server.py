@@ -15,14 +15,15 @@ from mcp.server.fastmcp import FastMCP
 
 from comfy_mcp.comfy_client import ComfyClient
 
-# Module-level reference for resources (set during lifespan)
+# Module-level references for resources (set during lifespan)
 _shared_client: ComfyClient | None = None
+_shared_install_graph = None
 
 
 @asynccontextmanager
 async def comfy_lifespan(server: FastMCP):
     """Manage ComfyClient and subsystem lifecycles."""
-    global _shared_client
+    global _shared_client, _shared_install_graph
 
     url = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
     api_key = os.environ.get("COMFY_API_KEY", "")
@@ -37,6 +38,7 @@ async def comfy_lifespan(server: FastMCP):
 
     # Subsystem managers — imported lazily to avoid circular deps
     from comfy_mcp.events.event_manager import EventManager
+    from comfy_mcp.install.install_graph import InstallGraph
     from comfy_mcp.jobs.job_tracker import JobTracker
     from comfy_mcp.memory.snapshot_manager import SnapshotManager
     from comfy_mcp.memory.technique_store import TechniqueStore
@@ -47,6 +49,9 @@ async def comfy_lifespan(server: FastMCP):
     technique_store = TechniqueStore()
     vram_guard = VRAMGuard(client)
     job_tracker = JobTracker(client, event_mgr)
+    install_graph = InstallGraph(client)
+    await install_graph.refresh()
+    _shared_install_graph = install_graph
 
     if client.capabilities.get("ws_available", False):
         await event_mgr.start()
@@ -59,9 +64,11 @@ async def comfy_lifespan(server: FastMCP):
             "technique_store": technique_store,
             "vram_guard": vram_guard,
             "job_tracker": job_tracker,
+            "install_graph": install_graph,
         }
     finally:
         _shared_client = None
+        _shared_install_graph = None
         await event_mgr.shutdown()
         await client.close()
 
@@ -108,6 +115,26 @@ async def embeddings_resource() -> str:
         return json.dumps({"error": "Server not initialized"})
     result = await _shared_client.get_embeddings()
     return json.dumps(result, indent=2)
+
+
+@mcp.resource("comfy://install/graph")
+async def install_graph_resource() -> str:
+    """Install graph summary — node counts, model counts, hashes for change detection."""
+    if _shared_install_graph is None:
+        return json.dumps({"error": "Not initialized"})
+    return json.dumps(_shared_install_graph.summary(), indent=2)
+
+
+@mcp.resource("comfy://knowledge/status")
+async def knowledge_status_resource() -> str:
+    """Knowledge freshness status — staleness check and content hashes."""
+    if _shared_install_graph is None:
+        return json.dumps({"status": "not_initialized"})
+    return json.dumps({
+        "stale": _shared_install_graph.is_stale(),
+        "refreshed_at": _shared_install_graph.snapshot["refreshed_at"] if _shared_install_graph.snapshot else None,
+        "hashes": _shared_install_graph.hashes,
+    }, indent=2)
 
 
 @mcp.resource("comfy://server/capabilities")

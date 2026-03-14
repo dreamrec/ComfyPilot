@@ -11,7 +11,12 @@ def mock_client():
     client.base_url = "http://localhost:8188"
     client.connect = AsyncMock()
     client.close = AsyncMock()
-    client.get_system_stats = AsyncMock(return_value={"devices": []})
+    client.get_system_stats = AsyncMock(return_value={"system": {}, "devices": []})
+    client.get_object_info = AsyncMock(return_value={})
+    client.get_models = AsyncMock(return_value=[])
+    client.get_features = AsyncMock(return_value=[])
+    client.get_extensions = AsyncMock(return_value=[])
+    client.get_embeddings = AsyncMock(return_value=[])
     client.capabilities = {"profile": "local", "ws_available": True}
     return client
 

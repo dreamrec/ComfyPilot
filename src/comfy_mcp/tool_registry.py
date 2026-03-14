@@ -19,3 +19,5 @@ from comfy_mcp.tools import memory      # noqa: F401  -- Task 16
 from comfy_mcp.tools import safety      # noqa: F401  -- Task 17
 from comfy_mcp.tools import builder     # noqa: F401  -- Task 18
 from comfy_mcp.tools import output_routing  # noqa: F401 -- Task 19
+from comfy_mcp.tools import install         # noqa: F401 -- v0.3 Install Graph
+from comfy_mcp.tools import compat          # noqa: F401 -- v0.3 Compatibility Engine

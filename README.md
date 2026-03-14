@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v0.2.0
+# ComfyPilot v0.3.0
 
 **ComfyPilot** is an MCP server for ComfyUI.
 It lets an AI agent build workflows, queue generations, monitor progress, retrieve images, and manage VRAM — all through structured tool calls with visual output return.
@@ -25,7 +25,7 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 - A structured toolset for workflow building, image generation, model management, and output routing.
 - A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
 - A technique memory system that learns your workflow patterns and builds a reusable library.
-- 66-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, and template-based workflow building.
+- 71-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, and compatibility engine.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -43,7 +43,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (66 Tools)
+## Tool Map (71 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -131,13 +131,28 @@ Use for agent-orchestrated cross-app delivery of generated images.
 - `comfy_send_to_blender` — Route output to Blender project directory.
 - `comfy_list_destinations` — List configured output destinations.
 
-## MCP Resources (5)
+### 13) Install Graph
+Use for discovering what's installed on the connected ComfyUI instance.
+
+- `comfy_refresh_install_graph` — Re-scan ComfyUI and rebuild the install graph (nodes, models, extensions, embeddings).
+- `comfy_get_install_summary` — Get a compact summary of the installation (counts, GPU info, change hashes).
+- `comfy_check_model` — Check if a model is installed and resolvable by name or partial match.
+
+### 14) Compatibility Engine
+Use for pre-flight validation of workflows before execution.
+
+- `comfy_preflight_workflow` — Run a 3-pass compatibility check (structural → schema → environment) and get a confidence-scored report.
+- `comfy_explain_incompatibilities` — Get a human-readable explanation of why a workflow won't run, with actionable suggestions.
+
+## MCP Resources (7)
 
 - `comfy://system/info` — System stats, GPU info, ComfyUI version
 - `comfy://server/capabilities` — Detected server profile, version, auth method
 - `comfy://nodes/catalog` — Node catalog preview (first 100 names)
 - `comfy://models/{folder}` — Model listing by folder (checkpoints, loras, etc.)
 - `comfy://embeddings` — Available embeddings
+- `comfy://install/graph` — Install graph summary with change detection hashes
+- `comfy://knowledge/status` — Knowledge freshness status (staleness check + content hashes)
 
 ## How To Use It (Practical Workflow)
 
@@ -248,7 +263,7 @@ Run a specific category:
 uv run pytest tests/test_builder.py -v
 ```
 
-Full suite: 334 tests across 25 test files.
+Full suite: 387 tests across 33 test files.
 
 ## Reliability Habit
 
