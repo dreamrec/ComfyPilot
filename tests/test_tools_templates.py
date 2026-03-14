@@ -146,6 +146,42 @@ class TestInstantiateTemplate:
         assert result["status"] == "reference_only"
         assert result["workflow_format"] == "comfyui-ui"
 
+    @pytest.mark.asyncio
+    async def test_instantiate_template_translates_supported_ui_workflow(self, template_ctx):
+        from comfy_mcp.tools.templates import comfy_instantiate_template
+
+        template_ctx.request_context.lifespan_context["install_graph"].snapshot["object_info"] = {
+            "CheckpointLoaderSimple": {
+                "input": {"required": {"ckpt_name": [["model.safetensors"]]}},
+                "output": ["MODEL", "CLIP", "VAE"],
+            },
+        }
+        template_ctx.request_context.lifespan_context["template_index"].hydrate_template = AsyncMock(
+            return_value={
+                "id": "official_simple_ui",
+                "name": "simple_ui",
+                "title": "Simple UI Workflow",
+                "workflow_format": "comfyui-ui",
+                "workflow_summary": {"node_count": 1, "node_types": ["CheckpointLoaderSimple"]},
+                "workflow": {
+                    "nodes": [
+                        {
+                            "id": 1,
+                            "type": "CheckpointLoaderSimple",
+                            "inputs": [],
+                            "widgets_values": ["model.safetensors"],
+                        }
+                    ],
+                    "links": [],
+                },
+                "supports_instantiation": False,
+            }
+        )
+
+        result = json.loads(await comfy_instantiate_template(template_id="official_simple_ui", ctx=template_ctx))
+        assert result["status"] in ("ready", "warnings")
+        assert result["translation_report"]["status"] == "translated"
+
 
 class TestTemplateIndexResource:
     @pytest.mark.asyncio

@@ -63,7 +63,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_list_model_families` | List curated model families, ecosystems, and provider catalogs |
 | `comfy_detect_model_capabilities` | Detect installed families, capabilities, and provider signals from the current environment |
 
-### Workflow Execution Tools (8)
+### Workflow Execution Tools (9)
 
 | Tool | Description |
 |------|-------------|
@@ -75,6 +75,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_validate_workflow` | Validate a workflow against the node catalog, with explicit detection of UI-format workflows versus API prompts |
 | `comfy_export_workflow` | Export a workflow as shareable JSON |
 | `comfy_import_workflow` | Import a workflow from JSON and report when the payload is UI-format reference JSON instead of an API prompt |
+| `comfy_translate_workflow` | Attempt a conservative translation from ComfyUI UI workflow JSON to API prompt format using the current node catalog |
 
 ### Node Tools (6)
 

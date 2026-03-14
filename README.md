@@ -25,7 +25,7 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 - A structured toolset for workflow building, image generation, model management, and output routing.
 - A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
 - A technique memory system that learns your workflow patterns and builds a reusable library.
-- 93-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, registry integration for missing node resolution, model-awareness scanning, and workflow recommendations for modern ComfyUI ecosystems.
+- 94-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, template-based workflow building, install graph, compatibility engine, documentation engine, template engine, persistent knowledge management, registry integration for missing node resolution, model-awareness scanning, workflow translation, and workflow recommendations for modern ComfyUI ecosystems.
 
 ## Core Thinking Model (How To Think With This MCP)
 
@@ -43,7 +43,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (93 Tools)
+## Tool Map (94 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -63,7 +63,7 @@ Use for queueing, cancelling, and managing prompt execution.
 
 - `comfy_queue_prompt`, `comfy_get_queue`, `comfy_cancel_run`
 - `comfy_interrupt`, `comfy_clear_queue`
-- `comfy_validate_workflow`, `comfy_export_workflow`, `comfy_import_workflow`
+- `comfy_validate_workflow`, `comfy_export_workflow`, `comfy_import_workflow`, `comfy_translate_workflow`
   Workflow tools now detect UI-format JSON and report it honestly instead of treating it like an API prompt.
 
 ### 4) Nodes + Schema
@@ -164,7 +164,7 @@ Use for discovering, searching, and instantiating workflow templates from offici
 - `comfy_get_template` -- Get full template details, including hydrated remote workflow format hints and workflow metadata for official templates.
 - `comfy_list_template_categories` -- List all available template categories.
 - `comfy_template_status` -- Show template index status (counts, categories, cache freshness).
-- `comfy_instantiate_template` -- Instantiate API-format templates with automatic model substitution and parameter overrides; UI-format templates are returned honestly as reference-only.
+- `comfy_instantiate_template` -- Instantiate API-format templates with automatic model substitution and parameter overrides; UI-format templates are conservatively translated when possible and otherwise returned honestly as reference-only.
 
 ### 17) Knowledge Management
 Use for unified knowledge status, cache management, and persistent user preferences.

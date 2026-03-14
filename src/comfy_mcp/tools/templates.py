@@ -185,26 +185,37 @@ async def comfy_instantiate_template(
     if template is None:
         return json.dumps({"error": f"Template '{template_id}' not found"}, indent=2)
 
-    workflow_format = template.get("workflow_format", "unknown")
-    if workflow_format != "api-prompt":
-        return json.dumps({
-            "status": "reference_only",
-            "error": (
-                "Template workflow is not in ComfyUI API prompt format and cannot be instantiated yet."
-            ),
-            "template_id": template.get("id", template_id),
-            "template_name": template.get("title", template.get("name", "")),
-            "workflow_format": workflow_format,
-            "workflow_summary": template.get("workflow_summary", {}),
-            "workflow_url": template.get("workflow_url", ""),
-            "tutorial_url": template.get("tutorial_url", ""),
-        }, indent=2)
-
     install_graph = ctx.request_context.lifespan_context.get("install_graph")
     if not install_graph or not install_graph.snapshot:
         return json.dumps({"error": "Install graph not available. Run comfy_refresh_install_graph first."}, indent=2)
 
+    workflow_format = template.get("workflow_format", "unknown")
+    object_info = install_graph.snapshot.get("object_info", {})
+    translation_report = None
     from comfy_mcp.templates.instantiator import TemplateInstantiator
+    if workflow_format != "api-prompt":
+        from comfy_mcp.workflow_translation import translate_workflow
+
+        translation_report = translate_workflow(template.get("workflow", {}), object_info)
+        if translation_report["status"] != "translated":
+            return json.dumps({
+                "status": "reference_only",
+                "error": (
+                    "Template workflow is not in ComfyUI API prompt format and could not be translated safely yet."
+                ),
+                "template_id": template.get("id", template_id),
+                "template_name": template.get("title", template.get("name", "")),
+                "workflow_format": workflow_format,
+                "workflow_summary": template.get("workflow_summary", {}),
+                "workflow_url": template.get("workflow_url", ""),
+                "tutorial_url": template.get("tutorial_url", ""),
+                "translation_report": translation_report,
+            }, indent=2)
+        template = dict(template)
+        template["workflow"] = translation_report["workflow"]
+
     instantiator = TemplateInstantiator(install_graph.snapshot)
     result = instantiator.instantiate(template, overrides=overrides)
+    if translation_report is not None:
+        result["translation_report"] = translation_report
     return json.dumps(result, indent=2)

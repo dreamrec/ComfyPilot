@@ -15,6 +15,7 @@ from comfy_mcp.tools.workflow import (
     comfy_import_workflow,
     comfy_interrupt,
     comfy_queue_prompt,
+    comfy_translate_workflow,
     comfy_validate_workflow,
 )
 
@@ -304,6 +305,9 @@ class TestImportWorkflow:
 
     @pytest.mark.asyncio
     async def test_import_ui_workflow_returns_format_metadata(self, mock_ctx):
+        mock_ctx.request_context.lifespan_context["install_graph"].snapshot["object_info"] = {
+            "SaveImage": {"input": {"required": {"images": ["IMAGE"]}}, "output_node": True},
+        }
         workflow_json = json.dumps({
             "nodes": [{"id": 1, "type": "SaveImage"}],
             "links": [],
@@ -312,3 +316,31 @@ class TestImportWorkflow:
         data = json.loads(result)
         assert data["format"] == "comfyui-ui"
         assert data["workflow_summary"]["node_count"] == 1
+        assert "translation_report" in data
+
+
+class TestTranslateWorkflow:
+    @pytest.mark.asyncio
+    async def test_translate_workflow_requires_object_info(self, mock_ctx):
+        result = await comfy_translate_workflow(workflow={"nodes": [], "links": []}, ctx=mock_ctx)
+        data = json.loads(result)
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_translate_workflow_translates_simple_ui_workflow(self, mock_ctx):
+        mock_ctx.request_context.lifespan_context["install_graph"].snapshot["object_info"] = {
+            "CheckpointLoaderSimple": {
+                "input": {"required": {"ckpt_name": [["model.safetensors"]]}},
+                "output": ["MODEL", "CLIP", "VAE"],
+            },
+        }
+        workflow = {
+            "nodes": [
+                {"id": 1, "type": "CheckpointLoaderSimple", "inputs": [], "widgets_values": ["model.safetensors"]},
+            ],
+            "links": [],
+        }
+        result = await comfy_translate_workflow(workflow=workflow, ctx=mock_ctx)
+        data = json.loads(result)
+        assert data["status"] == "translated"
+        assert data["workflow"]["1"]["class_type"] == "CheckpointLoaderSimple"
