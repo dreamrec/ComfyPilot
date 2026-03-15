@@ -62,7 +62,7 @@ class EventManager:
 
         while self._running:
             try:
-                async with websockets.connect(ws_url) as ws:
+                async with websockets.connect(ws_url, **self._ws_connect_kwargs()) as ws:
                     self._ws = ws
                     self._reconnect_count = 0
                     logger.info("WebSocket connected to %s", ws_url)
@@ -91,6 +91,13 @@ class EventManager:
                 await asyncio.sleep(delay)
 
         self._ws = None
+
+    def _ws_connect_kwargs(self) -> dict[str, Any]:
+        """Pass through auth headers so WS monitoring matches HTTP auth."""
+        headers = self._client.get_auth_headers() if hasattr(self._client, "get_auth_headers") else {}
+        if headers:
+            return {"additional_headers": headers}
+        return {}
 
     def _dispatch(self, msg: dict) -> None:
         """Buffer event and notify subscribers."""
@@ -148,6 +155,19 @@ class EventManager:
             else:
                 remaining.append(ev)
         self._event_buffer = remaining
+        return matched
+
+    def peek_events(self, event_type: str | None = None, limit: int = 100) -> list[dict]:
+        """Return buffered events without consuming them."""
+        if event_type is None:
+            return list(self._event_buffer)[:limit]
+
+        matched = []
+        for ev in self._event_buffer:
+            if ev["type"] == event_type:
+                matched.append(ev)
+            if len(matched) >= limit:
+                break
         return matched
 
     def get_latest_progress(self, prompt_id: str) -> dict | None:

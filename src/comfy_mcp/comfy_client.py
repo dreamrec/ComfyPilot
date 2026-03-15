@@ -42,17 +42,25 @@ class ComfyClient:
             "auth_method": auth_method if api_key else "none",
         }
 
+    def get_auth_headers(self) -> dict[str, str]:
+        """Build auth headers for HTTP and WebSocket calls."""
+        headers: dict[str, str] = {}
+        if not self.api_key:
+            return headers
+
+        method = self.auth_method
+        if method == "auto":
+            method = "x-api-key" if "api.comfy" in self.base_url else "bearer"
+
+        if method == "x-api-key":
+            headers["X-API-Key"] = self.api_key
+        else:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
     async def connect(self) -> None:
         """Initialize the HTTP client with connection pooling."""
-        headers = {}
-        if self.api_key:
-            method = self.auth_method
-            if method == "auto":
-                method = "x-api-key" if "api.comfy" in self.base_url else "bearer"
-            if method == "x-api-key":
-                headers["X-API-Key"] = self.api_key
-            else:
-                headers["Authorization"] = f"Bearer {self.api_key}"
+        headers = self.get_auth_headers()
         self._http = httpx.AsyncClient(
             base_url=self.base_url,
             headers=headers,

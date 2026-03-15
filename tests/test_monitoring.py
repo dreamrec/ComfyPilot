@@ -92,7 +92,7 @@ class TestGetEvents:
 class TestDescribeDynamics:
     @pytest.mark.asyncio
     async def test_returns_combined(self, mock_ctx, mock_client):
-        mock_ctx.request_context.lifespan_context["event_manager"].drain_events = MagicMock(
+        mock_ctx.request_context.lifespan_context["event_manager"].peek_events = MagicMock(
             return_value=[{"type": "progress", "data": {}, "timestamp": 1.0}]
         )
         mock_ctx.request_context.lifespan_context["job_tracker"].list_active = MagicMock(return_value=[])
@@ -109,7 +109,7 @@ class TestDescribeDynamics:
             "queue_running": ["prompt1"],
             "queue_pending": ["prompt2", "prompt3"],
         }
-        mock_ctx.request_context.lifespan_context["event_manager"].drain_events = MagicMock(return_value=None)
+        mock_ctx.request_context.lifespan_context["event_manager"].peek_events = MagicMock(return_value=None)
         mock_ctx.request_context.lifespan_context["job_tracker"].list_active = MagicMock(return_value=[])
         result = json.loads(await comfy_describe_dynamics(ctx=mock_ctx))
         assert result["queue"]["running"] == 1
@@ -139,7 +139,7 @@ class TestGetStatus:
 @pytest.mark.asyncio
 async def test_describe_dynamics_uses_list_active(mock_ctx, mock_client):
     """describe_dynamics should call job_tracker.list_active(), not get_active_jobs()."""
-    mock_ctx.request_context.lifespan_context["event_manager"].drain_events = MagicMock(return_value=None)
+    mock_ctx.request_context.lifespan_context["event_manager"].peek_events = MagicMock(return_value=None)
     job_tracker = mock_ctx.request_context.lifespan_context["job_tracker"]
     job_tracker.list_active = MagicMock(return_value=[{"prompt_id": "x", "status": "running"}])
 
@@ -147,3 +147,15 @@ async def test_describe_dynamics_uses_list_active(mock_ctx, mock_client):
 
     job_tracker.list_active.assert_called_once()
     assert result["jobs"]["active"] == 1
+
+
+@pytest.mark.asyncio
+async def test_describe_dynamics_peeks_without_draining(mock_ctx, mock_client):
+    event_mgr = mock_ctx.request_context.lifespan_context["event_manager"]
+    event_mgr.peek_events = MagicMock(return_value=[{"type": "progress", "data": {}, "timestamp": 1.0}])
+    event_mgr.drain_events = MagicMock(return_value=[])
+
+    await comfy_describe_dynamics(ctx=mock_ctx)
+
+    event_mgr.peek_events.assert_called_once_with(limit=10)
+    event_mgr.drain_events.assert_not_called()

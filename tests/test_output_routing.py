@@ -96,6 +96,19 @@ class TestSendToDisk:
         mock_client.get_image.assert_called_once_with("subfolder_test.png", subfolder="mysubfolder")
         assert (tmp_path / "subfolder_test.png").exists()
 
+    @pytest.mark.asyncio
+    async def test_rejects_path_traversal_filename(self, mock_ctx, mock_client, tmp_path):
+        mock_client.get_image = AsyncMock(return_value=b"data")
+
+        from comfy_mcp.tools.output_routing import comfy_send_to_disk
+
+        result = json.loads(
+            await comfy_send_to_disk("../escape.png", output_dir=str(tmp_path), ctx=mock_ctx)
+        )
+
+        assert "error" in result
+        mock_client.get_image.assert_not_awaited()
+
 
 class TestSendToTouchDesigner:
     @pytest.mark.asyncio
@@ -165,6 +178,21 @@ class TestSendToTouchDesigner:
 
         assert "suggestion" in result
         assert "td_exec_python" in result["suggestion"]
+
+    @pytest.mark.asyncio
+    async def test_td_command_escapes_quotes_in_path(self, mock_ctx, mock_client, tmp_path, monkeypatch):
+        fake_png = b"\x89PNG" + b"q" * 20
+        mock_client.get_image = AsyncMock(return_value=fake_png)
+
+        td_dir = tmp_path / "td"
+        monkeypatch.setenv("COMFY_TD_OUTPUT_DIR", str(td_dir))
+
+        from comfy_mcp.tools.output_routing import comfy_send_to_td
+
+        result = json.loads(await comfy_send_to_td("bad'name.png", ctx=mock_ctx))
+        expected_path = str(td_dir / "bad'name.png")
+
+        assert result["td_command"] == f"op('moviefilein1').par.file = {expected_path!r}"
 
 
 class TestSendToBlender:
@@ -240,6 +268,20 @@ class TestSendToBlender:
 
         assert result["status"] == "saved"
         mock_client.get_image.assert_called_once_with("subfolder_blender.png", subfolder="renders")
+
+    @pytest.mark.asyncio
+    async def test_rejects_absolute_path_filename(self, mock_ctx, mock_client, tmp_path, monkeypatch):
+        mock_client.get_image = AsyncMock(return_value=b"data")
+
+        blender_dir = tmp_path / "blender"
+        monkeypatch.setenv("COMFY_BLENDER_OUTPUT_DIR", str(blender_dir))
+
+        from comfy_mcp.tools.output_routing import comfy_send_to_blender
+
+        result = json.loads(await comfy_send_to_blender("/tmp/owned.png", ctx=mock_ctx))
+
+        assert "error" in result
+        mock_client.get_image.assert_not_awaited()
 
 
 class TestListDestinations:

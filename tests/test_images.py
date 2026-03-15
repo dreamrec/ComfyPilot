@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import AsyncMock
 
 import pytest
@@ -211,3 +212,21 @@ class TestGetImageUrl:
         result = json.loads(await comfy_get_image_url(filename="portrait.png", ctx=mock_ctx))
         assert result["filename"] == "portrait.png"
         assert result["type"] == "output"
+
+    @pytest.mark.asyncio
+    async def test_query_values_are_url_encoded(self, mock_ctx, mock_client):
+        from comfy_mcp.tools.images import comfy_get_image_url
+
+        result = json.loads(
+            await comfy_get_image_url(
+                filename="img &=.png",
+                subfolder="dir=a&b",
+                image_type="temp",
+                ctx=mock_ctx,
+            )
+        )
+        query = parse_qs(urlparse(result["url"]).query, keep_blank_values=True)
+
+        assert query["filename"] == ["img &=.png"]
+        assert query["subfolder"] == ["dir=a&b"]
+        assert query["type"] == ["temp"]

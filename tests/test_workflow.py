@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from comfy_mcp.memory.snapshot_manager import SnapshotManager
 from comfy_mcp.tools.workflow import (
     comfy_cancel_run,
     comfy_clear_queue,
@@ -71,6 +72,24 @@ class TestQueuePrompt:
         )
 
         job_tracker.track.assert_awaited_once_with("abc-123")
+
+    @pytest.mark.asyncio
+    async def test_queue_prompt_creates_auto_snapshot_when_enabled(self, mock_ctx, mock_client):
+        mock_client.queue_prompt = AsyncMock(return_value={
+            "prompt_id": "snap-123",
+            "number": 2,
+        })
+        mgr = SnapshotManager()
+        mgr.auto_snapshot = True
+        mock_ctx.request_context.lifespan_context["snapshot_manager"] = mgr
+        workflow = {"1": {"class_type": "KSampler"}}
+
+        result = json.loads(await comfy_queue_prompt(workflow=workflow, ctx=mock_ctx))
+        snapshot_id = result["auto_snapshot"]["id"]
+        snapshot = mgr.get(snapshot_id)
+
+        assert snapshot is not None
+        assert snapshot["workflow"] == workflow
 
 
 class TestGetQueue:

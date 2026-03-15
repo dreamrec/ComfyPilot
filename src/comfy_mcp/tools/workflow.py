@@ -14,6 +14,17 @@ def _client(ctx: Context):
     return ctx.request_context.lifespan_context["comfy_client"]
 
 
+def _maybe_auto_snapshot(ctx: Context | None, workflow: dict) -> dict | None:
+    if ctx is None:
+        return None
+
+    snapshot_mgr = ctx.request_context.lifespan_context.get("snapshot_manager")
+    if snapshot_mgr is None or getattr(snapshot_mgr, "auto_snapshot", False) is not True:
+        return None
+
+    return snapshot_mgr.add(workflow, name="auto-before-queue")
+
+
 @mcp.tool(
     annotations={
         "title": "Queue Prompt",
@@ -35,6 +46,7 @@ async def comfy_queue_prompt(
         front: If True, insert at front of queue instead of back
     """
     await ctx.report_progress(0, 100)
+    snapshot = _maybe_auto_snapshot(ctx, workflow)
     result = await _client(ctx).queue_prompt(workflow, front=front)
     prompt_id = result.get("prompt_id")
 
@@ -55,6 +67,8 @@ async def comfy_queue_prompt(
         response["error"] = result["error"]
     if "node_errors" in result:
         response["node_errors"] = result["node_errors"]
+    if snapshot is not None:
+        response["auto_snapshot"] = snapshot
 
     return json.dumps(response, indent=2)
 

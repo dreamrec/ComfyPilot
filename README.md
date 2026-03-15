@@ -205,6 +205,8 @@ ComfyPilot ships a standard MCP bundle in-repo:
 - `mcp/manifest.json`
 - `mcp/profiles/claude-desktop.json`, `cursor.json`, `generic.json`
 
+The bundled profile JSON files pin `uv run` with `--directory`; replace `/path/to/ComfyPilot` with your checkout path when copying them into a client config. If you're launching from inside this repo, `.mcp.json` already uses `${CLAUDE_PLUGIN_ROOT}`.
+
 Manual client configuration example (Claude Desktop):
 
 ```json

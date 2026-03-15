@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from comfy_mcp.memory.snapshot_manager import SnapshotManager
 from comfy_mcp.tools.builder import (
     comfy_add_node,
     comfy_apply_template,
@@ -192,6 +193,20 @@ class TestAddNode:
         original_keys = set(base_workflow.keys())
         await comfy_add_node(base_workflow, "99", "NullNode", ctx=builder_ctx)
         assert set(base_workflow.keys()) == original_keys
+
+    @pytest.mark.asyncio
+    async def test_add_node_creates_auto_snapshot_when_enabled(self, base_workflow):
+        mgr = SnapshotManager()
+        mgr.auto_snapshot = True
+        ctx = MagicMock()
+        ctx.request_context.lifespan_context = {"snapshot_manager": mgr}
+
+        result = json.loads(await comfy_add_node(base_workflow, "2", "CLIPTextEncode", ctx=ctx))
+        snapshot_id = result["auto_snapshot"]["id"]
+        snapshot = mgr.get(snapshot_id)
+
+        assert snapshot is not None
+        assert snapshot["workflow"] == base_workflow
 
 
 # ---------------------------------------------------------------------------

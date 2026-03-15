@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 from typing import Any
+from urllib.parse import urlencode
 
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent, ImageContent
@@ -152,5 +153,6 @@ async def comfy_get_image_url(
         image_type: Image type (output, input, temp)
     """
     base_url = _client(ctx).base_url
-    url = f"{base_url}/view?filename={filename}&type={image_type}&subfolder={subfolder}"
+    query = urlencode({"filename": filename, "type": image_type, "subfolder": subfolder})
+    url = f"{base_url}/view?{query}"
     return json.dumps({"url": url, "filename": filename, "type": image_type}, indent=2)

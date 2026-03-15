@@ -57,15 +57,24 @@ def mock_ctx(mock_client):
         "subscription_count": 0,
         "subscribed_types": [],
     })
+    event_manager_mock.peek_events = MagicMock(return_value=[])
+
+    snapshot_manager_mock = MagicMock()
+    snapshot_manager_mock.auto_snapshot = False
+
+    job_tracker_mock = MagicMock()
+    job_tracker_mock.track = AsyncMock()
+    job_tracker_mock.mark_cancelled = AsyncMock()
+    job_tracker_mock.list_active = MagicMock(return_value=[])
 
     ctx = MagicMock()
     ctx.request_context.lifespan_context = {
         "comfy_client": mock_client,
         "event_manager": event_manager_mock,
-        "snapshot_manager": MagicMock(),
+        "snapshot_manager": snapshot_manager_mock,
         "technique_store": MagicMock(),
         "vram_guard": MagicMock(),
-        "job_tracker": AsyncMock(),
+        "job_tracker": job_tracker_mock,
     }
     ctx.report_progress = AsyncMock()
     ctx.log_info = AsyncMock()

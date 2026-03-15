@@ -155,7 +155,7 @@ async def comfy_describe_dynamics(ctx: Context = None) -> str:
     queue_pending = queue.get("queue_pending", [])
 
     # Get recent events (small window to avoid draining all)
-    recent_events = event_mgr.drain_events(limit=10)
+    recent_events = event_mgr.peek_events(limit=10) if hasattr(event_mgr, "peek_events") else []
     event_types = set()
     if recent_events:
         for event in recent_events:

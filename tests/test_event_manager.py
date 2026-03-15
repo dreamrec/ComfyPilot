@@ -17,6 +17,7 @@ def mock_ws_client():
     client.base_url = "http://localhost:8188"
     client._client_id = "test-client-id"
     client.ws_reconnect_max = 3
+    client.get_auth_headers = MagicMock(return_value={})
     return client
 
 
@@ -109,6 +110,20 @@ class TestEventManagerDrain:
     def test_drain_empty(self, event_mgr):
         events = event_mgr.drain_events()
         assert events == []
+
+    def test_peek_events_does_not_consume_buffer(self, event_mgr):
+        event_mgr._dispatch({"type": "progress", "data": {"value": 1}})
+        peeked = event_mgr.peek_events(limit=1)
+        assert len(peeked) == 1
+        assert len(event_mgr._event_buffer) == 1
+
+
+class TestEventManagerWebSocketAuth:
+    def test_ws_connect_kwargs_include_auth_headers(self, event_mgr, mock_ws_client):
+        mock_ws_client.get_auth_headers.return_value = {"Authorization": "Bearer secret"}
+        assert event_mgr._ws_connect_kwargs() == {
+            "additional_headers": {"Authorization": "Bearer secret"}
+        }
 
 
 class TestEventManagerLifecycle:

@@ -415,6 +415,17 @@ _TEMPLATES = {
 # ---------------------------------------------------------------------------
 
 
+def _maybe_auto_snapshot(ctx: Context | None, workflow: dict, action: str) -> dict | None:
+    if ctx is None:
+        return None
+
+    snapshot_mgr = ctx.request_context.lifespan_context.get("snapshot_manager")
+    if snapshot_mgr is None or getattr(snapshot_mgr, "auto_snapshot", False) is not True:
+        return None
+
+    return snapshot_mgr.add(workflow, name=f"auto-before-{action}")
+
+
 @mcp.tool(
     annotations={
         "title": "Build Workflow",
@@ -485,14 +496,15 @@ async def comfy_add_node(
         inputs: Optional input values for the node
     """
     workflow = copy.deepcopy(workflow)
+    snapshot = _maybe_auto_snapshot(ctx, workflow, "add-node")
     workflow[node_id] = {
         "class_type": class_type,
         "inputs": inputs or {},
     }
-    return json.dumps(
-        {"node_count": len(workflow), "added": node_id, "workflow": workflow},
-        indent=2,
-    )
+    result = {"node_count": len(workflow), "added": node_id, "workflow": workflow}
+    if snapshot is not None:
+        result["auto_snapshot"] = snapshot
+    return json.dumps(result, indent=2)
 
 
 @mcp.tool(
@@ -522,18 +534,19 @@ async def comfy_connect_nodes(
         target_input: Input name on the target node
     """
     workflow = copy.deepcopy(workflow)
+    snapshot = _maybe_auto_snapshot(ctx, workflow, "connect-nodes")
     if target_node not in workflow:
         return json.dumps({"error": f"Target node {target_node} not found"})
     if source_node not in workflow:
         return json.dumps({"error": f"Source node {source_node} not found"})
     workflow[target_node]["inputs"][target_input] = [source_node, source_output]
-    return json.dumps(
-        {
-            "connected": f"{source_node}[{source_output}] -> {target_node}.{target_input}",
-            "workflow": workflow,
-        },
-        indent=2,
-    )
+    result = {
+        "connected": f"{source_node}[{source_output}] -> {target_node}.{target_input}",
+        "workflow": workflow,
+    }
+    if snapshot is not None:
+        result["auto_snapshot"] = snapshot
+    return json.dumps(result, indent=2)
 
 
 @mcp.tool(
@@ -561,13 +574,14 @@ async def comfy_set_widget_value(
         value: Value to set
     """
     workflow = copy.deepcopy(workflow)
+    snapshot = _maybe_auto_snapshot(ctx, workflow, "set-widget-value")
     if node_id not in workflow:
         return json.dumps({"error": f"Node {node_id} not found"})
     workflow[node_id]["inputs"][widget_name] = value
-    return json.dumps(
-        {"set": f"{node_id}.{widget_name} = {value}", "workflow": workflow},
-        indent=2,
-    )
+    result = {"set": f"{node_id}.{widget_name} = {value}", "workflow": workflow}
+    if snapshot is not None:
+        result["auto_snapshot"] = snapshot
+    return json.dumps(result, indent=2)
 
 
 @mcp.tool(
