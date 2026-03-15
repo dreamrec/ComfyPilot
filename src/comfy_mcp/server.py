@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import os
-import sys
+import inspect
 from contextlib import asynccontextmanager
 
 from mcp.server.fastmcp import FastMCP
@@ -35,7 +35,7 @@ async def comfy_lifespan(server: FastMCP):
     await client.probe_capabilities()
     _shared_client = client
 
-    # Subsystem managers — imported lazily to avoid circular deps
+    # Subsystem managers - imported lazily to avoid circular deps
     from comfy_mcp.events.event_manager import EventManager
     from comfy_mcp.jobs.job_tracker import JobTracker
     from comfy_mcp.memory.snapshot_manager import SnapshotManager
@@ -48,7 +48,8 @@ async def comfy_lifespan(server: FastMCP):
     vram_guard = VRAMGuard(client)
     job_tracker = JobTracker(client, event_mgr)
 
-    await event_mgr.start()
+    if client.capabilities.get("ws_available", True):
+        await event_mgr.start()
 
     try:
         yield {
@@ -66,6 +67,20 @@ async def comfy_lifespan(server: FastMCP):
 
 
 mcp = FastMCP("comfypilot", lifespan=comfy_lifespan)
+_tool_signature = inspect.signature(FastMCP.tool)
+_tool_supports_annotations = "annotations" in _tool_signature.parameters
+_original_tool = mcp.tool
+
+
+def _compat_tool(*args, **kwargs):
+    """Ignore tool annotations when running against older MCP releases."""
+    if not _tool_supports_annotations and "annotations" in kwargs:
+        kwargs = dict(kwargs)
+        kwargs.pop("annotations", None)
+    return _original_tool(*args, **kwargs)
+
+
+mcp.tool = _compat_tool  # type: ignore[assignment]
 
 
 @mcp.resource("comfy://system/info")

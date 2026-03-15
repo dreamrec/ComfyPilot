@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import json
+import sys
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 
 @pytest.fixture
@@ -65,6 +73,7 @@ def mock_ctx(mock_client):
     job_tracker_mock = MagicMock()
     job_tracker_mock.track = AsyncMock()
     job_tracker_mock.mark_cancelled = AsyncMock()
+    job_tracker_mock.mark_interrupted = AsyncMock()
     job_tracker_mock.list_active = MagicMock(return_value=[])
 
     ctx = MagicMock()

@@ -1,24 +1,21 @@
 # ComfyPilot Production Manual
 
-Complete reference for operating ComfyPilot — the MCP server for live AI control of ComfyUI.
+Complete reference for operating ComfyPilot - the MCP server for live control of ComfyUI.
 
 ## Architecture
 
 ```
-┌──────────────┐     stdio      ┌──────────────┐    HTTP/WS     ┌──────────────┐
-│  MCP Client  │◄──────────────►│  ComfyPilot  │◄─────────────►│   ComfyUI    │
-│ (Claude, etc)│                │  (FastMCP)   │               │  (GPU host)  │
-└──────────────┘                └──────────────┘               └──────────────┘
-                                       │
-                                       ├── ComfyClient (HTTP + WebSocket)
-                                       ├── EventManager (WS auto-reconnect)
-                                       ├── JobTracker (prompt completion)
-                                       ├── SnapshotManager (in-memory LRU)
-                                       ├── TechniqueStore (persistent JSON)
-                                       └── VRAMGuard (safety thresholds)
+[MCP Client] <-> [ComfyPilot] <-> [ComfyUI]
+                   |
+                   +-- ComfyClient (HTTP + WebSocket)
+                   +-- EventManager (WS auto-reconnect)
+                   +-- JobTracker (prompt completion)
+                   +-- SnapshotManager (in-memory LRU)
+                   +-- TechniqueStore (persistent JSON)
+                   +-- VRAMGuard (safety thresholds)
 ```
 
-ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent HTTP connection to ComfyUI's REST API and a WebSocket connection for real-time progress events. All subsystems are initialized during the lifespan phase and shared across tool invocations.
+ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent HTTP connection to ComfyUI's REST API and starts a WebSocket listener when the connected profile exposes `/ws`. All subsystems are initialized during the lifespan phase and shared across tool invocations.
 
 ## Connection Model
 
@@ -28,10 +25,11 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 - Prompt queueing via POST to `/prompt`
 - Configurable timeout (default 300s for long generations)
 
-**EventManager** maintains a WebSocket connection to ComfyUI's `/ws` endpoint:
+**EventManager** maintains a WebSocket connection to ComfyUI's `/ws` endpoint when available:
 - Auto-reconnect on disconnect
 - Event buffering with deque (maxlen=1000)
 - Supports `progress`, `executing`, `execution_cached`, `execution_error` events
+- Ignores binary preview frames safely
 
 **JobTracker** monitors prompt execution:
 - Tracks queued prompt IDs
@@ -48,7 +46,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_get_gpu_info` | Detailed GPU device information | readOnly |
 | `comfy_get_features` | Enabled ComfyUI features | readOnly |
 | `comfy_list_extensions` | Installed custom node extensions | readOnly |
-| `comfy_restart` | Restart the ComfyUI server process | destructive |
+| `comfy_restart` | Report that restart is not supported by the standard API | destructive |
 | `comfy_free_vram` | Unload models and free GPU memory | destructive |
 
 ### Model Tools (5)
@@ -56,10 +54,10 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | Tool | Description |
 |------|-------------|
 | `comfy_list_models` | List models in a folder (checkpoints, loras, vae, etc.) with pagination |
-| `comfy_get_model_info` | Detailed info for a specific model file |
+| `comfy_get_model_info` | Node schema for a model-related node class |
 | `comfy_list_model_folders` | List available model folder categories |
 | `comfy_search_models` | Search across all model folders by name pattern |
-| `comfy_refresh_models` | Force ComfyUI to rescan model directories |
+| `comfy_refresh_models` | Refresh the cached model list from ComfyUI |
 
 ### Workflow Execution Tools (8)
 
@@ -80,7 +78,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 |------|-------------|
 | `comfy_list_node_types` | List available node types with pagination |
 | `comfy_get_node_info` | Detailed schema for a specific node type (inputs, outputs, widgets) |
-| `comfy_search_nodes` | Search nodes by name, category, or description |
+| `comfy_search_nodes` | Search nodes by name |
 | `comfy_get_categories` | List all node categories |
 | `comfy_get_embeddings` | List available text embeddings |
 | `comfy_inspect_widget` | Inspect a specific widget's schema and valid values |
@@ -89,10 +87,10 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 
 | Tool | Description |
 |------|-------------|
-| `comfy_get_output_image` | Retrieve a generated image — returns as image content block in chat |
+| `comfy_get_output_image` | Retrieve a generated image - returns as image content block in chat |
 | `comfy_upload_image` | Upload an image to ComfyUI's input directory |
 | `comfy_list_output_images` | List generated output images |
-| `comfy_download_batch` | Download multiple output images |
+| `comfy_download_batch` | Return output image metadata for multiple files |
 | `comfy_get_image_url` | Get the direct URL for an output image |
 
 **Image content blocks**: `comfy_get_output_image` returns images as base64-encoded content blocks that display directly in the chat. This is the primary way to view generated results.
@@ -105,7 +103,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_get_run_result` | Get full result for a specific prompt ID |
 | `comfy_delete_history` | Delete a specific history entry |
 | `comfy_clear_history` | Clear all history |
-| `comfy_search_history` | Search history by prompt ID or output metadata |
+| `comfy_search_history` | Search history by workflow node class name |
 
 ### Monitoring Tools (6)
 
@@ -115,7 +113,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_subscribe` | Subscribe to WebSocket event types |
 | `comfy_unsubscribe` | Unsubscribe from event types |
 | `comfy_get_events` | Get buffered events with optional type filter |
-| `comfy_describe_dynamics` | Observe system dynamics over a time window |
+| `comfy_describe_dynamics` | Observe recent queue and event state without consuming buffered events |
 | `comfy_get_status` | Get current execution status |
 
 ### Snapshot Tools (6)
@@ -127,7 +125,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_diff_snapshots` | Compare two snapshots or snapshot vs current |
 | `comfy_restore_snapshot` | Restore workflow from a snapshot |
 | `comfy_delete_snapshot` | Delete a snapshot |
-| `comfy_auto_snapshot` | Toggle automatic snapshotting before modifications |
+| `comfy_auto_snapshot` | Toggle automatic snapshots before queue and builder edits |
 
 **Snapshot storage**: In-memory with LRU eviction. Default limit: 50 snapshots (configurable via `COMFY_SNAPSHOT_LIMIT`). Snapshots are lost on server restart.
 
@@ -147,16 +145,16 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 
 | Tool | Description |
 |------|-------------|
-| `comfy_check_vram` | Check VRAM usage — returns ok/warn/critical status |
+| `comfy_check_vram` | Check VRAM usage - returns ok/warn/critical status |
 | `comfy_set_limits` | Configure thresholds: warn % (default 80), block % (default 95), max queue (10) |
 | `comfy_detect_instability` | Check for near-OOM, stuck jobs, error patterns |
 | `comfy_validate_before_queue` | Pre-flight check: VRAM headroom + queue capacity |
 | `comfy_emergency_stop` | Interrupt + clear queue + free all VRAM |
 
 **VRAM status levels**:
-- `ok` — Below warn threshold, safe to proceed
-- `warn` — Above warn threshold (default 80%), proceed with caution
-- `critical` — Above block threshold (default 95%), do not queue new prompts
+- `ok` - Below warn threshold, safe to proceed
+- `warn` - Above warn threshold (default 80%), proceed with caution
+- `critical` - Above block threshold (default 95%), do not queue new prompts
 
 ### Builder Tools (5)
 
@@ -166,7 +164,7 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_add_node` | Add a node to a workflow-in-progress |
 | `comfy_connect_nodes` | Wire node outputs to inputs |
 | `comfy_set_widget_value` | Set widget values on existing nodes |
-| `comfy_apply_template` | Apply a template modification to an existing workflow |
+| `comfy_apply_template` | Alias for `comfy_build_workflow` |
 
 **Templates** provide sensible defaults (checkpoint, dimensions, steps, CFG, sampler) that can be overridden. They generate ComfyUI API-format JSON ready for `comfy_queue_prompt`.
 
@@ -179,15 +177,16 @@ ComfyPilot runs as an MCP server over stdio transport. It maintains a persistent
 | `comfy_send_to_blender` | Copy output to Blender project directory |
 | `comfy_list_destinations` | List configured output destinations and their paths |
 
-Output routing is agent-orchestrated — the AI decides where to send results based on the user's creative pipeline context.
+Output routing is agent-orchestrated - the AI decides where to send results based on the user's creative pipeline context.
 
-## MCP Resources
+## MCP Resources (5)
 
 Resources provide static/semi-static data without tool call overhead:
 
 | URI | Description |
 |-----|-------------|
 | `comfy://system/info` | System stats, GPU info, ComfyUI version |
+| `comfy://server/capabilities` | Detected server profile, version, and auth mode |
 | `comfy://nodes/catalog` | First 100 node types from the catalog |
 | `comfy://models/{folder}` | Models in a specific folder |
 | `comfy://embeddings` | Available embeddings |
@@ -195,20 +194,20 @@ Resources provide static/semi-static data without tool call overhead:
 ## Safety Protocol
 
 ### Before Every Generation
-1. `comfy_check_vram` — Verify GPU has headroom
-2. `comfy_validate_before_queue` — Check VRAM + queue capacity
-3. `comfy_validate_workflow` — Catch node/wiring errors
+1. `comfy_check_vram` - Verify GPU has headroom
+2. `comfy_validate_before_queue` - Check VRAM + queue capacity
+3. `comfy_validate_workflow` - Catch node/wiring errors
 
 ### Before Workflow Modifications
-1. `comfy_snapshot_workflow` — Save current state
+1. `comfy_snapshot_workflow` - Save current state
 2. Make changes
-3. `comfy_validate_workflow` — Verify changes are valid
+3. `comfy_validate_workflow` - Verify changes are valid
 4. If broken: `comfy_restore_snapshot` to roll back
 
 ### Emergency Recovery
-1. `comfy_emergency_stop` — Interrupts, clears queue, frees VRAM
-2. `comfy_detect_instability` — Diagnose what went wrong
-3. `comfy_check_vram` — Verify recovery
+1. `comfy_emergency_stop` - Interrupts, clears queue, frees VRAM
+2. `comfy_detect_instability` - Diagnose what went wrong
+3. `comfy_check_vram` - Verify recovery
 
 ## Configuration
 
@@ -218,6 +217,7 @@ Resources provide static/semi-static data without tool call overhead:
 |----------|---------|-------------|
 | `COMFY_URL` | `http://127.0.0.1:8188` | ComfyUI REST API URL |
 | `COMFY_API_KEY` | *(empty)* | API key for authenticated ComfyUI instances |
+| `COMFY_AUTH_METHOD` | `auto` | Auth mode: `auto`, `bearer`, `x-api-key` |
 | `COMFY_TIMEOUT` | `300` | HTTP timeout in seconds |
 | `COMFY_SNAPSHOT_LIMIT` | `50` | Max in-memory snapshots |
 | `COMFY_OUTPUT_DIR` | `~/comfypilot_output` | Default image output directory |
@@ -237,56 +237,56 @@ For Tailscale-connected machines:
 COMFY_URL=https://machine-name.tail12345.ts.net uv run comfypilot
 ```
 
-If the remote instance requires authentication, set `COMFY_API_KEY`.
+If the remote instance requires authentication, set `COMFY_API_KEY`. ComfyPilot forwards the same auth headers to the WebSocket connection when `/ws` is available.
 
 ## File Structure
 
 ```
 ComfyPilot/
-├── .claude-plugin/
-│   └── plugin.json          # Claude Code plugin manifest
-├── .mcp.json                # MCP server config (plugin-portable)
-├── docs/
-│   └── MANUAL.md            # This file
-├── mcp/
-│   ├── manifest.json        # Standardized MCP manifest
-│   └── profiles/            # Client config examples
-│       ├── claude-desktop.json
-│       ├── cursor.json
-│       └── generic.json
-├── skills/
-│   └── comfypilot-core/
-│       └── SKILL.md          # Core workflow skill
-├── src/
-│   └── comfy_mcp/
-│       ├── server.py         # FastMCP server + lifespan + resources
-│       ├── comfy_client.py   # Async HTTP client for ComfyUI
-│       ├── tool_registry.py  # Central tool import aggregator
-│       ├── events/
-│       │   └── event_manager.py  # WebSocket event system
-│       ├── jobs/
-│       │   └── job_tracker.py    # Prompt completion tracking
-│       ├── memory/
-│       │   ├── snapshot_manager.py  # In-memory LRU snapshots
-│       │   └── technique_store.py   # Persistent technique library
-│       ├── safety/
-│       │   └── vram_guard.py        # VRAM monitoring + safety
-│       └── tools/
-│           ├── system.py       # System tools
-│           ├── models.py       # Model tools
-│           ├── workflow.py     # Workflow execution tools
-│           ├── nodes.py        # Node schema tools
-│           ├── images.py       # Image tools
-│           ├── history.py      # History tools
-│           ├── monitoring.py   # Monitoring tools
-│           ├── snapshots.py    # Snapshot tools
-│           ├── memory.py       # Technique memory tools
-│           ├── safety.py       # Safety tools
-│           ├── builder.py      # Workflow builder tools
-│           └── output_routing.py  # Cross-app routing tools
-├── tests/                    # 275 tests across 17 files
-├── pyproject.toml
-├── CHANGELOG.md
-├── LICENSE
-└── README.md
++-- .claude-plugin/
+|   +-- plugin.json          # Claude Code plugin manifest
++-- .mcp.json                # MCP server config (plugin-portable)
++-- docs/
+|   +-- MANUAL.md            # This file
++-- mcp/
+|   +-- manifest.json        # Standardized MCP manifest
+|   +-- profiles/            # Client config examples
+|       +-- claude-desktop.json
+|       +-- cursor.json
+|       +-- generic.json
++-- skills/
+|   +-- comfypilot-core/
+|       +-- SKILL.md         # Core workflow skill
++-- src/
+|   +-- comfy_mcp/
+|       +-- server.py         # FastMCP server + lifespan + resources
+|       +-- comfy_client.py   # Async HTTP client for ComfyUI
+|       +-- tool_registry.py  # Central tool import aggregator
+|       +-- events/
+|       |   +-- event_manager.py  # WebSocket event system
+|       +-- jobs/
+|       |   +-- job_tracker.py    # Prompt completion tracking
+|       +-- memory/
+|       |   +-- snapshot_manager.py  # In-memory LRU snapshots
+|       |   +-- technique_store.py   # Persistent technique library
+|       +-- safety/
+|       |   +-- vram_guard.py        # VRAM monitoring + safety
+|       +-- tools/
+|           +-- system.py       # System tools
+|           +-- models.py       # Model tools
+|           +-- workflow.py     # Workflow execution tools
+|           +-- nodes.py        # Node schema tools
+|           +-- images.py       # Image tools
+|           +-- history.py      # History tools
+|           +-- monitoring.py   # Monitoring tools
+|           +-- snapshots.py    # Snapshot tools
+|           +-- memory.py       # Technique memory tools
+|           +-- safety.py       # Safety tools
+|           +-- builder.py      # Workflow builder tools
+|           +-- output_routing.py  # Cross-app routing tools
++-- tests/                    # pytest suite
++-- pyproject.toml
++-- CHANGELOG.md
++-- LICENSE
++-- README.md
 ```

@@ -10,7 +10,7 @@ from comfy_mcp.errors import ComfyAPIError, ComfyConnectionError
 
 
 def _mock_transport(responses: dict[str, tuple[int, dict]]):
-    """Create httpx.MockTransport from path→(status, body) mapping."""
+    """Create httpx.MockTransport from path->(status, body) mapping."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -48,6 +48,10 @@ class TestComfyClientInit:
     def test_api_key_stored(self):
         c = ComfyClient("http://x:8188", api_key="secret123")
         assert c.api_key == "secret123"
+
+    def test_detects_cloud_host(self):
+        c = ComfyClient("https://cloud.comfy.org")
+        assert c._is_cloud() is True
 
 
 class TestComfyClientGet:
@@ -139,3 +143,29 @@ class TestComfyClientHighLevel:
         client = client_with_transport({})
         await client.close()
         assert client._http is None
+
+    @pytest.mark.asyncio
+    async def test_get_features_prefers_local_route(self, client_with_transport):
+        client = client_with_transport({
+            "/features": (200, {"feature1": True}),
+        })
+        result = await client.get_features()
+        assert result["feature1"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_features_uses_cloud_route_for_cloud_hosts(self):
+        transport = _mock_transport({
+            "/api/features": (200, {"feature1": True}),
+        })
+        client = ComfyClient("https://cloud.comfy.org")
+        client._http = httpx.AsyncClient(transport=transport, base_url="https://cloud.comfy.org")
+        result = await client.get_features()
+        assert result["feature1"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_extensions_prefers_local_route(self, client_with_transport):
+        client = client_with_transport({
+            "/extensions": (200, {"extensions": ["ext1"]}),
+        })
+        result = await client.get_extensions()
+        assert result == ["ext1"]

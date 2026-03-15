@@ -1,4 +1,4 @@
-"""Monitoring tools — 6 tools for real-time monitoring and event management."""
+"""Monitoring tools - 6 tools for real-time monitoring and event management."""
 
 from __future__ import annotations
 

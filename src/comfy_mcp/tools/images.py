@@ -1,9 +1,10 @@
-"""Image tools — 5 tools for image upload, download, and viewing."""
+"""Image tools - 5 tools for image upload, download, and viewing."""
 
 from __future__ import annotations
 
 import base64
 import json
+import mimetypes
 from typing import Any
 from urllib.parse import urlencode
 
@@ -34,9 +35,10 @@ async def comfy_get_output_image(filename: str, subfolder: str = "", ctx: Contex
         subfolder: Optional subfolder within the output directory
     """
     image_bytes = await _client(ctx).get_image(filename, subfolder)
+    mime_type = mimetypes.guess_type(filename)[0] or "image/png"
     return [
         TextContent(type="text", text=json.dumps({"filename": filename, "size_bytes": len(image_bytes)})),
-        ImageContent(type="image", data=base64.b64encode(image_bytes).decode(), mimeType="image/png"),
+        ImageContent(type="image", data=base64.b64encode(image_bytes).decode(), mimeType=mime_type),
     ]
 
 

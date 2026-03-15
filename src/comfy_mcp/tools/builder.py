@@ -1,4 +1,4 @@
-"""Builder tools — 5 tools for programmatic workflow construction."""
+"""Builder tools - 5 tools for programmatic workflow construction."""
 from __future__ import annotations
 
 import copy
@@ -79,7 +79,7 @@ def _build_txt2img(params: dict) -> dict:
 
 
 def _build_img2img(params: dict) -> dict:
-    """img2img workflow — loads an input image and denoises it."""
+    """img2img workflow - loads an input image and denoises it."""
     return {
         "1": {
             "class_type": "CheckpointLoaderSimple",
@@ -147,7 +147,7 @@ def _build_img2img(params: dict) -> dict:
 
 
 def _build_upscale(params: dict) -> dict:
-    """Upscale workflow — latent upscale then re-sample."""
+    """Upscale workflow - latent upscale then re-sample."""
     return {
         "1": {
             "class_type": "CheckpointLoaderSimple",
@@ -235,7 +235,7 @@ def _build_upscale(params: dict) -> dict:
 
 
 def _build_inpaint(params: dict) -> dict:
-    """Inpaint workflow — img2img with a noise mask for masked regions."""
+    """Inpaint workflow - img2img with a noise mask for masked regions."""
     return {
         "1": {
             "class_type": "CheckpointLoaderSimple",
@@ -316,7 +316,7 @@ def _build_inpaint(params: dict) -> dict:
 
 
 def _build_controlnet(params: dict) -> dict:
-    """ControlNet workflow — condition generation on a control image."""
+    """ControlNet workflow - condition generation on a control image."""
     return {
         "1": {
             "class_type": "CheckpointLoaderSimple",

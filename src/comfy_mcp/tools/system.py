@@ -1,4 +1,4 @@
-"""System tools — 6 tools for ComfyUI system info and management."""
+"""System tools - 6 tools for ComfyUI system info and management."""
 
 from __future__ import annotations
 

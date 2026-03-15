@@ -21,7 +21,7 @@ from comfy_mcp.tools.safety import (
 # ---------------------------------------------------------------------------
 
 _RTX_5090_TOTAL = 34_359_738_368  # 32 GB
-_RTX_5090_FREE_OK = 30_000_000_000  # ~87% free → ~13% used → ok
+_RTX_5090_FREE_OK = 30_000_000_000  # ~87% free -> ~13% used -> ok
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ class TestCheckVram:
 
     @pytest.mark.asyncio
     async def test_warn_status(self, safety_ctx):
-        # 85% used → warn
+        # 85% used -> warn
         guard = _guard(safety_ctx)
         total = 1000
         guard._client.get_system_stats = AsyncMock(return_value={
@@ -269,7 +269,7 @@ class TestDetectInstability:
     @pytest.mark.asyncio
     async def test_unstable_near_oom(self, safety_ctx):
         guard = _guard(safety_ctx)
-        # <5% free → near-OOM
+        # <5% free -> near-OOM
         guard._client.get_system_stats = AsyncMock(return_value={
             "devices": [{"name": "RTX 5090", "vram_total": 1000, "vram_free": 40}],
         })
@@ -292,7 +292,7 @@ class TestDetectInstability:
 
 
 # ---------------------------------------------------------------------------
-# Round-trip: check → set limits → check again with new thresholds
+# Round-trip: check -> set limits -> check again with new thresholds
 # ---------------------------------------------------------------------------
 
 class TestRoundTrip:
@@ -305,7 +305,7 @@ class TestRoundTrip:
             "devices": [{"name": "GPU", "vram_total": 1000, "vram_free": 500}],
         })
 
-        # First check → ok with default 80% warn threshold
+        # First check -> ok with default 80% warn threshold
         result1 = json.loads(await comfy_check_vram(ctx=safety_ctx))
         assert result1["status"] == "ok"
         assert result1["vram_used_pct"] == 50.0
@@ -313,6 +313,6 @@ class TestRoundTrip:
         # Lower warn threshold to 40%
         await comfy_set_limits(warn_pct=40.0, ctx=safety_ctx)
 
-        # Second check → now warn because 50% >= 40%
+        # Second check -> now warn because 50% >= 40%
         result2 = json.loads(await comfy_check_vram(ctx=safety_ctx))
         assert result2["status"] == "warn"

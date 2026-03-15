@@ -134,10 +134,13 @@ class TestInterrupt:
     @pytest.mark.asyncio
     async def test_interrupt(self, mock_ctx, mock_client):
         mock_client.interrupt = AsyncMock(return_value={})
+        mock_client.get_queue = AsyncMock(return_value={"queue_running": [["prompt1", 0, {}]], "queue_pending": []})
         result = await comfy_interrupt(ctx=mock_ctx)
         data = json.loads(result)
         assert data["status"] == "interrupted"
+        assert data["interrupted_prompt_ids"] == ["prompt1"]
         mock_client.interrupt.assert_awaited_once()
+        mock_ctx.request_context.lifespan_context["job_tracker"].mark_interrupted.assert_awaited_once_with("prompt1")
 
 
 class TestClearQueue:

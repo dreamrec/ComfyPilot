@@ -1,18 +1,7 @@
-```
- ██████╗ ██████╗ ███╗   ███╗███████╗██╗   ██╗██████╗ ██╗██╗      ██████╗ ████████╗
-██╔════╝██╔═══██╗████╗ ████║██╔════╝╚██╗ ██╔╝██╔══██╗██║██║     ██╔═══██╗╚══██╔══╝
-██║     ██║   ██║██╔████╔██║█████╗   ╚████╔╝ ██████╔╝██║██║     ██║   ██║   ██║
-██║     ██║   ██║██║╚██╔╝██║██╔══╝    ╚██╔╝  ██╔═══╝ ██║██║     ██║   ██║   ██║
-╚██████╗╚██████╔╝██║ ╚═╝ ██║██║        ██║   ██║     ██║███████╗╚██████╔╝   ██║
- ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
-```
-
-# ComfyPilot v0.2.0
+# ComfyPilot v1.0.0
 
 **ComfyPilot** is an MCP server for ComfyUI.
-It lets an AI agent build workflows, queue generations, monitor progress, retrieve images, and manage VRAM — all through structured tool calls with visual output return.
-
-`#comfypilot` `#comfyui` `#mcp` `#stablediffusion` `#flux` `#imagegeneration` `#aiart`
+It gives an AI agent a clean tool surface for workflow building, queueing, progress monitoring, image retrieval, snapshots, and VRAM safety.
 
 ## Documentation
 
@@ -21,27 +10,26 @@ It lets an AI agent build workflows, queue generations, monitor progress, retrie
 
 ## What This Is
 
-- A practical control layer between AI agents and ComfyUI.
-- A structured toolset for workflow building, image generation, model management, and output routing.
-- A workflow-oriented MCP built for iterative image generation, not one-shot guessing.
-- A technique memory system that learns your workflow patterns and builds a reusable library.
-- 66-tool runtime surface with workflow snapshots/undo, live WebSocket progress, visual output (image content blocks), VRAM monitoring, cross-app output routing, and template-based workflow building.
+- A practical bridge between AI agents and ComfyUI.
+- A 66-tool MCP surface for workflows, models, images, monitoring, safety, and routing.
+- A workflow-oriented loop built for iteration, not one-shot guessing.
+- A small technique library for saving and replaying working patterns.
 
 ## Core Thinking Model (How To Think With This MCP)
 
 Use this loop for every non-trivial task:
 
-1. **Check system first** — Read GPU state before loading models. Start with `comfy_get_system_stats`, `comfy_check_vram`.
+1. **Check system first** - Read GPU state before loading models. Start with `comfy_get_system_stats`, `comfy_check_vram`.
 
-2. **Check memory** — Before building from scratch, use `comfy_search_techniques` to check if a similar workflow already exists in the library.
+2. **Check memory** - Before building from scratch, use `comfy_search_techniques` to check if a similar workflow already exists in the library.
 
-3. **Build in small steps** — Use `comfy_build_workflow` for common patterns (txt2img, img2img, upscale, inpaint, controlnet), or construct API-format JSON. Validate with `comfy_validate_workflow` before queueing.
+3. **Build in small steps** - Use `comfy_build_workflow` for common patterns (txt2img, img2img, upscale, inpaint, controlnet), or construct API-format JSON. Validate with `comfy_validate_workflow` before queueing.
 
-4. **Monitor and retrieve** — Queue with `comfy_queue_prompt`, watch with `comfy_watch_progress`, retrieve with `comfy_get_output_image` (returns image content blocks directly in chat).
+4. **Monitor and retrieve** - Queue with `comfy_queue_prompt`, watch with `comfy_watch_progress`, retrieve with `comfy_get_output_image` (returns image content blocks directly in chat).
 
-5. **Snapshot before changes** — Always `comfy_snapshot_workflow` before modifying a working workflow. Use `comfy_diff_snapshots` and `comfy_restore_snapshot` for undo.
+5. **Snapshot before changes** - Always `comfy_snapshot_workflow` before modifying a working workflow. Use `comfy_diff_snapshots` and `comfy_restore_snapshot` for undo.
 
-6. **Route outputs** — Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
+6. **Route outputs** - Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
 ## Tool Map (66 Tools)
 
@@ -97,47 +85,47 @@ Use for undo/restore and workflow version tracking.
 ### 9) Technique Memory
 Use for learning, saving, and replaying reusable workflow patterns.
 
-- `comfy_save_technique` — Save a workflow as a reusable technique with tags and metadata.
-- `comfy_search_techniques` — Search the library by text query and/or tags.
-- `comfy_list_techniques` — List all saved techniques with metadata.
-- `comfy_replay_technique` — Load a saved technique's workflow for immediate use.
-- `comfy_favorite_technique` — Mark techniques as favorites and rate them (0-5).
+- `comfy_save_technique` - Save a workflow as a reusable technique with tags and metadata.
+- `comfy_search_techniques` - Search the library by text query and/or tags.
+- `comfy_list_techniques` - List all saved techniques with metadata.
+- `comfy_replay_technique` - Load a saved technique's workflow for immediate use.
+- `comfy_favorite_technique` - Mark techniques as favorites and rate them (0-5).
 
 Technique storage lives at `~/.comfypilot/techniques/` as individual JSON files.
 
 ### 10) Safety + VRAM Guard
 Use for guardrails, pre-flight checks, and emergency control.
 
-- `comfy_check_vram` — Check GPU VRAM usage with status levels (ok/warn/critical).
-- `comfy_set_limits` — Configure safety thresholds (warn %, block %, max queue size).
-- `comfy_detect_instability` — Check for near-OOM conditions and stuck jobs.
-- `comfy_validate_before_queue` — Pre-flight check: VRAM headroom + queue capacity.
-- `comfy_emergency_stop` — Interrupt current job, clear queue, free all VRAM.
+- `comfy_check_vram` - Check GPU VRAM usage with status levels (ok/warn/critical).
+- `comfy_set_limits` - Configure safety thresholds (warn %, block %, max queue size).
+- `comfy_detect_instability` - Check for near-OOM conditions and stuck jobs.
+- `comfy_validate_before_queue` - Pre-flight check: VRAM headroom + queue capacity.
+- `comfy_emergency_stop` - Interrupt current job, clear queue, free all VRAM.
 
 ### 11) Workflow Builder
 Use for template-based workflow construction and editing.
 
-- `comfy_build_workflow` — Build from templates: txt2img, img2img, upscale, inpaint, controlnet.
-- `comfy_add_node` — Add a node to a workflow-in-progress.
-- `comfy_connect_nodes` — Wire node outputs to inputs.
-- `comfy_set_widget_value` — Set widget values on nodes.
-- `comfy_apply_template` — Apply a named template to an existing workflow.
+- `comfy_build_workflow` - Build from templates: txt2img, img2img, upscale, inpaint, controlnet.
+- `comfy_add_node` - Add a node to a workflow-in-progress.
+- `comfy_connect_nodes` - Wire node outputs to inputs.
+- `comfy_set_widget_value` - Set widget values on nodes.
+- `comfy_apply_template` - Apply a named template to an existing workflow.
 
 ### 12) Output Routing
 Use for agent-orchestrated cross-app delivery of generated images.
 
-- `comfy_send_to_disk` — Save output image to local filesystem.
-- `comfy_send_to_td` — Route output to TouchDesigner project directory.
-- `comfy_send_to_blender` — Route output to Blender project directory.
-- `comfy_list_destinations` — List configured output destinations.
+- `comfy_send_to_disk` - Save output image to local filesystem.
+- `comfy_send_to_td` - Route output to TouchDesigner project directory.
+- `comfy_send_to_blender` - Route output to Blender project directory.
+- `comfy_list_destinations` - List configured output destinations.
 
 ## MCP Resources (5)
 
-- `comfy://system/info` — System stats, GPU info, ComfyUI version
-- `comfy://server/capabilities` — Detected server profile, version, auth method
-- `comfy://nodes/catalog` — Node catalog preview (first 100 names)
-- `comfy://models/{folder}` — Model listing by folder (checkpoints, loras, etc.)
-- `comfy://embeddings` — Available embeddings
+- `comfy://system/info` - System stats, GPU info, ComfyUI version
+- `comfy://server/capabilities` - Detected server profile, version, auth method
+- `comfy://nodes/catalog` - Node catalog preview (first 100 names)
+- `comfy://models/{folder}` - Model listing by folder (checkpoints, loras, etc.)
+- `comfy://embeddings` - Available embeddings
 
 ## How To Use It (Practical Workflow)
 
@@ -172,12 +160,12 @@ Use for agent-orchestrated cross-app delivery of generated images.
 | Feature | Status | Notes |
 |---|---|---|
 | Local ComfyUI (self-hosted) | Supported | Primary target |
-| Comfy Cloud API | Partial | X-API-Key auth supported, route probing added |
+| Comfy Cloud API | Partial | Auth and route probing supported; progress depends on remote WS support |
 | stdio transport | Supported | Default |
 | Streamable HTTP transport | Not yet | Planned |
 | Workflow JSON (v0.17+ spec) | Supported | Multi-pass validation (schema + catalog + graph) |
 | V3 custom nodes | Not tested | V3 migration is ongoing in ComfyUI |
-| WebSocket progress events | Supported | EventManager started in lifespan, drain_events fixed |
+| WebSocket progress events | Supported where `/ws` is available | Binary preview frames are ignored safely |
 | Image content blocks | Supported | Inline image display in chat |
 | Cross-app routing | Filesystem only | Saves to disk with suggested commands |
 
@@ -226,14 +214,14 @@ Manual client configuration example (Claude Desktop):
 
 ## Environment Variables
 
-- `COMFY_URL` (default `http://127.0.0.1:8188`) — ComfyUI server URL
-- `COMFY_API_KEY` (default empty) — Optional API key for authenticated access
-- `COMFY_TIMEOUT` (default `300`) — HTTP request timeout in seconds
-- `COMFY_SNAPSHOT_LIMIT` (default `50`) — Maximum workflow snapshots retained in memory
-- `COMFY_OUTPUT_DIR` (default `~/comfypilot_output`) — Image output directory for disk routing
-- `COMFY_TD_OUTPUT_DIR` (default `~/comfypilot_output/touchdesigner`) — TouchDesigner output path
-- `COMFY_BLENDER_OUTPUT_DIR` (default `~/comfypilot_output/blender`) — Blender output path
-- `COMFY_AUTH_METHOD` (default `auto`) — Auth method: `auto`, `bearer`, or `x-api-key`
+- `COMFY_URL` (default `http://127.0.0.1:8188`) - ComfyUI server URL
+- `COMFY_API_KEY` (default empty) - Optional API key for authenticated access
+- `COMFY_TIMEOUT` (default `300`) - HTTP request timeout in seconds
+- `COMFY_SNAPSHOT_LIMIT` (default `50`) - Maximum workflow snapshots retained in memory
+- `COMFY_OUTPUT_DIR` (default `~/comfypilot_output`) - Image output directory for disk routing
+- `COMFY_TD_OUTPUT_DIR` (default `~/comfypilot_output/touchdesigner`) - TouchDesigner output path
+- `COMFY_BLENDER_OUTPUT_DIR` (default `~/comfypilot_output/blender`) - Blender output path
+- `COMFY_AUTH_METHOD` (default `auto`) - Auth method: `auto`, `bearer`, or `x-api-key`
 
 ## Test Suite
 
@@ -249,7 +237,11 @@ Run a specific category:
 uv run pytest tests/test_builder.py -v
 ```
 
-Full suite: 298 tests across 22 test files.
+For a quick smoke run:
+
+```bash
+uv run pytest -q
+```
 
 ## Reliability Habit
 
@@ -259,8 +251,4 @@ Treat this as mandatory for every meaningful task: before generations check VRAM
 
 MIT
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ dreamrec // ComfyPilot // live laugh diffuse                       │
-└─────────────────────────────────────────────────────────────────────┘
-```
+`dreamrec // ComfyPilot // live laugh diffuse`

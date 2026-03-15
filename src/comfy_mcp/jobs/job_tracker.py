@@ -1,4 +1,4 @@
-"""JobTracker — tracks prompt execution jobs and their progress.
+"""JobTracker - tracks prompt execution jobs and their progress.
 
 Monitors active jobs via EventManager, caches completed results,
 and supports async wait-for-completion.
@@ -18,7 +18,7 @@ class JobTracker:
     def __init__(self, client, event_mgr):
         self._client = client
         self._event_mgr = event_mgr
-        self._active_jobs: dict[str, dict] = {}  # prompt_id → job status dict
+        self._active_jobs: dict[str, dict] = {}  # prompt_id -> job status dict
         self._completed: deque[dict] = deque(maxlen=100)
 
     async def track(self, prompt_id: str) -> None:

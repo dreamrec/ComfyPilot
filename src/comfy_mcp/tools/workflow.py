@@ -1,7 +1,8 @@
-"""Workflow tools — 8 tools for workflow execution and queue management."""
+"""Workflow tools - 8 tools for workflow execution and queue management."""
 
 from __future__ import annotations
 
+import inspect
 import json
 from typing import Any
 
@@ -14,6 +15,10 @@ def _client(ctx: Context):
     return ctx.request_context.lifespan_context["comfy_client"]
 
 
+def _job_tracker(ctx: Context):
+    return ctx.request_context.lifespan_context["job_tracker"]
+
+
 def _maybe_auto_snapshot(ctx: Context | None, workflow: dict) -> dict | None:
     if ctx is None:
         return None
@@ -23,6 +28,26 @@ def _maybe_auto_snapshot(ctx: Context | None, workflow: dict) -> dict | None:
         return None
 
     return snapshot_mgr.add(workflow, name="auto-before-queue")
+
+
+def _prompt_ids_from_queue(entries: list[Any]) -> list[str]:
+    prompt_ids: list[str] = []
+    for entry in entries:
+        if isinstance(entry, str):
+            prompt_ids.append(entry)
+        elif isinstance(entry, (list, tuple)) and entry:
+            prompt_ids.append(str(entry[0]))
+        elif isinstance(entry, dict):
+            prompt_id = entry.get("prompt_id") or entry.get("id")
+            if prompt_id:
+                prompt_ids.append(str(prompt_id))
+    return prompt_ids
+
+
+async def _await_if_needed(result: Any) -> Any:
+    if inspect.isawaitable(result):
+        return await result
+    return result
 
 
 @mcp.tool(
@@ -51,9 +76,9 @@ async def comfy_queue_prompt(
     prompt_id = result.get("prompt_id")
 
     # Register with job tracker
-    job_tracker = ctx.request_context.lifespan_context["job_tracker"]
+    job_tracker = _job_tracker(ctx)
     if prompt_id:
-        await job_tracker.track(prompt_id)
+        await _await_if_needed(job_tracker.track(prompt_id))
 
     await ctx.report_progress(100, 100)
 
@@ -115,7 +140,7 @@ async def comfy_cancel_run(
     """
     result = await _client(ctx).cancel_prompt(prompt_id)
     job_tracker = ctx.request_context.lifespan_context["job_tracker"]
-    await job_tracker.mark_cancelled(prompt_id)
+    await _await_if_needed(job_tracker.mark_cancelled(prompt_id))
     return json.dumps({
         "status": "cancelled",
         "prompt_id": prompt_id,
@@ -133,10 +158,15 @@ async def comfy_cancel_run(
 )
 async def comfy_interrupt(ctx: Context = None) -> str:
     """Interrupt the currently executing prompt."""
+    running_ids = _prompt_ids_from_queue((await _client(ctx).get_queue()).get("queue_running", []))
     await _client(ctx).interrupt()
+    tracker = _job_tracker(ctx)
+    for prompt_id in running_ids:
+        await _await_if_needed(tracker.mark_interrupted(prompt_id))
     return json.dumps({
         "status": "interrupted",
         "message": "Current prompt execution interrupted",
+        "interrupted_prompt_ids": running_ids,
     }, indent=2)
 
 
@@ -203,7 +233,7 @@ async def comfy_validate_workflow(
             catalog = result
             catalog_available = True
     except Exception:
-        warnings.append("Could not fetch object_info — skipping catalog validation")
+        warnings.append("Could not fetch object_info - skipping catalog validation")
 
     if catalog_available and catalog:
         for node_id, node in workflow.items():
@@ -211,9 +241,9 @@ async def comfy_validate_workflow(
                 continue
             class_type = node.get("class_type", "")
             if class_type and class_type not in catalog:
-                errors.append(f"Node '{node_id}': unknown class_type '{class_type}' — not in ComfyUI catalog")
+                errors.append(f"Node '{node_id}': unknown class_type '{class_type}' - not in ComfyUI catalog")
 
-    # Pass 3: Graph — check link targets
+    # Pass 3: Graph - check link targets
     node_ids = set(workflow.keys())
     for node_id, node in workflow.items():
         if not isinstance(node, dict):
@@ -232,7 +262,7 @@ async def comfy_validate_workflow(
             has_output = True
             break
     if not has_output:
-        warnings.append("No output node found (SaveImage, PreviewImage, etc.) — workflow may produce no visible output")
+        warnings.append("No output node found (SaveImage, PreviewImage, etc.) - workflow may produce no visible output")
 
     return json.dumps({
         "valid": len(errors) == 0,

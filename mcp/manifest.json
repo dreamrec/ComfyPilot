@@ -1,7 +1,7 @@
 {
   "name": "comfypilot",
-  "version": "0.2.0",
-  "description": "AI-native MCP server for live ComfyUI control — 66 tools across 12 categories",
+  "version": "1.0.0",
+  "description": "MCP server for live control of ComfyUI with 66 tools across 12 categories",
   "author": "ComfyPilot",
   "license": "MIT",
   "transport": "stdio",

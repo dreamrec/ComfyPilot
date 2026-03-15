@@ -27,3 +27,11 @@ async def test_auto_auth_detection():
     await client.connect()
     assert client._http.headers.get("X-API-Key") == "key"
     await client.close()
+
+
+@pytest.mark.asyncio
+async def test_auto_auth_detection_for_cloud_host():
+    client = ComfyClient("https://cloud.comfy.org", api_key="key", auth_method="auto")
+    await client.connect()
+    assert client._http.headers.get("X-API-Key") == "key"
+    await client.close()

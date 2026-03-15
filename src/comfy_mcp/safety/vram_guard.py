@@ -1,4 +1,4 @@
-"""VRAMGuard — VRAM monitoring and safety enforcement.
+"""VRAMGuard - VRAM monitoring and safety enforcement.
 
 Monitors GPU VRAM usage and provides safety checks before operations.
 """

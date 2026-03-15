@@ -49,6 +49,14 @@ class TestGetOutputImage:
         meta = json.loads(result[0].text)
         assert meta["size_bytes"] == 2048
 
+    @pytest.mark.asyncio
+    async def test_mime_type_is_inferred_from_filename(self, mock_ctx, mock_client):
+        fake_jpeg = b"\xff\xd8\xff" + b"\x00" * 20
+        mock_client.get_image = AsyncMock(return_value=fake_jpeg)
+        from comfy_mcp.tools.images import comfy_get_output_image
+        result = await comfy_get_output_image(filename="photo.jpg", ctx=mock_ctx)
+        assert result[1].mimeType == "image/jpeg"
+
 
 class TestUploadImage:
     @pytest.mark.asyncio

@@ -2,53 +2,28 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
-## [1.0.0] — 2026-03-14
+## [1.0.0] - 2026-03-16
 
-### Added
+### Release
 
-**Core Infrastructure**
-- FastMCP server with lifespan management for persistent ComfyUI connections
-- Async HTTP client (`ComfyClient`) with 17 high-level methods
-- WebSocket-based `EventManager` with auto-reconnect and event buffering
-- `JobTracker` for async prompt completion with history polling
-- Module-level `_shared_client` pattern for MCP Resource handlers
+- Promoted the repo to a clean `1.0.0` release with aligned package, plugin, and MCP metadata.
+- Trimmed stale planning artifacts from the tracked tree and removed tracked bytecode files.
 
-**66 MCP Tools across 12 categories**
-- System (6): stats, GPU info, features, extensions, restart, free VRAM
-- Models (5): list, info, folders, search, refresh
-- Workflow (8): queue, cancel, interrupt, validate, export, import
-- Nodes (6): list types, get info, search, categories, embeddings, inspect widget
-- Images (5): get output (image content blocks), upload, list, batch, URL
-- History (5): get history, run result, delete, clear, search
-- Monitoring (6): watch progress, subscribe, unsubscribe, events, dynamics, status
-- Snapshots (6): snapshot, list, diff, restore, delete, auto-snapshot
-- Memory (5): save technique, search, list, replay, favorite
-- Safety (5): check VRAM, set limits, detect instability, validate before queue, emergency stop
-- Builder (5): build workflow (5 templates), add node, connect, set widget, apply template
-- Output Routing (4): send to disk, send to TD, send to Blender, list destinations
+### Hardening
 
-**4 MCP Resources**
-- `comfy://system/info` — System stats and GPU info
-- `comfy://nodes/catalog` — Node type catalog
-- `comfy://models/{folder}` — Model listing by folder
-- `comfy://embeddings` — Embeddings list
+- Sanitized output-routing filenames and escaped generated TouchDesigner and Blender commands.
+- URL-encoded image URLs and inferred image MIME types from filenames.
+- Forwarded auth headers to WebSocket monitoring and skipped binary preview frames safely.
+- Started the event manager only when the connected profile actually exposes WebSocket progress.
+- Reconciled tracked running jobs when `comfy_interrupt` is used.
+- Added real auto-snapshot behavior before queue and builder edits.
 
-**Subsystems**
-- `SnapshotManager` — In-memory workflow snapshots with LRU eviction and diff
-- `TechniqueStore` — Persistent workflow technique library with JSON storage, search, favorites
-- `VRAMGuard` — VRAM monitoring with warn/block thresholds, pre-flight validation, emergency stop
+### Documentation
 
-**Workflow Builder Templates**
-- txt2img, img2img, upscale, inpaint, controlnet
+- Tightened the README and manual so they describe the current public surface without stale version drift.
+- Corrected resource counts, release metadata, remote-auth notes, and tool descriptions that were too broad.
 
-**Cross-App Output Routing**
-- Agent-orchestrated delivery to disk, TouchDesigner, and Blender project directories
+### Tests
 
-**Plugin Packaging**
-- Claude Code plugin manifest (`.claude-plugin/plugin.json`)
-- MCP bundle with client profiles (Claude Desktop, Cursor, generic)
-- `comfypilot-core` skill for automatic workflow guidance
-
-**Test Suite**
-- 275 tests across 17 test files
+- Expanded regression coverage for routing safety, monitoring, metadata consistency, MIME handling, auth routing, and release bundle wiring.
 - Full mock coverage with shared fixtures

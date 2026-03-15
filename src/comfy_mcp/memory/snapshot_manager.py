@@ -1,4 +1,4 @@
-"""SnapshotManager — in-memory workflow snapshots with LRU eviction.
+"""SnapshotManager - in-memory workflow snapshots with LRU eviction.
 
 Stores workflow state snapshots for undo/restore capability.
 Snapshots are ordered by creation time; oldest evicted when limit reached.
@@ -22,7 +22,7 @@ class SnapshotManager:
             max_snapshots: Maximum number of snapshots to retain.
         """
         self._max = max_snapshots
-        self._snapshots: dict[str, dict] = {}  # id → snapshot data
+        self._snapshots: dict[str, dict] = {}  # id -> snapshot data
         self._order: list[str] = []  # oldest first
         self.auto_snapshot = False  # Toggle for automatic snapshot creation
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -42,6 +43,10 @@ class ComfyClient:
             "auth_method": auth_method if api_key else "none",
         }
 
+    def _is_cloud(self) -> bool:
+        host = (urlparse(self.base_url).hostname or "").lower()
+        return host in {"cloud.comfy.org", "api.comfy.org"} or host.endswith(".cloud.comfy.org")
+
     def get_auth_headers(self) -> dict[str, str]:
         """Build auth headers for HTTP and WebSocket calls."""
         headers: dict[str, str] = {}
@@ -50,7 +55,7 @@ class ComfyClient:
 
         method = self.auth_method
         if method == "auto":
-            method = "x-api-key" if "api.comfy" in self.base_url else "bearer"
+            method = "x-api-key" if self._is_cloud() else "bearer"
 
         if method == "x-api-key":
             headers["X-API-Key"] = self.api_key
@@ -169,19 +174,33 @@ class ComfyClient:
             details={"status_code": code, "path": path, "response": body},
         )
 
+    async def _get_profiled_endpoint(self, local_path: str, cloud_path: str) -> Any:
+        """Fetch local/cloud endpoints with a sensible fallback order."""
+        profile = self.capabilities.get("profile", "unknown")
+        use_cloud_path = profile == "cloud" or (profile == "unknown" and self._is_cloud())
+        primary = cloud_path if use_cloud_path else local_path
+        secondary = local_path if use_cloud_path else cloud_path
+
+        try:
+            return await self.get(primary)
+        except ComfyAPIError as exc:
+            if exc.error_code == "HTTP_404" and secondary != primary:
+                return await self.get(secondary)
+            raise
+
     @staticmethod
     def _suggestion_for_status(code: int) -> str:
         suggestions = {
             400: "Check request parameters and workflow format",
             401: "Check COMFY_API_KEY is correct",
-            403: "Access denied — check ComfyUI auth configuration",
-            404: "Endpoint not found — check ComfyUI version supports this API",
-            500: "ComfyUI internal error — retry or check server logs",
-            503: "ComfyUI is busy — wait and retry",
+            403: "Access denied - check ComfyUI auth configuration",
+            404: "Endpoint not found - check ComfyUI version supports this API",
+            500: "ComfyUI internal error - retry or check server logs",
+            503: "ComfyUI is busy - wait and retry",
         }
         return suggestions.get(code, f"Unexpected HTTP {code}")
 
-    # ── High-Level Methods ──
+    # High-level methods
 
     async def get_system_stats(self) -> dict[str, Any]:
         return await self.get("/system_stats")
@@ -207,10 +226,10 @@ class ComfyClient:
         return result.get("models", [])
 
     async def get_features(self) -> dict[str, Any]:
-        return await self.get("/api/features")
+        return await self._get_profiled_endpoint("/features", "/api/features")
 
     async def get_extensions(self) -> list[str]:
-        result = await self.get("/api/extensions")
+        result = await self._get_profiled_endpoint("/extensions", "/api/extensions")
         if isinstance(result, list):
             return result
         return result.get("extensions", [])

@@ -1,4 +1,4 @@
-"""Models tools — 5 tools for model management."""
+"""Models tools - 5 tools for model management."""
 
 from __future__ import annotations
 

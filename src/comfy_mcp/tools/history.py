@@ -1,4 +1,4 @@
-"""History tools — 5 tools for execution history management."""
+"""History tools - 5 tools for execution history management."""
 
 from __future__ import annotations
 

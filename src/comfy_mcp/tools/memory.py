@@ -1,4 +1,4 @@
-"""Memory tools — 5 tools for workflow technique library."""
+"""Memory tools - 5 tools for workflow technique library."""
 from __future__ import annotations
 
 import json

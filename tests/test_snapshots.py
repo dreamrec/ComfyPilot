@@ -312,7 +312,7 @@ class TestAutoSnapshot:
 class TestRoundTrip:
     @pytest.mark.asyncio
     async def test_full_roundtrip_snapshot_restore(self, snap_ctx):
-        """Test full roundtrip: snapshot → list → restore → verify."""
+        """Test full roundtrip: snapshot -> list -> restore -> verify."""
         original_workflow = {
             "node_1": {"class_type": "KSampler", "inputs": {"seed": 42, "steps": 20}},
             "node_2": {"class_type": "VAEDecode", "inputs": {"samples": "1"}},

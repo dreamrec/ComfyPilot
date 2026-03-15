@@ -1,7 +1,7 @@
 [project]
 name = "comfypilot"
-version = "0.2.0"
-description = "MCP server for live AI control of ComfyUI"
+version = "1.0.0"
+description = "MCP server for live control of ComfyUI"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

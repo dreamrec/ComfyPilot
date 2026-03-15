@@ -1,4 +1,4 @@
-"""EventManager — WebSocket listener for ComfyUI execution events.
+"""EventManager - WebSocket listener for ComfyUI execution events.
 
 Connects to ComfyUI's /ws endpoint, buffers events, supports subscriptions,
 and provides auto-reconnect with exponential backoff.
@@ -27,7 +27,7 @@ class EventManager:
         self._ws_task: asyncio.Task | None = None
         self._reconnect_count = 0
         self._running = False
-        self._progress_cache: dict[str, dict] = {}  # prompt_id → latest progress
+        self._progress_cache: dict[str, dict] = {}  # prompt_id -> latest progress
 
     async def start(self) -> None:
         """Launch the WebSocket listener task."""
@@ -70,10 +70,13 @@ class EventManager:
                     async for raw_msg in ws:
                         if not self._running:
                             break
+                        if isinstance(raw_msg, bytes):
+                            # ComfyUI may send binary preview frames; ignore them for now.
+                            continue
                         try:
                             msg = json.loads(raw_msg)
                             self._dispatch(msg)
-                        except json.JSONDecodeError:
+                        except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
                             continue
 
             except asyncio.CancelledError:

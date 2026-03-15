@@ -1,4 +1,4 @@
-"""Node tools — 6 tools for node type inspection and search."""
+"""Node tools - 6 tools for node type inspection and search."""
 
 from __future__ import annotations
 

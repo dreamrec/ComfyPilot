@@ -1,7 +1,7 @@
 {
   "name": "comfypilot",
-  "version": "0.2.0",
-  "description": "AI assistant for live control of ComfyUI — 66 MCP tools for workflow building, image generation, VRAM monitoring, snapshots, and cross-app output routing",
+  "version": "1.0.0",
+  "description": "AI assistant for live control of ComfyUI with 66 MCP tools",
   "author": {
     "name": "silviu"
   }

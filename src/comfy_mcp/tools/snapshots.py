@@ -1,4 +1,4 @@
-"""Snapshot tools — 6 tools for workflow state snapshots."""
+"""Snapshot tools - 6 tools for workflow state snapshots."""
 
 from __future__ import annotations
 

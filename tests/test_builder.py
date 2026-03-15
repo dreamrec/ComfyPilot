@@ -1,4 +1,4 @@
-"""Tests for builder tools — 5 tools for programmatic workflow construction."""
+"""Tests for builder tools - 5 tools for programmatic workflow construction."""
 from __future__ import annotations
 
 import json
@@ -358,7 +358,7 @@ class TestApplyTemplate:
 class TestRoundTrip:
     @pytest.mark.asyncio
     async def test_full_round_trip(self, builder_ctx):
-        """Build → add_node → connect → set_widget → verify final state."""
+        """Build -> add_node -> connect -> set_widget -> verify final state."""
         # 1. Build a txt2img workflow
         build_result = json.loads(
             await comfy_build_workflow("txt2img", ctx=builder_ctx)

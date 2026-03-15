@@ -62,6 +62,43 @@ class TestEventManagerDispatch:
         event_mgr._dispatch({"data": {"foo": "bar"}})
         assert event_mgr._event_buffer[0]["type"] == "unknown"
 
+    @pytest.mark.asyncio
+    async def test_ws_loop_ignores_binary_frames(self, event_mgr):
+        class FakeWS:
+            async def __aenter__(self_inner):
+                return self_inner
+
+            async def __aexit__(self_inner, exc_type, exc, tb):
+                return False
+
+            def __aiter__(self_inner):
+                async def _iter():
+                    yield b"\x89PNG"
+                    event_mgr._running = False
+                return _iter()
+
+        def fake_connect(*args, **kwargs):
+            return FakeWS()
+
+        original_import = __import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "websockets":
+                return type("WebsocketsModule", (), {"connect": fake_connect})
+            return original_import(name, *args, **kwargs)
+
+        event_mgr._running = True
+        try:
+            import builtins
+
+            builtins_import = builtins.__import__
+            builtins.__import__ = fake_import
+            await event_mgr._ws_loop()
+        finally:
+            builtins.__import__ = builtins_import
+
+        assert len(event_mgr._event_buffer) == 0
+
 
 class TestEventManagerSubscriptions:
     def test_subscribe(self, event_mgr):

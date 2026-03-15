@@ -1,4 +1,4 @@
-"""Tests for memory tools — TechniqueStore + 5 memory tools."""
+"""Tests for memory tools - TechniqueStore + 5 memory tools."""
 
 from __future__ import annotations
 
@@ -336,7 +336,7 @@ class TestDeleteTechnique:
 class TestRoundTrip:
     @pytest.mark.asyncio
     async def test_full_roundtrip_save_search_replay(self, mem_ctx):
-        """Full round-trip: save → search → replay → verify workflow matches."""
+        """Full round-trip: save -> search -> replay -> verify workflow matches."""
         original_workflow = {
             "node_1": {"class_type": "KSampler", "inputs": {"seed": 99, "steps": 30}},
             "node_2": {"class_type": "VAEDecode", "inputs": {"samples": "link"}},

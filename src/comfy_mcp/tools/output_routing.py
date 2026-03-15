@@ -1,4 +1,4 @@
-"""Output routing tools — 4 tools for cross-app image delivery."""
+"""Output routing tools - 4 tools for cross-app image delivery."""
 
 from __future__ import annotations
 

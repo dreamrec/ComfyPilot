@@ -1,4 +1,4 @@
-"""TechniqueStore — persistent workflow technique library.
+"""TechniqueStore - persistent workflow technique library.
 
 Stores reusable workflow patterns (techniques) with search, favorites, and ratings.
 Persists to JSON files in a configurable directory.

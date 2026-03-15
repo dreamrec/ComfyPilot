@@ -1,4 +1,4 @@
-"""Safety tools — 5 tools for VRAM monitoring and safety enforcement."""
+"""Safety tools - 5 tools for VRAM monitoring and safety enforcement."""
 from __future__ import annotations
 
 import json
@@ -102,7 +102,7 @@ async def comfy_detect_instability(ctx: Context = None) -> str:
 async def comfy_emergency_stop(ctx: Context = None) -> str:
     """Emergency stop: interrupt current job, clear queue, and free VRAM.
 
-    WARNING: This is destructive — it will cancel all running and pending jobs.
+    WARNING: This is destructive - it will cancel all running and pending jobs.
 
     Returns:
         JSON with status and list of actions taken
