@@ -1,9 +1,10 @@
 {
   "name": "comfypilot",
-  "version": "1.5.0",
-  "description": "MCP server for live control of ComfyUI with 72 tools across 14 categories",
+  "version": "1.5.1",
+  "description": "MCP server for live control of ComfyUI with 73 tools across 15 categories: system, models, workflow execution, nodes, images, history, monitoring, snapshots, memory, safety, builder, output routing, blueprints, viz/ingest/sweep, hub search.",
   "author": "ComfyPilot",
   "license": "MIT",
+  "transports": ["stdio", "streamable-http"],
   "transport": "stdio",
   "command": "uv",
   "args": ["run", "--directory", "/path/to/ComfyPilot", "comfypilot"],
@@ -13,8 +14,12 @@
       "default": "http://127.0.0.1:8188"
     },
     "COMFY_API_KEY": {
-      "description": "Optional API key for ComfyUI authentication",
+      "description": "Optional API key for ComfyUI authentication (Authorization: Bearer for local, X-API-Key for Comfy Cloud)",
       "default": ""
+    },
+    "COMFY_AUTH_METHOD": {
+      "description": "Auth header style: auto | bearer | x-api-key",
+      "default": "auto"
     },
     "COMFY_TIMEOUT": {
       "description": "HTTP request timeout in seconds",
@@ -23,6 +28,14 @@
     "COMFY_SNAPSHOT_LIMIT": {
       "description": "Maximum number of workflow snapshots to retain",
       "default": "50"
+    },
+    "COMFY_SNAPSHOT_DIR": {
+      "description": "Optional directory to persist snapshots across restarts. If unset, snapshots are in-memory only.",
+      "default": ""
+    },
+    "COMFY_BLUEPRINT_DIR": {
+      "description": "Directory for user-published subgraph blueprints. Falls back to bundled examples.",
+      "default": "~/.comfypilot/blueprints"
     },
     "COMFY_OUTPUT_DIR": {
       "description": "Default output directory for saved images",
@@ -51,6 +64,7 @@
     "builder",
     "output_routing",
     "blueprints",
-    "viz_ingest_sweep"
+    "viz_ingest_sweep",
+    "hub_search"
   ]
 }

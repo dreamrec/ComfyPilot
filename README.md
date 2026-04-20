@@ -7,9 +7,20 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.5.0
+# ComfyPilot v1.5.1
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-1.5.1-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.5.1)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
+[![MCP tools](https://img.shields.io/badge/MCP%20tools-73-brightgreen)](#tool-map-73-tools)
+[![MCP resources](https://img.shields.io/badge/MCP%20resources-5%20%2B%203%20templates-brightgreen)](#mcp-resources)
+[![Blueprints](https://img.shields.io/badge/bundled%20blueprints-9-teal)](blueprints/)
+[![Tests](https://img.shields.io/badge/tests-516%20passing-brightgreen)](tests/)
+[![MCP spec](https://img.shields.io/badge/MCP-2026--03--26-blueviolet)](https://modelcontextprotocol.io)
+[![ComfyUI](https://img.shields.io/badge/ComfyUI-v0.17%2B-orange)](https://github.com/comfyanonymous/ComfyUI)
+[![Families](https://img.shields.io/badge/model%20families-10-teal)](#model-families)
+[![Transports](https://img.shields.io/badge/transports-stdio%20%7C%20streamable--http-lightgrey)](#transports)
 
 **ComfyPilot** is an MCP server for ComfyUI.
 It gives an AI agent a clean tool surface for workflow building, queueing, progress monitoring, image retrieval, snapshots, and VRAM safety.
@@ -34,7 +45,7 @@ Use this loop for every non-trivial task:
 
 2. **Check memory** - Before building from scratch, use `comfy_search_techniques` to check if a similar workflow already exists in the library.
 
-3. **Build in small steps** - Use `comfy_build_workflow` for common patterns (txt2img, img2img, upscale, inpaint, controlnet), or construct API-format JSON. Validate with `comfy_validate_workflow` before queueing.
+3. **Build in small steps** - Use `comfy_build_workflow` for any intent (txt2img, img2img, upscale, inpaint, controlnet, txt2video, img2video, image2_3d, txt2music) and the family is auto-detected from the installed checkpoint. For common recipes, start from `comfy_insert_blueprint(name="flux2-txt2img")` or any of the 9 bundled blueprints. Validate with `comfy_validate_workflow` before queueing (5-pass: schema, catalog, graph, environment, execution-risk).
 
 4. **Monitor and retrieve** - Queue with `comfy_queue_prompt`, watch with `comfy_watch_progress`, retrieve with `comfy_get_output_image` (returns image content blocks directly in chat).
 
@@ -114,13 +125,13 @@ Use for guardrails, pre-flight checks, and emergency control.
 - `comfy_emergency_stop` - Interrupt current job, clear queue, free all VRAM.
 
 ### 11) Workflow Builder
-Use for template-based workflow construction and editing.
+Use for family-aware template construction and node editing.
 
-- `comfy_build_workflow` - Build from templates: txt2img, img2img, upscale, inpaint, controlnet.
+- `comfy_build_workflow` - Family-aware: detects the checkpoint family (SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, ACE-Step) and dispatches to the right graph topology. Intents: `txt2img`, `img2img`, `upscale`, `inpaint`, `controlnet`, `txt2video`, `img2video`, `image2_3d`, `txt2music`.
 - `comfy_add_node` - Add a node to a workflow-in-progress.
 - `comfy_connect_nodes` - Wire node outputs to inputs.
 - `comfy_set_widget_value` - Set widget values on nodes.
-- `comfy_apply_template` - Apply a named template to an existing workflow.
+- `comfy_apply_template` - Alias for `comfy_build_workflow`.
 
 ### 12) Output Routing
 Use for agent-orchestrated cross-app delivery of generated images.
@@ -151,13 +162,21 @@ Use for discovering models to download from public hubs.
 
 - `comfy_search_hub` - Search HuggingFace or CivitAI for models matching a query. Returns normalized hits (id, name, url, downloads, tags). Use `source="huggingface"` or `source="civitai"`.
 
-## MCP Resources (5)
+## MCP Resources
+
+Five fixed resources:
 
 - `comfy://system/info` - System stats, GPU info, ComfyUI version
-- `comfy://server/capabilities` - Detected server profile, version, auth method
+- `comfy://server/capabilities` - Detected server profile, version, auth method, WebSocket availability
 - `comfy://nodes/catalog` - Node catalog preview (first 100 names)
-- `comfy://models/{folder}` - Model listing by folder (checkpoints, loras, etc.)
+- `comfy://models/{folder}` - Model listing by folder (checkpoints, loras, vae, diffusion_models, text_encoders, etc.)
 - `comfy://embeddings` - Available embeddings
+
+Plus three resource templates (parameterized URIs):
+
+- `comfy://nodes/catalog/{page}` - Paginated node catalog, 100 nodes per page (`{page}` = 0, 1, 2, ...)
+- `comfy://nodes/by-category/{category}` - Node class_types whose category starts with the given prefix (e.g. `sampling`, `loaders/video`)
+- `comfy://templates/catalog` - Workflow templates advertised by ComfyUI core + custom nodes (via `/workflow_templates`)
 
 ## How To Use It (Practical Workflow)
 
@@ -172,12 +191,18 @@ Use for discovering models to download from public hubs.
 ## What It Is Good At
 
 - Building and iterating on ComfyUI workflows through conversation.
-- Template-based generation (txt2img, img2img, upscale, inpaint, controlnet) with sensible defaults.
-- Monitoring GPU resources and preventing OOM situations.
+- Family-aware generation across 10 model families (SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, ACE-Step) covering images, video, 3D meshes, and music.
+- Starting from bundled blueprints for every family (9 ship in-repo) and customizing from there.
+- 5-pass workflow validation catching broken links, missing models, oversized latents before you hit ComfyUI.
+- Monitoring GPU resources and preventing OOM situations via VRAMGuard.
 - Returning generated images directly in the chat (image content blocks).
-- Cross-app output routing to TouchDesigner and Blender projects.
-- Snapshot/restore for non-destructive workflow experimentation.
-- Learning and replaying reusable workflow patterns.
+- Cross-app output routing to TouchDesigner and Blender with atomic writes + sidecar manifests (prompt_id, seeds, model refs, dimensions).
+- Snapshot/restore for non-destructive workflow experimentation, now optionally persistent across restarts.
+- Learning and replaying reusable workflow patterns via the technique library.
+- Parameter sweeps (queue N variations of a single widget value).
+- Importing a workflow back from a saved PNG's embedded metadata.
+- Rendering any workflow as Mermaid for quick visual inspection.
+- Searching HuggingFace and CivitAI directly for models.
 
 ## What It Is Not Good At
 
@@ -186,6 +211,32 @@ Use for discovering models to download from public hubs.
 - Streaming real-time video output (snapshots and polls, not live frames).
 - Automatic custom node installation or dependency management.
 - "One shot perfect generation" without iterative refinement.
+
+## Model Families
+
+10 first-class model families. Each has a builder template (or several) that emits a workflow matched to the right graph topology. The family is detected from the checkpoint filename; you can override by passing `checkpoint=` in params.
+
+| Family | Intents | Distinctive nodes |
+|---|---|---|
+| SD 1.5 | txt2img, img2img, upscale, inpaint, controlnet | `CheckpointLoaderSimple`, `KSampler`, `EmptyLatentImage` |
+| SDXL | txt2img | `CheckpointLoaderSimple`, 1024x1024 defaults, `karras` scheduler |
+| SD 3.5 | txt2img | `ModelSamplingSD3`, `EmptySD3LatentImage`, `dpmpp_2m` / `sgm_uniform` |
+| Flux 2 / Klein | txt2img | `UNETLoader`, `DualCLIPLoader` (flux), `FluxGuidance`, `SamplerCustomAdvanced` |
+| Qwen-Image | txt2img | `UNETLoader`, `CLIPLoader(type=qwen_image)`, `EmptySD3LatentImage` |
+| Wan 2.2 | txt2video, img2video | `UNETLoader`, `CLIPLoader(type=wan)`, `EmptyHunyuanLatentVideo`, `WanImageToVideo` |
+| LTX-2 | txt2video | `LTXVConditioning`, `LTXVScheduler`, `EmptyLTXVLatentVideo` |
+| HunyuanVideo 1.5 | txt2video, img2video | `DualCLIPLoader(type=hunyuan_video)`, `EmptyHunyuanLatentVideo`, `HunyuanImageToVideo` |
+| Hunyuan3D 2.1 | image2_3d | `EmptyLatentHunyuan3Dv2`, `VAEDecodeHunyuan3D`, `SaveGLB` |
+| ACE-Step 1.5 XL | txt2music | `EmptyAceStepLatentAudio`, `TextEncodeAceStepAudio`, `SaveAudio` |
+
+## Transports
+
+- **stdio** (default) - Best for local clients like Claude Code, Claude Desktop, Cursor.
+- **streamable-http** - Best for hosted / remote deployments. Enable with:
+
+```bash
+uv run comfypilot --transport streamable-http --host 0.0.0.0 --port 8765
+```
 
 ## Support Matrix
 
@@ -257,14 +308,18 @@ Manual client configuration example (Claude Desktop):
 
 ## Environment Variables
 
-- `COMFY_URL` (default `http://127.0.0.1:8188`) - ComfyUI server URL
-- `COMFY_API_KEY` (default empty) - Optional API key for authenticated access
-- `COMFY_TIMEOUT` (default `300`) - HTTP request timeout in seconds
-- `COMFY_SNAPSHOT_LIMIT` (default `50`) - Maximum workflow snapshots retained in memory
-- `COMFY_OUTPUT_DIR` (default `~/comfypilot_output`) - Image output directory for disk routing
-- `COMFY_TD_OUTPUT_DIR` (default `~/comfypilot_output/touchdesigner`) - TouchDesigner output path
-- `COMFY_BLENDER_OUTPUT_DIR` (default `~/comfypilot_output/blender`) - Blender output path
-- `COMFY_AUTH_METHOD` (default `auto`) - Auth method: `auto`, `bearer`, or `x-api-key`
+| Variable | Default | Description |
+|---|---|---|
+| `COMFY_URL` | `http://127.0.0.1:8188` | ComfyUI server URL |
+| `COMFY_API_KEY` | *(empty)* | Optional API key (Bearer for local, X-API-Key for Comfy Cloud) |
+| `COMFY_AUTH_METHOD` | `auto` | Auth header style: `auto`, `bearer`, or `x-api-key` |
+| `COMFY_TIMEOUT` | `300` | HTTP request timeout in seconds |
+| `COMFY_SNAPSHOT_LIMIT` | `50` | Maximum workflow snapshots retained |
+| `COMFY_SNAPSHOT_DIR` | *(empty)* | If set, persists snapshots to this directory. If empty, snapshots are in-memory only (pre-1.3 behavior). |
+| `COMFY_BLUEPRINT_DIR` | `~/.comfypilot/blueprints` | User-published subgraph blueprints (bundled examples fall back automatically). |
+| `COMFY_OUTPUT_DIR` | `~/comfypilot_output` | Image output directory for disk routing |
+| `COMFY_TD_OUTPUT_DIR` | `~/comfypilot_output/touchdesigner` | TouchDesigner output path |
+| `COMFY_BLENDER_OUTPUT_DIR` | `~/comfypilot_output/blender` | Blender output path |
 
 ## Test Suite
 

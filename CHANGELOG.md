@@ -2,6 +2,23 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.5.1] - 2026-04-20
+
+### Docs refresh: full audit, drift repair, badge row
+
+- audit: caught stale tool count (72 in 4 metadata files; actual is 73) - all fixed.
+- chore: mcp/manifest.json categories list now includes `hub_search` (14 -> 15 categories).
+- feat: README badge row beyond CI - Version, License (MIT), Python (3.10/3.11/3.12), MCP tools (73), MCP resources (5+3), Blueprints (9), Tests (516), MCP spec (2026-03-26), ComfyUI (v0.17+), Families (10), Transports (stdio / streamable-http).
+- feat: README gains Model Families table (distinctive nodes per family) and Transports section documenting --transport streamable-http launch.
+- docs: README Tool Map entry 11 now lists every intent including txt2video / img2video / image2_3d / txt2music.
+- docs: README MCP Resources section expanded to 5 fixed + 3 resource templates with URI patterns.
+- docs: README "What It Is Good At" mentions video, 3D, music, bundled blueprints, parameter sweeps, PNG round-trip, Mermaid, hub search.
+- docs: README Environment Variables is now a table and includes `COMFY_SNAPSHOT_DIR` + `COMFY_BLUEPRINT_DIR`.
+- docs: MANUAL.md rewritten. Accurate 73-tool reference (new sections: Blueprints, Viz+Ingest+Sweep, Hub Search, Structured Output, Elicitation, Transports, Model families). File structure diagram updated to current package layout. Architecture diagram reflects 13 subsystems. Snapshot persistence, atomic writes + manifests, Comfy Cloud example all documented.
+- docs: skills/comfypilot-core/SKILL.md refreshed - 73 tools, 15 categories, 5+3 resources, structured output note, model families table, elicitation docs.
+- chore: mcp/profiles/generic.json includes all 10 env vars.
+- chore: server.json gains `COMFY_SNAPSHOT_DIR` env var and broader keywords (sdxl, sd3.5, qwen-image, wan2.2, ltx-2, hunyuan3d, image-to-3d, music-generation, subgraph-blueprints, mcp, mcp-server).
+
 ## [1.5.0] - 2026-04-20
 
 ### Cloud WS probe, hub search, bundled blueprints for every family

@@ -1,8 +1,8 @@
 {
   "$schema": "https://modelcontextprotocol.io/schemas/server.json",
   "name": "io.github.dreamrec/comfypilot",
-  "description": "MCP server for ComfyUI. 72 tools for workflow building (family-aware: Flux 2, SD 3.5, Qwen, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, ACE-Step), queueing, monitoring, persistent snapshots, VRAM safety, subgraph blueprints, Mermaid visualization, PNG workflow ingest, parameter sweeps, and cross-app routing to TouchDesigner / Blender.",
-  "version": "1.5.0",
+  "description": "MCP server for ComfyUI. 73 tools for workflow building (family-aware: SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, ACE-Step), queueing, monitoring, persistent snapshots, VRAM safety, subgraph blueprints (9 bundled), Mermaid visualization, PNG workflow ingest, parameter sweeps, HuggingFace + CivitAI hub search, streamable-http transport, elicitation-gated destructive ops, and cross-app routing to TouchDesigner / Blender.",
+  "version": "1.5.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/dreamrec/ComfyPilot"
@@ -13,7 +13,7 @@
     {
       "registry": "pypi",
       "name": "comfypilot",
-      "version": "1.5.0"
+      "version": "1.5.1"
     }
   ],
   "runtime": {
@@ -40,8 +40,12 @@
         "description": "Max workflow snapshots retained in memory",
         "default": "50"
       },
+      "COMFY_SNAPSHOT_DIR": {
+        "description": "Optional directory to persist snapshots across restarts. If unset, snapshots are in-memory only.",
+        "default": ""
+      },
       "COMFY_BLUEPRINT_DIR": {
-        "description": "User blueprint directory",
+        "description": "User blueprint directory (bundled examples still available)",
         "default": "~/.comfypilot/blueprints"
       },
       "COMFY_OUTPUT_DIR": {
@@ -72,15 +76,28 @@
   "keywords": [
     "comfyui",
     "stable-diffusion",
+    "sdxl",
+    "sd3.5",
     "flux",
+    "flux2",
+    "qwen-image",
     "wan",
+    "wan2.2",
     "ltx",
+    "ltx-2",
     "hunyuan",
+    "hunyuanvideo",
+    "hunyuan3d",
     "ace-step",
     "image-generation",
     "video-generation",
+    "music-generation",
+    "image-to-3d",
     "workflow-automation",
-    "ai",
-    "agent"
+    "subgraph-blueprints",
+    "mcp",
+    "mcp-server",
+    "agent",
+    "ai"
   ]
 }
