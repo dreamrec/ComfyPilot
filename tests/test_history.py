@@ -58,10 +58,9 @@ class TestGetRunResult:
         """Test getting result of a specific prompt execution."""
         mock_client.get_history = AsyncMock(return_value={"prompt_1": MOCK_HISTORY["prompt_1"]})
         result = await comfy_get_run_result(prompt_id="prompt_1", ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["prompt_id"] == "prompt_1"
-        assert data["status"]["status_str"] == "success"
-        assert "images" in data["outputs"]["1"]
+        assert result.prompt_id == "prompt_1"
+        assert result.status["status_str"] == "success"
+        assert "images" in result.outputs["1"]
         mock_client.get_history.assert_awaited_once_with(prompt_id="prompt_1")
 
     @pytest.mark.asyncio
@@ -69,9 +68,8 @@ class TestGetRunResult:
         """Test getting result for non-existent prompt."""
         mock_client.get_history = AsyncMock(return_value={})
         result = await comfy_get_run_result(prompt_id="nonexistent", ctx=mock_ctx)
-        data = json.loads(result)
-        assert "error" in data
-        assert data["prompt_id"] == "nonexistent"
+        assert result.error is not None
+        assert result.prompt_id == "nonexistent"
 
 
 class TestDeleteHistory:

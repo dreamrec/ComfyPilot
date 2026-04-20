@@ -31,9 +31,8 @@ class TestQueuePrompt:
             workflow={"1": {"class_type": "KSampler"}},
             ctx=mock_ctx,
         )
-        data = json.loads(result)
-        assert data["prompt_id"] == "abc123"
-        assert data["queue_position"] == 1
+        assert result.prompt_id == "abc123"
+        assert result.queue_position == 1
         # Verify progress was reported
         mock_ctx.report_progress.assert_any_call(0, 100)
         mock_ctx.report_progress.assert_any_call(100, 100)
@@ -49,9 +48,8 @@ class TestQueuePrompt:
             front=True,
             ctx=mock_ctx,
         )
-        data = json.loads(result)
-        assert data["prompt_id"] == "def456"
-        assert data["queue_position"] == 0
+        assert result.prompt_id == "def456"
+        assert result.queue_position == 0
         mock_client.queue_prompt.assert_awaited_once_with(
             {"1": {"class_type": "KSampler"}},
             front=True,
@@ -84,8 +82,8 @@ class TestQueuePrompt:
         mock_ctx.request_context.lifespan_context["snapshot_manager"] = mgr
         workflow = {"1": {"class_type": "KSampler"}}
 
-        result = json.loads(await comfy_queue_prompt(workflow=workflow, ctx=mock_ctx))
-        snapshot_id = result["auto_snapshot"]["id"]
+        result = await comfy_queue_prompt(workflow=workflow, ctx=mock_ctx)
+        snapshot_id = result.auto_snapshot["id"]
         snapshot = mgr.get(snapshot_id)
 
         assert snapshot is not None
@@ -160,24 +158,21 @@ class TestValidateWorkflow:
             workflow={"1": {"class_type": "KSampler", "inputs": {}}},
             ctx=mock_ctx,
         )
-        data = json.loads(result)
-        assert data["valid"] is True
-        assert data["node_count"] == 1
-        assert data["errors"] == []
+        assert result.valid is True
+        assert result.node_count == 1
+        assert result.errors == []
 
     @pytest.mark.asyncio
     async def test_empty_workflow(self, mock_ctx):
         result = await comfy_validate_workflow(workflow={}, ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["valid"] is False
-        assert "cannot be empty" in data["errors"][0].lower()
+        assert result.valid is False
+        assert "cannot be empty" in result.errors[0].lower()
 
     @pytest.mark.asyncio
     async def test_workflow_not_dict(self, mock_ctx):
         result = await comfy_validate_workflow(workflow=[], ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["valid"] is False
-        assert "must be a dict" in data["errors"][0].lower()
+        assert result.valid is False
+        assert "must be a dict" in result.errors[0].lower()
 
     @pytest.mark.asyncio
     async def test_workflow_missing_class_type(self, mock_ctx):
@@ -185,9 +180,8 @@ class TestValidateWorkflow:
             workflow={"1": {"inputs": {}}},
             ctx=mock_ctx,
         )
-        data = json.loads(result)
-        assert data["valid"] is False
-        assert "missing 'class_type'" in data["errors"][0]
+        assert result.valid is False
+        assert "missing 'class_type'" in result.errors[0]
 
     @pytest.mark.asyncio
     async def test_workflow_multiple_nodes(self, mock_ctx):
@@ -199,9 +193,8 @@ class TestValidateWorkflow:
             },
             ctx=mock_ctx,
         )
-        data = json.loads(result)
-        assert data["valid"] is True
-        assert data["node_count"] == 3
+        assert result.valid is True
+        assert result.node_count == 3
 
     @pytest.mark.asyncio
     async def test_validate_detects_unknown_node_type(self, mock_ctx, mock_client):
@@ -213,9 +206,8 @@ class TestValidateWorkflow:
             workflow={"1": {"class_type": "FakeNode", "inputs": {}}},
             ctx=mock_ctx,
         )
-        result_dict = json.loads(result)
-        assert not result_dict["valid"]
-        assert any("FakeNode" in e for e in result_dict["errors"])
+        assert not result.valid
+        assert any("FakeNode" in e for e in result.errors)
 
     @pytest.mark.asyncio
     async def test_validate_passes_valid_workflow(self, mock_ctx, mock_client):
@@ -231,8 +223,7 @@ class TestValidateWorkflow:
             },
             ctx=mock_ctx,
         )
-        result_dict = json.loads(result)
-        assert result_dict["valid"]
+        assert result.valid
 
     @pytest.mark.asyncio
     async def test_validate_checks_broken_links(self, mock_ctx, mock_client):
@@ -244,9 +235,8 @@ class TestValidateWorkflow:
             workflow={"1": {"class_type": "KSampler", "inputs": {"model": ["99", 0]}}},
             ctx=mock_ctx,
         )
-        result_dict = json.loads(result)
-        assert not result_dict["valid"]
-        assert any("99" in e for e in result_dict["errors"])
+        assert not result.valid
+        assert any("99" in e for e in result.errors)
 
 
 class TestExportWorkflow:

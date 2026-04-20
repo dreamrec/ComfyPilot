@@ -55,29 +55,28 @@ async def comfy_get_history(limit: int = 20, ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_get_run_result(prompt_id: str, ctx: Context = None) -> str:
-    """Get result of a specific prompt execution.
+async def comfy_get_run_result(prompt_id: str, ctx: Context = None) -> "RunResult":
+    """Get result of a specific prompt execution. Returns structured RunResult.
 
     Args:
         prompt_id: The ID of the prompt execution to retrieve
-
-    Returns:
-        JSON with the prompt result (outputs, status)
     """
+    from comfy_mcp.responses import RunResult
+
     history = await _client(ctx).get_history(prompt_id=prompt_id)
     if not history:
-        return json.dumps({
-            "error": f"No history found for prompt_id: {prompt_id}",
-            "prompt_id": prompt_id,
-        }, indent=2)
+        return RunResult(
+            prompt_id=prompt_id,
+            error=f"No history found for prompt_id: {prompt_id}",
+        )
 
     data = history.get(prompt_id, {})
-    return json.dumps({
-        "prompt_id": prompt_id,
-        "status": data.get("status", {}),
-        "outputs": data.get("outputs", {}),
-        "prompt": data.get("prompt", []),
-    }, indent=2)
+    return RunResult(
+        prompt_id=prompt_id,
+        status=data.get("status", {}) or {},
+        outputs=data.get("outputs", {}) or {},
+        prompt=data.get("prompt", []) or [],
+    )
 
 
 @mcp.tool(

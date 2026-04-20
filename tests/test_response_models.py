@@ -49,15 +49,15 @@ def test_model_list_pagination_fields():
 
 
 def test_vram_status_level_literal():
-    v = VRAMStatus(level="critical", vram_free_mb=100.0, vram_total_mb=12000.0)
-    assert v.level == "critical"
+    v = VRAMStatus(status="critical", vram_used_pct=98.5)
+    assert v.status == "critical"
     with pytest.raises(Exception):
-        VRAMStatus(level="fine")
+        VRAMStatus(status="fine")
 
 
 def test_system_stats_accepts_empty_defaults():
     s = SystemStats()
-    assert s.ram_total == 0
+    assert s.system.ram_total == 0
     assert s.devices == []
 
 
@@ -87,8 +87,9 @@ def test_snapshot_entry_and_list():
 
 
 def test_watch_progress_frame_shape():
-    f = WatchProgressFrame(prompt_id="x", progress=10, max_progress=20, status="running", elapsed_s=3.5)
+    f = WatchProgressFrame(prompt_id="x", progress=10, max_progress=20, status="ok", elapsed_s=3.5)
     assert f.progress == 10.0
+    assert f.status == "ok"
 
 
 def test_technique_entry_required_fields():

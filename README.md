@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.3.1
+# ComfyPilot v1.4.0
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
 
@@ -191,6 +191,7 @@ Use for rendering workflows, re-importing PNG outputs, and parameter sweeps.
 | stdio transport | Supported | Default |
 | Streamable HTTP transport | Supported | `comfypilot --transport streamable-http --host 0.0.0.0 --port 8765` |
 | Elicitation on destructive tools | Supported | clear_queue, clear_history, delete_history, delete_snapshot, emergency_stop gate on ctx.elicit when confirm=False |
+| Structured output | Supported | Top 10 tools return typed Pydantic models (SystemStats, ValidationReport, QueueAck, RunResult, ModelList, TechniqueList, SnapshotList, VRAMStatus, DynamicsReport, WatchProgressFrame) |
 | Paginated node catalog | Supported | `comfy://nodes/catalog/{page}` (100 per page) + `comfy://nodes/by-category/{category}` |
 | MCP Registry publishing | Manifest ready | `server.json` declares `io.github.dreamrec/comfypilot` |
 | Workflow JSON (v0.17+ spec) | Supported | 5-pass validation: schema + catalog + graph + environment + execution-risk |

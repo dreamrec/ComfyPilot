@@ -60,24 +60,23 @@ def _guard(ctx) -> VRAMGuard:
 class TestCheckVram:
     @pytest.mark.asyncio
     async def test_ok_status(self, safety_ctx):
-        result = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        assert result["status"] == "ok"
-        assert result["vram_used_pct"] < 80.0
-        assert len(result["devices"]) == 1
-        assert result["devices"][0]["name"] == "NVIDIA GeForce RTX 5090"
+        result = await comfy_check_vram(ctx=safety_ctx)
+        assert result.status == "ok"
+        assert result.vram_used_pct < 80.0
+        assert len(result.devices) == 1
+        assert result.devices[0].name == "NVIDIA GeForce RTX 5090"
 
     @pytest.mark.asyncio
     async def test_warn_status(self, safety_ctx):
-        # 85% used -> warn
         guard = _guard(safety_ctx)
         total = 1000
         guard._client.get_system_stats = AsyncMock(return_value={
             "devices": [{"name": "GPU", "vram_total": total, "vram_free": 150}],
         })
-        result = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        assert result["status"] == "warn"
-        assert result["vram_used_pct"] == 85.0
-        assert result["devices"][0]["status"] == "warn"
+        result = await comfy_check_vram(ctx=safety_ctx)
+        assert result.status == "warn"
+        assert result.vram_used_pct == 85.0
+        assert result.devices[0].status == "warn"
 
     @pytest.mark.asyncio
     async def test_critical_status(self, safety_ctx):
@@ -85,36 +84,35 @@ class TestCheckVram:
         guard._client.get_system_stats = AsyncMock(return_value={
             "devices": [{"name": "GPU", "vram_total": 1000, "vram_free": 30}],
         })
-        result = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        assert result["status"] == "critical"
-        assert result["vram_used_pct"] == 97.0
-        assert result["devices"][0]["status"] == "critical"
+        result = await comfy_check_vram(ctx=safety_ctx)
+        assert result.status == "critical"
+        assert result.vram_used_pct == 97.0
+        assert result.devices[0].status == "critical"
 
     @pytest.mark.asyncio
     async def test_no_devices_returns_unknown(self, safety_ctx):
         guard = _guard(safety_ctx)
         guard._client.get_system_stats = AsyncMock(return_value={"devices": []})
-        result = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        assert result["status"] == "unknown"
-        assert result["devices"] == []
-        assert "No GPU devices found" in result["message"]
+        result = await comfy_check_vram(ctx=safety_ctx)
+        assert result.status == "unknown"
+        assert result.devices == []
+        assert "No GPU devices found" in result.message
 
     @pytest.mark.asyncio
     async def test_device_info_fields(self, safety_ctx):
-        result = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        dev = result["devices"][0]
+        result = await comfy_check_vram(ctx=safety_ctx)
+        dev = result.devices[0]
         for field in ("name", "vram_total", "vram_free", "vram_used", "vram_used_pct", "status"):
-            assert field in dev
+            assert hasattr(dev, field)
 
     @pytest.mark.asyncio
     async def test_exactly_at_warn_threshold(self, safety_ctx):
-        # exactly 80% used
         guard = _guard(safety_ctx)
         guard._client.get_system_stats = AsyncMock(return_value={
             "devices": [{"name": "GPU", "vram_total": 1000, "vram_free": 200}],
         })
-        result = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        assert result["status"] == "warn"
+        result = await comfy_check_vram(ctx=safety_ctx)
+        assert result.status == "warn"
 
     @pytest.mark.asyncio
     async def test_exactly_at_block_threshold(self, safety_ctx):
@@ -123,8 +121,8 @@ class TestCheckVram:
         guard._client.get_system_stats = AsyncMock(return_value={
             "devices": [{"name": "GPU", "vram_total": 1000, "vram_free": 50}],
         })
-        result = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        assert result["status"] == "critical"
+        result = await comfy_check_vram(ctx=safety_ctx)
+        assert result.status == "critical"
 
 
 # ---------------------------------------------------------------------------
@@ -306,13 +304,13 @@ class TestRoundTrip:
         })
 
         # First check -> ok with default 80% warn threshold
-        result1 = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        assert result1["status"] == "ok"
-        assert result1["vram_used_pct"] == 50.0
+        result1 = await comfy_check_vram(ctx=safety_ctx)
+        assert result1.status == "ok"
+        assert result1.vram_used_pct == 50.0
 
         # Lower warn threshold to 40%
         await comfy_set_limits(warn_pct=40.0, ctx=safety_ctx)
 
         # Second check -> now warn because 50% >= 40%
-        result2 = json.loads(await comfy_check_vram(ctx=safety_ctx))
-        assert result2["status"] == "warn"
+        result2 = await comfy_check_vram(ctx=safety_ctx)
+        assert result2.status == "warn"

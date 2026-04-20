@@ -23,46 +23,42 @@ class TestListModels:
             return_value=["model_a.safetensors", "model_b.safetensors"]
         )
         result = await comfy_list_models("checkpoints", ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["total_count"] == 2
-        assert data["folder"] == "checkpoints"
-        assert data["has_more"] is False
-        assert data["next_offset"] is None
-        assert len(data["models"]) == 2
+        assert result.total_count == 2
+        assert result.folder == "checkpoints"
+        assert result.has_more is False
+        assert result.next_offset is None
+        assert len(result.models) == 2
 
     @pytest.mark.asyncio
     async def test_list_models_pagination_has_more(self, mock_ctx, mock_client):
         models = [f"model_{i}.safetensors" for i in range(100)]
         mock_client.get_models = AsyncMock(return_value=models)
         result = await comfy_list_models("checkpoints", limit=50, offset=0, ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["total_count"] == 100
-        assert data["has_more"] is True
-        assert data["next_offset"] == 50
-        assert len(data["models"]) == 50
+        assert result.total_count == 100
+        assert result.has_more is True
+        assert result.next_offset == 50
+        assert len(result.models) == 50
 
     @pytest.mark.asyncio
     async def test_list_models_pagination_offset(self, mock_ctx, mock_client):
         models = [f"model_{i}.safetensors" for i in range(150)]
         mock_client.get_models = AsyncMock(return_value=models)
         result = await comfy_list_models("checkpoints", limit=50, offset=50, ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["total_count"] == 150
-        assert data["has_more"] is True
-        assert data["next_offset"] == 100
-        assert len(data["models"]) == 50
-        assert data["models"][0] == "model_50.safetensors"
+        assert result.total_count == 150
+        assert result.has_more is True
+        assert result.next_offset == 100
+        assert len(result.models) == 50
+        assert result.models[0] == "model_50.safetensors"
 
     @pytest.mark.asyncio
     async def test_list_models_pagination_last_page(self, mock_ctx, mock_client):
         models = [f"model_{i}.safetensors" for i in range(100)]
         mock_client.get_models = AsyncMock(return_value=models)
         result = await comfy_list_models("checkpoints", limit=50, offset=75, ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["total_count"] == 100
-        assert data["has_more"] is False
-        assert data["next_offset"] is None
-        assert len(data["models"]) == 25
+        assert result.total_count == 100
+        assert result.has_more is False
+        assert result.next_offset is None
+        assert len(result.models) == 25
 
 
 class TestGetModelInfo:

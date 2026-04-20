@@ -76,13 +76,11 @@ class TestListSnapshots:
         await comfy_snapshot_workflow(workflow2, name="snap2", ctx=snap_ctx)
 
         result = await comfy_list_snapshots(limit=20, ctx=snap_ctx)
-        data = json.loads(result)
-
-        assert data["total_count"] == 2
-        assert len(data["snapshots"]) == 2
+        assert result.count == 2
+        assert len(result.snapshots) == 2
         # Newest first
-        assert data["snapshots"][0]["name"] == "snap2"
-        assert data["snapshots"][1]["name"] == "snap1"
+        assert result.snapshots[0].name == "snap2"
+        assert result.snapshots[1].name == "snap1"
 
     @pytest.mark.asyncio
     async def test_list_snapshots_respects_limit(self, snap_ctx):
@@ -92,19 +90,15 @@ class TestListSnapshots:
             await comfy_snapshot_workflow(workflow, name=f"snap{i}", ctx=snap_ctx)
 
         result = await comfy_list_snapshots(limit=2, ctx=snap_ctx)
-        data = json.loads(result)
-
-        assert data["total_count"] == 2
-        assert len(data["snapshots"]) == 2
+        assert result.count == 2
+        assert len(result.snapshots) == 2
 
     @pytest.mark.asyncio
     async def test_list_snapshots_empty(self, snap_ctx):
         """Test listing when no snapshots exist."""
         result = await comfy_list_snapshots(ctx=snap_ctx)
-        data = json.loads(result)
-
-        assert data["total_count"] == 0
-        assert len(data["snapshots"]) == 0
+        assert result.count == 0
+        assert len(result.snapshots) == 0
 
     @pytest.mark.asyncio
     async def test_list_snapshots_newest_first(self, snap_ctx):
@@ -115,11 +109,9 @@ class TestListSnapshots:
             time.sleep(0.01)  # Small delay to ensure order
 
         result = await comfy_list_snapshots(ctx=snap_ctx)
-        data = json.loads(result)
-
-        assert data["snapshots"][0]["name"] == "snap2"
-        assert data["snapshots"][1]["name"] == "snap1"
-        assert data["snapshots"][2]["name"] == "snap0"
+        assert result.snapshots[0].name == "snap2"
+        assert result.snapshots[1].name == "snap1"
+        assert result.snapshots[2].name == "snap0"
 
 
 class TestDiffSnapshots:
@@ -242,8 +234,7 @@ class TestDeleteSnapshot:
 
         # Verify it's actually deleted
         list_result = await comfy_list_snapshots(ctx=snap_ctx)
-        list_data = json.loads(list_result)
-        assert list_data["total_count"] == 0
+        assert list_result.count == 0
 
     @pytest.mark.asyncio
     async def test_delete_nonexistent_snapshot(self, snap_ctx):
@@ -269,10 +260,9 @@ class TestDeleteSnapshot:
 
         # Verify other snapshots still exist
         list_result = await comfy_list_snapshots(ctx=snap_ctx)
-        list_data = json.loads(list_result)
-        assert list_data["total_count"] == 2
+        assert list_result.count == 2
 
-        remaining_ids = [s["id"] for s in list_data["snapshots"]]
+        remaining_ids = [s.id for s in list_result.snapshots]
         assert snap_ids[0] in remaining_ids
         assert snap_ids[2] in remaining_ids
         assert snap_ids[1] not in remaining_ids
@@ -326,10 +316,9 @@ class TestRoundTrip:
 
         # List snapshots
         list_result = await comfy_list_snapshots(ctx=snap_ctx)
-        list_data = json.loads(list_result)
-        assert list_data["total_count"] == 1
-        assert list_data["snapshots"][0]["id"] == snap_id
-        assert list_data["snapshots"][0]["name"] == "complete_test"
+        assert list_result.count == 1
+        assert list_result.snapshots[0].id == snap_id
+        assert list_result.snapshots[0].name == "complete_test"
 
         # Restore snapshot
         restore_result = await comfy_restore_snapshot(snap_id, ctx=snap_ctx)
@@ -346,8 +335,7 @@ class TestRoundTrip:
 
         # Verify deletion
         final_list = await comfy_list_snapshots(ctx=snap_ctx)
-        final_data = json.loads(final_list)
-        assert final_data["total_count"] == 0
+        assert final_list.count == 0
 
     @pytest.mark.asyncio
     async def test_multiple_snapshots_lifecycle(self, snap_ctx):
@@ -363,8 +351,7 @@ class TestRoundTrip:
 
         # Verify all exist
         list_result = await comfy_list_snapshots(ctx=snap_ctx)
-        list_data = json.loads(list_result)
-        assert list_data["total_count"] == 3
+        assert list_result.count == 3
 
         # Diff snapshots
         diff_result = await comfy_diff_snapshots(snap_ids[0], snap_ids[1], ctx=snap_ctx)
@@ -377,5 +364,4 @@ class TestRoundTrip:
 
         # Verify count decreased
         list_result = await comfy_list_snapshots(ctx=snap_ctx)
-        list_data = json.loads(list_result)
-        assert list_data["total_count"] == 2
+        assert list_result.count == 2

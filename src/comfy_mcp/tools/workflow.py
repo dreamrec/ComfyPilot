@@ -15,6 +15,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.responses import QueueAck, ValidationReport
 from comfy_mcp.server import mcp
 
 
@@ -109,8 +110,8 @@ async def comfy_queue_prompt(
     workflow: dict,
     front: bool = False,
     ctx: Context = None,
-) -> str:
-    """Queue a workflow for execution.
+) -> QueueAck:
+    """Queue a workflow for execution. Returns structured QueueAck.
 
     Args:
         workflow: Workflow dict to queue
@@ -121,27 +122,19 @@ async def comfy_queue_prompt(
     result = await _client(ctx).queue_prompt(workflow, front=front)
     prompt_id = result.get("prompt_id")
 
-    # Register with job tracker
     job_tracker = _job_tracker(ctx)
     if prompt_id:
         await _await_if_needed(job_tracker.track(prompt_id))
 
     await ctx.report_progress(100, 100)
 
-    # Preserve full upstream response alongside normalized fields
-    response = {
-        "prompt_id": prompt_id,
-        "queue_position": result.get("number"),
-    }
-    # Preserve validation errors from ComfyUI if present
-    if "error" in result:
-        response["error"] = result["error"]
-    if "node_errors" in result:
-        response["node_errors"] = result["node_errors"]
-    if snapshot is not None:
-        response["auto_snapshot"] = snapshot
-
-    return json.dumps(response, indent=2)
+    return QueueAck(
+        prompt_id=prompt_id,
+        queue_position=result.get("number"),
+        error=result.get("error"),
+        node_errors=result.get("node_errors"),
+        auto_snapshot=snapshot,
+    )
 
 
 @mcp.tool(
@@ -255,22 +248,19 @@ async def comfy_clear_queue(confirm: bool = False, ctx: Context = None) -> str:
 async def comfy_validate_workflow(
     workflow: dict,
     ctx: Context = None,
-) -> str:
-    """Validate a workflow against ComfyUI's node catalog.
+) -> ValidationReport:
+    """Validate a workflow with a 5-pass check. Returns structured ValidationReport.
 
-    Performs three validation passes:
-    1. Schema: dict structure, class_type presence
-    2. Catalog: node types exist in object_info
-    3. Graph: link targets reference real nodes
+    Passes: schema -> catalog -> graph -> environment -> execution_risk.
     """
     errors: list[str] = []
     warnings: list[str] = []
 
     # Pass 1: Schema
     if not isinstance(workflow, dict):
-        return json.dumps({"valid": False, "errors": ["Workflow must be a dict"], "warnings": [], "node_count": 0}, indent=2)
+        return ValidationReport(valid=False, errors=["Workflow must be a dict"], node_count=0, passes=["schema"])
     if not workflow:
-        return json.dumps({"valid": False, "errors": ["Workflow cannot be empty"], "warnings": [], "node_count": 0}, indent=2)
+        return ValidationReport(valid=False, errors=["Workflow cannot be empty"], node_count=0, passes=["schema"])
 
     for node_id, node in workflow.items():
         if not isinstance(node, dict):
@@ -408,19 +398,19 @@ async def comfy_validate_workflow(
     if not has_output:
         warnings.append("No output node found (SaveImage, SaveAnimatedWEBP, SaveGLB, SaveAudio, etc.) - workflow may produce no visible output")
 
-    return json.dumps({
-        "valid": len(errors) == 0,
-        "errors": errors,
-        "warnings": warnings,
-        "node_count": len(workflow),
-        "passes": [
+    return ValidationReport(
+        valid=len(errors) == 0,
+        errors=errors,
+        warnings=warnings,
+        node_count=len(workflow),
+        passes=[
             "schema",
             "catalog" if catalog_available else "catalog_skipped",
             "graph",
             "environment" if env_checked else "environment_skipped",
             "execution_risk" if risk_checked else "execution_risk_skipped",
         ],
-    }, indent=2)
+    )
 
 
 @mcp.tool(

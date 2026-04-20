@@ -2,6 +2,30 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.4.0] - 2026-04-20
+
+### Phase 2 Task 2: Full structured-output migration
+
+Ten high-signal tools now return typed Pydantic models directly (FastMCP
+auto-serializes). Agents get schema-introspectable JSON instead of opaque
+strings. Each migration preserved the previous wire payload - no field
+was lost in the shape change.
+
+- comfy_check_vram -> VRAMStatus (with per-device VRAMDeviceInfo)
+- comfy_list_models -> ModelList (pagination-aware)
+- comfy_list_techniques -> TechniqueList (with TechniqueEntry items)
+- comfy_list_snapshots -> SnapshotList (with SnapshotEntry items)
+- comfy_describe_dynamics -> DynamicsReport (flattened queue + events + jobs)
+- comfy_get_system_stats -> SystemStats (nested SystemInfo + GPUInfo list)
+- comfy_get_run_result -> RunResult (new model for history entries)
+- comfy_queue_prompt -> QueueAck (preserves prompt_id / queue_position / error / node_errors / auto_snapshot)
+- comfy_validate_workflow -> ValidationReport (5-pass structured results)
+- comfy_watch_progress -> WatchProgressFrame (status literal, numeric progress, elapsed_s)
+
+This completes Phase 2 of the 2026 modernization roadmap. The remaining
+deferred Phase 2 item (sampling-backed prompt expansion) still requires
+Context.sample which is not yet in the installed FastMCP SDK.
+
 ## [1.3.1] - 2026-04-20
 
 ### Hotfix

@@ -27,10 +27,10 @@ async def test_oversized_latent_errors():
     workflow = {
         "1": {"class_type": "EmptyLatentImage", "inputs": {"width": 4096, "height": 4096, "batch_size": 4}},
     }
-    result = json.loads(await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client)))
-    assert result["valid"] is False
-    assert any("Execution risk" in e for e in result["errors"])
-    assert "execution_risk" in result["passes"]
+    result = await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client))
+    assert result.valid is False
+    assert any("Execution risk" in e for e in result.errors)
+    assert "execution_risk" in result.passes
 
 
 @pytest.mark.asyncio
@@ -43,8 +43,8 @@ async def test_large_latent_warns():
     workflow = {
         "1": {"class_type": "EmptyLatentImage", "inputs": {"width": 2048, "height": 2048, "batch_size": 5}},
     }
-    result = json.loads(await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client)))
-    assert any("Execution risk" in w for w in result["warnings"])
+    result = await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client))
+    assert any("Execution risk" in w for w in result.warnings)
 
 
 @pytest.mark.asyncio
@@ -57,9 +57,9 @@ async def test_normal_latent_passes_clean():
     workflow = {
         "1": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
     }
-    result = json.loads(await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client)))
-    assert not any("Execution risk" in e for e in result["errors"])
-    assert not any("Execution risk" in w for w in result["warnings"])
+    result = await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client))
+    assert not any("Execution risk" in e for e in result.errors)
+    assert not any("Execution risk" in w for w in result.warnings)
 
 
 @pytest.mark.asyncio
@@ -75,8 +75,8 @@ async def test_video_latent_accounts_for_length():
             "inputs": {"width": 832, "height": 480, "length": 81, "batch_size": 1},
         },
     }
-    result = json.loads(await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client)))
-    assert any("Execution risk" in w for w in result["warnings"])
+    result = await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client))
+    assert any("Execution risk" in w for w in result.warnings)
 
 
 @pytest.mark.asyncio
@@ -93,9 +93,9 @@ async def test_vram_guard_insufficient_headroom_warns():
         # Make it big enough to overshoot: 2048x2048 batch 40 -> 168M pixels, ~2688 MB need
         "1": {"class_type": "EmptyLatentImage", "inputs": {"width": 2048, "height": 2048, "batch_size": 40}},
     }
-    result = json.loads(await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client, vg)))
+    result = await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client, vg))
     # The VRAM-mismatch warning (or the latent-size hard error) surfaces
-    msgs = result["errors"] + result["warnings"]
+    msgs = result.errors + result.warnings
     assert any("VRAM" in m or "MB" in m for m in msgs)
 
 
@@ -107,5 +107,5 @@ async def test_no_latent_nodes_skips_risk_gracefully():
     client.get_models = AsyncMock(return_value=[])
 
     workflow = {"1": {"class_type": "PreviewImage", "inputs": {"images": ["x", 0]}}}
-    result = json.loads(await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client)))
-    assert "execution_risk" in result["passes"]
+    result = await comfy_validate_workflow(workflow=workflow, ctx=_ctx(client))
+    assert "execution_risk" in result.passes

@@ -6,6 +6,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.responses import TechniqueEntry, TechniqueList
 from comfy_mcp.server import mcp
 
 
@@ -107,18 +108,16 @@ async def comfy_search_techniques(
 async def comfy_list_techniques(
     limit: int = 50,
     ctx: Context = None,
-) -> str:
-    """List all saved workflow techniques (newest first).
+) -> TechniqueList:
+    """List all saved workflow techniques (newest first). Returns structured TechniqueList.
 
     Args:
         limit: Maximum number of techniques to return (default 50)
     """
     store = _technique_store(ctx)
     results = store.list(limit=limit)
-    return json.dumps({
-        "techniques": results,
-        "total_count": len(results),
-    }, indent=2)
+    entries = [TechniqueEntry.model_validate(r) for r in results]
+    return TechniqueList(techniques=entries, count=len(entries))
 
 
 @mcp.tool(

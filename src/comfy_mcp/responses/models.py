@@ -24,7 +24,7 @@ class GPUInfo(BaseModel):
     torch_vram_free: int = 0
 
 
-class SystemStats(BaseModel):
+class SystemInfo(BaseModel):
     python_version: str = ""
     pytorch_version: str = ""
     comfyui_version: str = ""
@@ -33,6 +33,10 @@ class SystemStats(BaseModel):
     argv: list[str] = Field(default_factory=list)
     ram_total: int = 0
     ram_free: int = 0
+
+
+class SystemStats(BaseModel):
+    system: SystemInfo = Field(default_factory=SystemInfo)
     devices: list[GPUInfo] = Field(default_factory=list)
 
 
@@ -76,6 +80,16 @@ class JobStatus(BaseModel):
     max_progress: float = 0.0
     error: str | None = None
     result: dict[str, Any] | None = None
+
+
+class RunResult(BaseModel):
+    """Result of a completed prompt as returned by ComfyUI's /history/{id} endpoint."""
+
+    prompt_id: str
+    status: dict[str, Any] = Field(default_factory=dict)
+    outputs: dict[str, Any] = Field(default_factory=dict)
+    prompt: list[Any] = Field(default_factory=list)
+    error: str | None = None
 
 
 # ---------- Models / Techniques / Snapshots ----------
@@ -124,13 +138,19 @@ class SnapshotList(BaseModel):
 VRAMLevel = Literal["ok", "warn", "critical", "unknown"]
 
 
+class VRAMDeviceInfo(BaseModel):
+    name: str = "unknown"
+    vram_total: int = 0
+    vram_free: int = 0
+    vram_used: int = 0
+    vram_used_pct: float = 0.0
+    status: VRAMLevel = "ok"
+
+
 class VRAMStatus(BaseModel):
-    level: VRAMLevel = "unknown"
-    vram_free_mb: float = 0.0
-    vram_total_mb: float = 0.0
-    utilization_percent: float = 0.0
-    warn_threshold_percent: float = 80.0
-    block_threshold_percent: float = 95.0
+    status: VRAMLevel = "unknown"
+    vram_used_pct: float = 0.0
+    devices: list[VRAMDeviceInfo] = Field(default_factory=list)
     message: str = ""
 
 
@@ -148,7 +168,8 @@ class DynamicsReport(BaseModel):
 
 class WatchProgressFrame(BaseModel):
     prompt_id: str
+    status: Literal["ok", "no_progress"] = "no_progress"
     progress: float = 0.0
     max_progress: float = 0.0
-    status: str = ""
+    timestamp: float = 0.0
     elapsed_s: float = 0.0

@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.responses import SnapshotEntry, SnapshotList
 from comfy_mcp.server import mcp
 
 
@@ -47,21 +48,16 @@ async def comfy_snapshot_workflow(workflow: dict, name: str = "", ctx: Context =
         "openWorldHint": False,
     }
 )
-async def comfy_list_snapshots(limit: int = 20, ctx: Context = None) -> str:
-    """List workflow snapshots (newest first).
+async def comfy_list_snapshots(limit: int = 20, ctx: Context = None) -> SnapshotList:
+    """List workflow snapshots (newest first). Returns structured SnapshotList.
 
     Args:
         limit: Maximum number of snapshots to return (default 20)
-
-    Returns:
-        JSON with snapshots list and total count
     """
     mgr = _snapshot_mgr(ctx)
     snapshots = mgr.list(limit=limit)
-    return json.dumps({
-        "snapshots": snapshots,
-        "total_count": len(snapshots),
-    }, indent=2)
+    entries = [SnapshotEntry.model_validate(s) for s in snapshots]
+    return SnapshotList(snapshots=entries, count=len(entries))
 
 
 @mcp.tool(

@@ -19,8 +19,7 @@ class TestGetSystemStats:
     @pytest.mark.asyncio
     async def test_returns_system_info(self, mock_ctx, mock_client):
         result = await comfy_get_system_stats(ctx=mock_ctx)
-        data = json.loads(result)
-        assert data["system"]["comfyui_version"] == "0.17.0"
+        assert result.system.comfyui_version == "0.17.0"
         mock_client.get_system_stats.assert_awaited_once()
 
 class TestGetGpuInfo:

@@ -6,6 +6,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.responses import VRAMStatus
 from comfy_mcp.server import mcp
 
 
@@ -22,11 +23,11 @@ def _vram_guard(ctx: Context):
         "openWorldHint": False,
     }
 )
-async def comfy_check_vram(ctx: Context = None) -> str:
-    """Check current GPU VRAM usage and status (ok/warn/critical)."""
+async def comfy_check_vram(ctx: Context = None) -> VRAMStatus:
+    """Check current GPU VRAM usage. Returns structured VRAMStatus with per-device detail."""
     guard = _vram_guard(ctx)
     result = await guard.check_vram()
-    return json.dumps(result, indent=2)
+    return VRAMStatus.model_validate(result)
 
 
 @mcp.tool(

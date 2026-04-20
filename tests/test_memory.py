@@ -153,9 +153,7 @@ class TestListTechniques:
         await comfy_save_technique(SAMPLE_WORKFLOW, "c", ctx=mem_ctx)
 
         result = await comfy_list_techniques(ctx=mem_ctx)
-        data = json.loads(result)
-
-        assert data["total_count"] == 3
+        assert result.count == 3
 
     @pytest.mark.asyncio
     async def test_list_techniques_respects_limit(self, mem_ctx):
@@ -164,19 +162,15 @@ class TestListTechniques:
             await comfy_save_technique(SAMPLE_WORKFLOW, f"tech_{i}", ctx=mem_ctx)
 
         result = await comfy_list_techniques(limit=3, ctx=mem_ctx)
-        data = json.loads(result)
-
-        assert data["total_count"] == 3
-        assert len(data["techniques"]) == 3
+        assert result.count == 3
+        assert len(result.techniques) == 3
 
     @pytest.mark.asyncio
     async def test_list_techniques_empty_store(self, mem_ctx):
         """List on empty store returns zero count."""
         result = await comfy_list_techniques(ctx=mem_ctx)
-        data = json.loads(result)
-
-        assert data["total_count"] == 0
-        assert data["techniques"] == []
+        assert result.count == 0
+        assert result.techniques == []
 
     @pytest.mark.asyncio
     async def test_list_techniques_newest_first(self, mem_ctx):
@@ -186,9 +180,7 @@ class TestListTechniques:
             time.sleep(0.01)
 
         result = await comfy_list_techniques(ctx=mem_ctx)
-        data = json.loads(result)
-
-        names = [t["name"] for t in data["techniques"]]
+        names = [t.name for t in result.techniques]
         assert names[0] == "tech_2"
         assert names[-1] == "tech_0"
 
@@ -321,8 +313,7 @@ class TestDeleteTechnique:
         assert deleted is True
 
         result = await comfy_list_techniques(ctx=mem_ctx)
-        data = json.loads(result)
-        ids = [t["id"] for t in data["techniques"]]
+        ids = [t.id for t in result.techniques]
         assert tech_id not in ids
 
     @pytest.mark.asyncio

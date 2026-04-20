@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.responses import DynamicsReport, WatchProgressFrame
 from comfy_mcp.server import mcp
 
 
@@ -31,20 +32,30 @@ def _job_tracker(ctx: Context):
         "openWorldHint": False,
     }
 )
-async def comfy_watch_progress(prompt_id: str, ctx: Context = None) -> str:
-    """Poll EventManager for a prompt's execution progress.
+async def comfy_watch_progress(prompt_id: str, ctx: Context = None) -> WatchProgressFrame:
+    """Poll EventManager for a prompt's execution progress. Returns structured WatchProgressFrame.
 
     Args:
         prompt_id: The prompt ID to watch
-
-    Returns:
-        JSON with progress data or "no progress yet" status
     """
+    import time as _time
+
     event_mgr = _event_mgr(ctx)
     progress = event_mgr.get_latest_progress(prompt_id)
-    if progress:
-        return json.dumps({"status": "ok", "progress": progress})
-    return json.dumps({"status": "no_progress", "prompt_id": prompt_id})
+    if not progress:
+        return WatchProgressFrame(prompt_id=prompt_id, status="no_progress")
+
+    data = progress.get("data", {}) or {}
+    timestamp = float(progress.get("timestamp", 0.0) or 0.0)
+    elapsed = max(0.0, _time.time() - timestamp) if timestamp else 0.0
+    return WatchProgressFrame(
+        prompt_id=prompt_id,
+        status="ok",
+        progress=float(data.get("value", 0) or 0),
+        max_progress=float(data.get("max", 0) or 0),
+        timestamp=timestamp,
+        elapsed_s=elapsed,
+    )
 
 
 @mcp.tool(
@@ -139,44 +150,35 @@ async def comfy_get_events(
         "openWorldHint": False,
     }
 )
-async def comfy_describe_dynamics(ctx: Context = None) -> str:
+async def comfy_describe_dynamics(ctx: Context = None) -> DynamicsReport:
     """One-shot snapshot of system dynamics (queue + recent events + active jobs).
 
-    Returns:
-        JSON summary with queue counts, event types seen, active job count
+    Returns structured DynamicsReport with queue counts, recent event types,
+    and active job summary.
     """
     client = _client(ctx)
     event_mgr = _event_mgr(ctx)
     job_tracker = _job_tracker(ctx)
 
-    # Get queue state
     queue = await client.get_queue()
     queue_running = queue.get("queue_running", [])
     queue_pending = queue.get("queue_pending", [])
 
-    # Get recent events (small window to avoid draining all)
     recent_events = event_mgr.peek_events(limit=10) if hasattr(event_mgr, "peek_events") else []
-    event_types = set()
-    if recent_events:
-        for event in recent_events:
-            event_types.add(event.get("type", "unknown"))
+    event_types: set[str] = set()
+    for event in recent_events or []:
+        event_types.add(event.get("type", "unknown"))
 
-    # Get active jobs from job_tracker
-    active_jobs = job_tracker.list_active()
+    active_jobs = list(job_tracker.list_active() or [])
 
-    return json.dumps({
-        "queue": {
-            "running": len(queue_running),
-            "pending": len(queue_pending),
-        },
-        "events": {
-            "recent_count": len(recent_events) if recent_events else 0,
-            "types_seen": list(event_types),
-        },
-        "jobs": {
-            "active": len(active_jobs) if active_jobs else 0,
-        },
-    })
+    return DynamicsReport(
+        queue_running=len(queue_running),
+        queue_pending=len(queue_pending),
+        event_types_seen=sorted(event_types),
+        recent_event_count=len(recent_events) if recent_events else 0,
+        active_job_count=len(active_jobs),
+        active_jobs=active_jobs,
+    )
 
 
 @mcp.tool(

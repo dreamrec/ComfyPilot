@@ -21,20 +21,22 @@ class TestWatchProgress:
     @pytest.mark.asyncio
     async def test_with_progress(self, mock_ctx):
         mock_ctx.request_context.lifespan_context["event_manager"].get_latest_progress = MagicMock(
-            return_value={"type": "progress", "data": {"prompt_id": "p1", "value": 50, "max": 100}}
+            return_value={"type": "progress", "data": {"prompt_id": "p1", "value": 50, "max": 100}, "timestamp": 1.0}
         )
-        result = json.loads(await comfy_watch_progress(prompt_id="p1", ctx=mock_ctx))
-        assert result["status"] == "ok"
-        assert result["progress"]["data"]["value"] == 50
+        result = await comfy_watch_progress(prompt_id="p1", ctx=mock_ctx)
+        assert result.status == "ok"
+        assert result.progress == 50
+        assert result.max_progress == 100
+        assert result.prompt_id == "p1"
 
     @pytest.mark.asyncio
     async def test_no_progress(self, mock_ctx):
         mock_ctx.request_context.lifespan_context["event_manager"].get_latest_progress = MagicMock(
             return_value=None
         )
-        result = json.loads(await comfy_watch_progress(prompt_id="p1", ctx=mock_ctx))
-        assert result["status"] == "no_progress"
-        assert result["prompt_id"] == "p1"
+        result = await comfy_watch_progress(prompt_id="p1", ctx=mock_ctx)
+        assert result.status == "no_progress"
+        assert result.prompt_id == "p1"
 
 
 class TestSubscribe:
@@ -96,12 +98,11 @@ class TestDescribeDynamics:
             return_value=[{"type": "progress", "data": {}, "timestamp": 1.0}]
         )
         mock_ctx.request_context.lifespan_context["job_tracker"].list_active = MagicMock(return_value=[])
-        result = json.loads(await comfy_describe_dynamics(ctx=mock_ctx))
-        assert "queue" in result
-        assert "events" in result
-        assert "jobs" in result
-        assert result["queue"]["running"] == 0
-        assert result["queue"]["pending"] == 0
+        result = await comfy_describe_dynamics(ctx=mock_ctx)
+        assert result.queue_running == 0
+        assert result.queue_pending == 0
+        assert "progress" in result.event_types_seen
+        assert result.active_job_count == 0
 
     @pytest.mark.asyncio
     async def test_with_queue_items(self, mock_ctx, mock_client):
@@ -111,9 +112,9 @@ class TestDescribeDynamics:
         }
         mock_ctx.request_context.lifespan_context["event_manager"].peek_events = MagicMock(return_value=None)
         mock_ctx.request_context.lifespan_context["job_tracker"].list_active = MagicMock(return_value=[])
-        result = json.loads(await comfy_describe_dynamics(ctx=mock_ctx))
-        assert result["queue"]["running"] == 1
-        assert result["queue"]["pending"] == 2
+        result = await comfy_describe_dynamics(ctx=mock_ctx)
+        assert result.queue_running == 1
+        assert result.queue_pending == 2
 
 
 class TestGetStatus:
@@ -143,10 +144,10 @@ async def test_describe_dynamics_uses_list_active(mock_ctx, mock_client):
     job_tracker = mock_ctx.request_context.lifespan_context["job_tracker"]
     job_tracker.list_active = MagicMock(return_value=[{"prompt_id": "x", "status": "running"}])
 
-    result = json.loads(await comfy_describe_dynamics(ctx=mock_ctx))
+    result = await comfy_describe_dynamics(ctx=mock_ctx)
 
     job_tracker.list_active.assert_called_once()
-    assert result["jobs"]["active"] == 1
+    assert result.active_job_count == 1
 
 
 @pytest.mark.asyncio

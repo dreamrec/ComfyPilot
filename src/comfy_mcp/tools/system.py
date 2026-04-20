@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.responses import SystemStats
 from comfy_mcp.server import mcp
 
 
@@ -23,10 +24,10 @@ def _client(ctx: Context):
         "openWorldHint": False,
     }
 )
-async def comfy_get_system_stats(ctx: Context) -> str:
-    """Get ComfyUI system stats: OS, GPU, VRAM, version info."""
+async def comfy_get_system_stats(ctx: Context) -> SystemStats:
+    """Get ComfyUI system stats: OS, GPU, VRAM, version info. Returns structured SystemStats."""
     result = await _client(ctx).get_system_stats()
-    return json.dumps(result, indent=2)
+    return SystemStats.model_validate(result)
 
 
 @mcp.tool(

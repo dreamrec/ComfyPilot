@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.responses import ModelList
 from comfy_mcp.server import mcp
 
 
@@ -28,8 +29,8 @@ async def comfy_list_models(
     limit: int = 50,
     offset: int = 0,
     ctx: Context = None,
-) -> str:
-    """List models in a folder with pagination.
+) -> ModelList:
+    """List models in a folder with pagination. Returns structured ModelList.
 
     Args:
         folder: Model folder name (e.g., "checkpoints", "loras", "vae")
@@ -42,14 +43,13 @@ async def comfy_list_models(
     paginated_models = models[offset : offset + limit]
     next_offset = offset + limit if has_more else None
 
-    result = {
-        "models": paginated_models,
-        "folder": folder,
-        "total_count": total_count,
-        "has_more": has_more,
-        "next_offset": next_offset,
-    }
-    return json.dumps(result, indent=2)
+    return ModelList(
+        folder=folder,
+        models=paginated_models,
+        total_count=total_count,
+        has_more=has_more,
+        next_offset=next_offset,
+    )
 
 
 @mcp.tool(
