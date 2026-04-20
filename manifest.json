@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "comfypilot",
   "display_name": "ComfyPilot",
-  "version": "1.5.3",
+  "version": "1.6.0",
   "description": "MCP server for ComfyUI. 73 tools, 10 model families, subgraph blueprints, 5-pass validation.",
   "long_description": "ComfyPilot gives an AI agent a clean tool surface for building, queueing, monitoring, and routing ComfyUI workflows. Family-aware builder covers SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, and ACE-Step. Ships 9 bundled subgraph blueprints, a 5-pass workflow validator (schema + catalog + graph + environment + execution-risk), VRAM safety with elicitation-gated destructive operations, persistent snapshots, output manifests with atomic writes, Mermaid visualization, PNG-metadata workflow ingest, parameter sweeps, and HuggingFace + CivitAI model-hub search. Structured output (Pydantic) on the top 10 tools. stdio and streamable-http transports.",
   "author": {

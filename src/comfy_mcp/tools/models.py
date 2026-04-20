@@ -1,4 +1,13 @@
-"""Models tools - 5 tools for model management."""
+"""Models tools - 5 tools for model management.
+
+Folder discovery is live: every tool that touches multiple folders asks
+ComfyUI's `/models` endpoint for the real folder list at call time.
+Modern families (Flux 2, Wan 2.2, Qwen-Image, LTX-2, HunyuanVideo,
+Hunyuan3D) store weights under `diffusion_models/` via UNETLoader;
+DualCLIPLoader / CLIPLoader weights live under `text_encoders/`.
+The pre-1.6 hardcoded defaults (`["checkpoints", "loras", "vae",
+"controlnet", "upscale_models"]`) missed all of those entirely.
+"""
 
 from __future__ import annotations
 
@@ -11,8 +20,42 @@ from comfy_mcp.responses import ModelList
 from comfy_mcp.server import mcp
 
 
+# Fallback folder list used when ComfyUI's /models endpoint is unreachable or
+# returns something unexpected. Order is irrelevant - it's a name bag, not a
+# priority. Covers every folder type a modern ComfyUI v0.17+ install exposes.
+_FALLBACK_FOLDERS = [
+    "checkpoints",
+    "diffusion_models",
+    "unet",
+    "loras",
+    "vae",
+    "vae_approx",
+    "clip",
+    "text_encoders",
+    "clip_vision",
+    "controlnet",
+    "upscale_models",
+    "style_models",
+    "embeddings",
+    "hypernetworks",
+    "gligen",
+    "diffusers",
+]
+
+
 def _client(ctx: Context):
     return ctx.request_context.lifespan_context["comfy_client"]
+
+
+async def _discover_folders(ctx: Context) -> tuple[list[str], str]:
+    """Return (folders, source) where source is 'live' or 'fallback'."""
+    try:
+        live = await _client(ctx).get_model_folders()
+    except Exception:
+        return list(_FALLBACK_FOLDERS), "fallback"
+    if live:
+        return live, "live"
+    return list(_FALLBACK_FOLDERS), "fallback"
 
 
 @mcp.tool(
@@ -33,9 +76,11 @@ async def comfy_list_models(
     """List models in a folder with pagination. Returns structured ModelList.
 
     Args:
-        folder: Model folder name (e.g., "checkpoints", "loras", "vae")
-        limit: Maximum number of results per page
-        offset: Starting position for pagination
+        folder: Model folder name (e.g., "checkpoints", "diffusion_models",
+            "loras", "vae", "text_encoders"). Call comfy_list_model_folders
+            to see every folder the connected ComfyUI actually exposes.
+        limit: Maximum number of results per page.
+        offset: Starting position for pagination.
     """
     models = await _client(ctx).get_models(folder)
     total_count = len(models)
@@ -84,22 +129,18 @@ async def comfy_get_model_info(node_type: str, ctx: Context = None) -> str:
     }
 )
 async def comfy_list_model_folders(ctx: Context = None) -> str:
-    """List available model folder names.
+    """List every model-folder name the connected ComfyUI exposes.
 
-    Returns common ComfyUI model folders.
+    Uses ComfyUI's `/models` endpoint to discover folders live. Reports the
+    data source ("live" vs "fallback") so callers know whether the list
+    reflects their actual install.
     """
-    folders = [
-        "checkpoints",
-        "loras",
-        "vae",
-        "clip",
-        "diffusers",
-        "controlnet",
-        "upscale_models",
-        "embeddings",
-        "hypernetworks",
-    ]
-    result = {"folders": folders, "count": len(folders)}
+    folders, source = await _discover_folders(ctx)
+    result = {
+        "folders": folders,
+        "count": len(folders),
+        "source": source,
+    }
     return json.dumps(result, indent=2)
 
 
@@ -117,30 +158,49 @@ async def comfy_search_models(
     folders: list[str] | None = None,
     ctx: Context = None,
 ) -> str:
-    """Search for models across folders by name.
+    """Search for models by name across folders.
+
+    By default searches every folder ComfyUI exposes (discovered live via
+    /models). Pass `folders=["checkpoints", "loras"]` to narrow.
 
     Args:
-        query: Search query (case-insensitive substring match)
-        folders: Specific folders to search. If None, searches common folders.
+        query: Case-insensitive substring match against filenames. Empty
+            string returns every model in every folder (useful for a
+            full inventory).
+        folders: Explicit folder list to restrict the search. None means
+            search all discovered folders.
     """
     if folders is None:
-        folders = ["checkpoints", "loras", "vae", "controlnet", "upscale_models"]
+        folders, source = await _discover_folders(ctx)
+    else:
+        source = "caller"
 
-    matches = {}
+    matches: dict[str, list[str]] = {}
     query_lower = query.lower()
+    folders_scanned: list[str] = []
 
     for folder in folders:
         try:
             models = await _client(ctx).get_models(folder)
-            folder_matches = [m for m in models if query_lower in m.lower()]
-            if folder_matches:
-                matches[folder] = folder_matches
         except Exception:
-            # Skip folders that don't exist or error
-            pass
+            # Folder exists in the index but the listing endpoint errored -
+            # skip without aborting the whole search
+            continue
+        folders_scanned.append(folder)
+        if query_lower:
+            folder_matches = [m for m in models if query_lower in m.lower()]
+        else:
+            folder_matches = list(models)
+        if folder_matches:
+            matches[folder] = folder_matches
 
-    result = {"query": query, "matches": matches, "total_matches": sum(len(m) for m in matches.values())}
-    return json.dumps(result, indent=2)
+    return json.dumps({
+        "query": query,
+        "folders_source": source,
+        "folders_scanned": folders_scanned,
+        "matches": matches,
+        "total_matches": sum(len(m) for m in matches.values()),
+    }, indent=2)
 
 
 @mcp.tool(
@@ -153,15 +213,29 @@ async def comfy_search_models(
     }
 )
 async def comfy_refresh_models(ctx: Context = None) -> str:
-    """Re-fetch the model list from ComfyUI.
+    """Re-fetch the model list from ComfyUI across every known folder.
 
-    Note: This re-reads ComfyUI's current model cache. It does NOT
-    trigger a server-side filesystem rescan.
+    Note: this re-reads ComfyUI's current model cache. It does NOT trigger
+    a server-side filesystem rescan. Returns per-folder counts so the
+    caller can see where the installed weights live.
     """
-    models = await _client(ctx).get_models("checkpoints")
-    result = {
+    folders, source = await _discover_folders(ctx)
+    counts: dict[str, int] = {}
+    errors: list[dict[str, str]] = []
+    total = 0
+    for folder in folders:
+        try:
+            models = await _client(ctx).get_models(folder)
+        except Exception as e:
+            errors.append({"folder": folder, "error": str(e)})
+            continue
+        counts[folder] = len(models)
+        total += len(models)
+    return json.dumps({
         "status": "ok",
-        "message": "Model list re-fetched from ComfyUI cache",
-        "checkpoint_count": len(models),
-    }
-    return json.dumps(result, indent=2)
+        "folders_source": source,
+        "total_models": total,
+        "counts_by_folder": counts,
+        "errors": errors,
+        "message": f"Refreshed {len(counts)} folders, {total} models total",
+    }, indent=2)

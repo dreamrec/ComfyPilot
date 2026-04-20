@@ -32,7 +32,7 @@ Use this when working with ComfyUI through ComfyPilot's 73 MCP tools.
 ## Tool Categories (73 tools)
 
 - **System (6):** stats, GPU info, features, extensions, restart, free VRAM
-- **Models (5):** list, info, folders, search, refresh
+- **Models (5):** list, info, folders (live /models discovery), search (all folders by default), refresh (per-folder counts). Covers `diffusion_models`, `text_encoders`, `clip_vision`, `style_models`, `gligen`, etc. - not just `checkpoints`.
 - **Workflow (8):** queue, get queue, cancel, interrupt, clear, validate, export, import
 - **Nodes (6):** list types, get info, search, categories, embeddings, inspect widget
 - **Images (5):** get output, upload, list outputs, download batch, get URL

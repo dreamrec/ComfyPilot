@@ -7,16 +7,16 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.5.3
+# ComfyPilot v1.6.0
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.5.3-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.5.3)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.6.0)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![MCP tools](https://img.shields.io/badge/MCP%20tools-73-brightgreen)](#tool-map-73-tools)
 [![MCP resources](https://img.shields.io/badge/MCP%20resources-5%20%2B%203%20templates-brightgreen)](#mcp-resources)
 [![Blueprints](https://img.shields.io/badge/bundled%20blueprints-9-teal)](blueprints/)
-[![Tests](https://img.shields.io/badge/tests-533%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-541%20passing-brightgreen)](tests/)
 [![MCP spec](https://img.shields.io/badge/MCP-2026--03--26-blueviolet)](https://modelcontextprotocol.io)
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-v0.17%2B-orange)](https://github.com/comfyanonymous/ComfyUI)
 [![Families](https://img.shields.io/badge/model%20families-10-teal)](#model-families)
@@ -36,6 +36,7 @@ It gives an AI agent a clean tool surface for workflow building, queueing, progr
 
 - A practical bridge between AI agents and ComfyUI.
 - A 73-tool MCP surface for workflows, models, images, monitoring, safety, routing, blueprints, visualization, PNG ingest, parameter sweeps, and model-hub search.
+- Live model-folder discovery: `diffusion_models/`, `text_encoders/`, `clip_vision/`, `style_models/`, `gligen/` (and every other folder the connected ComfyUI actually exposes) are searched by default - no more checkpoint-centric blind spots.
 - A workflow-oriented loop built for iteration, not one-shot guessing.
 - A small technique library for saving and replaying working patterns.
 
@@ -64,10 +65,13 @@ Use for connection health, GPU diagnostics, and VRAM management.
 - `comfy_list_extensions`, `comfy_restart`, `comfy_free_vram`
 
 ### 2) Models
-Use for discovering and managing checkpoints, LoRAs, VAEs, and other model files.
+Use for discovering and managing every model file ComfyUI exposes. Folder taxonomy is discovered live from `/models` so modern families whose weights live under `diffusion_models/`, `text_encoders/`, `clip_vision/`, `style_models/`, or `gligen/` are covered by default.
 
-- `comfy_list_models`, `comfy_get_model_info`, `comfy_list_model_folders`
-- `comfy_search_models`, `comfy_refresh_models`
+- `comfy_list_models` - Paginated listing inside a single folder (`folder`, `limit`, `offset`).
+- `comfy_get_model_info` - Normalized node schema for a model-loader node class.
+- `comfy_list_model_folders` - Live folder list from `GET /models`, with fallback to a 16-folder static default when the endpoint is unreachable. Reports `source: live | fallback`.
+- `comfy_search_models` - Searches every discovered folder by default. Pass `folders=["checkpoints", "loras"]` to narrow. Empty query returns a full inventory.
+- `comfy_refresh_models` - Re-fetches the cache across every folder; returns per-folder counts + a `total_models` number.
 
 ### 3) Workflow Execution
 Use for queueing, cancelling, and managing prompt execution.
@@ -267,7 +271,7 @@ uv run comfypilot --transport streamable-http --host 0.0.0.0 --port 8765
 
 Easiest for Claude Desktop users:
 
-1. Download `comfypilot-v1.5.3.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
+1. Download `comfypilot-v1.6.0.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
 2. Double-click the file (or drag it into Claude Desktop's Settings > Extensions panel).
 3. Claude Desktop renders a form for `COMFY_URL`, `COMFY_API_KEY`, and the other config fields — fill in what you need.
 4. Click Install. Restart is handled automatically.

@@ -74,13 +74,17 @@ ComfyPilot runs as an MCP server over stdio (default) or streamable-http (remote
 
 ### Model Tools (5)
 
+Every tool in this group uses live folder discovery. `comfy_list_model_folders` hits `GET /models` (falling back to a 16-folder static list when the endpoint is unreachable) and reports `source: live | fallback`. `comfy_search_models` searches every discovered folder by default, and `comfy_refresh_models` fetches counts per folder. This replaces the pre-1.6 hardcoded 5-folder default that missed every UNETLoader-based family (Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D) whose primary weights live under `diffusion_models/`.
+
 | Tool | Return | Description |
 |------|--------|-------------|
-| `comfy_list_models` | `ModelList` | Typed: paginated model listing in a folder |
-| `comfy_get_model_info` | json str | Node schema for a model-related node class (normalized `NodeSchema`) |
-| `comfy_list_model_folders` | json str | Available folder names (checkpoints, loras, vae, diffusion_models, text_encoders, ...) |
-| `comfy_search_models` | json str | Search across folders by name pattern |
-| `comfy_refresh_models` | json str | Re-fetch model list from ComfyUI |
+| `comfy_list_models(folder, limit, offset)` | `ModelList` | Typed: paginated listing inside one folder. |
+| `comfy_get_model_info(node_type)` | json str | Normalized `NodeSchema` for a model-loader node class. |
+| `comfy_list_model_folders()` | json str | `{folders, count, source}`. Live folder list from ComfyUI, or the 16-folder fallback. |
+| `comfy_search_models(query, folders=None)` | json str | Searches every discovered folder by default. Empty query = full inventory. Reports `folders_source` and `folders_scanned`. |
+| `comfy_refresh_models()` | json str | Re-fetches across every folder. Returns `counts_by_folder`, `total_models`, and a per-folder `errors` list when individual folders fail. |
+
+**Fallback folder list** (when `/models` is unreachable): `checkpoints`, `diffusion_models`, `unet`, `loras`, `vae`, `vae_approx`, `clip`, `text_encoders`, `clip_vision`, `controlnet`, `upscale_models`, `style_models`, `embeddings`, `hypernetworks`, `gligen`, `diffusers`.
 
 ### Workflow Execution Tools (8)
 

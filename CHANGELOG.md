@@ -2,6 +2,43 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.6.0] - 2026-04-20
+
+### Unified model discovery across the full ComfyUI folder taxonomy
+
+This rewires every model-discovery tool to treat `/models` as the source of
+truth for which folders exist, not a hardcoded 5-folder guess. Modern
+UNETLoader-based families (Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo,
+Hunyuan3D) store their primary weights under `diffusion_models/`, not
+`checkpoints/`. Pre-1.6 those installs were invisible to `comfy_search_models`
+and `comfy_refresh_models`, which defaulted to checkpoint-centric folder sets.
+
+- feat (comfy_client.py): new `ComfyClient.get_model_folders()` hits
+  `GET /models` (profile-aware, with `/api/models` fallback). Accepts both
+  list and `{folders: [...]}` / `{models: [...]}` dict shapes that different
+  ComfyUI wrappers return. Returns [] on error so callers can fall back.
+
+- feat (tools/models.py): `comfy_list_model_folders` now calls the live
+  endpoint. Response includes `source: "live"` when the live list succeeded
+  or `source: "fallback"` when the 16-folder static list was used. Fallback
+  list covers: checkpoints, diffusion_models, unet, loras, vae, vae_approx,
+  clip, text_encoders, clip_vision, controlnet, upscale_models, style_models,
+  embeddings, hypernetworks, gligen, diffusers.
+
+- feat (tools/models.py): `comfy_search_models` searches EVERY discovered
+  folder by default (not just 5). Empty query returns a full inventory.
+  Response reports `folders_source` (live | fallback | caller) and
+  `folders_scanned` so callers can see exactly where the search ran.
+
+- feat (tools/models.py): `comfy_refresh_models` refreshes per-folder and
+  returns `counts_by_folder` plus `total_models`. Individual folder errors
+  are captured in a dedicated `errors` list rather than aborting the whole
+  refresh.
+
+- chore: tool count unchanged (73). Tests 533 -> 541 (+8 regression tests
+  covering live-folder discovery, fallback paths, caller-supplied folders,
+  per-folder refresh, and the client-level endpoint contract).
+
 ## [1.5.3] - 2026-04-20
 
 ### Code-review fixes: builder / VRAM / capability / blueprint / batch + fail-closed option

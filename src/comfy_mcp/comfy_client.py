@@ -266,6 +266,29 @@ class ComfyClient:
             return await self.get(f"/object_info/{node_type}")
         return await self.get("/object_info")
 
+    async def get_model_folders(self) -> list[str]:
+        """List every model-folder name the connected ComfyUI exposes.
+
+        ComfyUI's `GET /models` (no folder suffix) returns the live list of
+        folder types it knows about. For v0.17+ this includes at least:
+        checkpoints, diffusion_models, loras, vae, clip, text_encoders,
+        clip_vision, controlnet, upscale_models, style_models, embeddings,
+        hypernetworks, gligen, unet, diffusers. Returns [] on error so
+        callers can decide whether to fall back to a static default list.
+        """
+        try:
+            result = await self._get_profiled_endpoint("/models", "/api/models")
+        except Exception:
+            return []
+        if isinstance(result, list):
+            return [str(x) for x in result]
+        if isinstance(result, dict):
+            for key in ("folders", "models"):
+                val = result.get(key)
+                if isinstance(val, list):
+                    return [str(x) for x in val]
+        return []
+
     async def get_models(self, folder: str) -> list[str]:
         result = await self.get(f"/models/{folder}")
         # ComfyUI returns a list directly for /models/{folder}

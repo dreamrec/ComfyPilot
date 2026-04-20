@@ -78,20 +78,46 @@ class TestGetModelInfo:
 
 class TestListModelFolders:
     @pytest.mark.asyncio
-    async def test_list_model_folders(self, mock_ctx, mock_client):
+    async def test_list_model_folders_uses_live_endpoint(self, mock_ctx, mock_client):
+        """When ComfyUI's /models endpoint answers, use THAT list, not a hardcoded one.
+
+        This is how modern installs surface folders like diffusion_models and
+        text_encoders that the old hardcoded list never mentioned.
+        """
+        mock_client.get_model_folders = AsyncMock(return_value=[
+            "checkpoints", "diffusion_models", "loras", "vae", "text_encoders",
+            "clip_vision", "controlnet", "upscale_models", "style_models",
+            "embeddings", "gligen",
+        ])
         result = await comfy_list_model_folders(ctx=mock_ctx)
         data = json.loads(result)
-        assert "folders" in data
+        assert data["source"] == "live"
+        assert "diffusion_models" in data["folders"]
+        assert "text_encoders" in data["folders"]
+        assert "clip_vision" in data["folders"]
+        assert data["count"] == 11
+
+    @pytest.mark.asyncio
+    async def test_list_model_folders_falls_back_when_endpoint_errors(self, mock_ctx, mock_client):
+        """Unreachable ComfyUI -> fallback list covers every modern family."""
+        mock_client.get_model_folders = AsyncMock(side_effect=Exception("offline"))
+        result = await comfy_list_model_folders(ctx=mock_ctx)
+        data = json.loads(result)
+        assert data["source"] == "fallback"
         assert "checkpoints" in data["folders"]
-        assert "loras" in data["folders"]
-        assert "vae" in data["folders"]
-        assert "clip" in data["folders"]
-        assert "diffusers" in data["folders"]
-        assert "controlnet" in data["folders"]
-        assert "upscale_models" in data["folders"]
-        assert "embeddings" in data["folders"]
-        assert "hypernetworks" in data["folders"]
-        assert data["count"] == 9
+        assert "diffusion_models" in data["folders"]
+        assert "text_encoders" in data["folders"]
+        assert "clip_vision" in data["folders"]
+        assert "style_models" in data["folders"]
+
+    @pytest.mark.asyncio
+    async def test_list_model_folders_falls_back_on_empty_live_list(self, mock_ctx, mock_client):
+        """Some ComfyUI wrappers return [] - treat as unavailable and fall back."""
+        mock_client.get_model_folders = AsyncMock(return_value=[])
+        result = await comfy_list_model_folders(ctx=mock_ctx)
+        data = json.loads(result)
+        assert data["source"] == "fallback"
+        assert len(data["folders"]) >= 10
 
 
 class TestSearchModels:
@@ -142,15 +168,53 @@ class TestSearchModels:
         assert data["total_matches"] == 2
 
     @pytest.mark.asyncio
-    async def test_search_models_default_folders(self, mock_ctx, mock_client):
-        async def mock_get_models(folder):
-            return [f"model_in_{folder}.safetensors"]
+    async def test_search_models_default_uses_live_folder_list(self, mock_ctx, mock_client):
+        """Default search must discover folders live, not use a hardcoded subset.
 
+        Regression: pre-1.6 the default folder list was
+        ['checkpoints', 'loras', 'vae', 'controlnet', 'upscale_models'] - so
+        a wan2.2 checkpoint stored under diffusion_models/ was invisible to
+        the default search.
+        """
+        mock_client.get_model_folders = AsyncMock(return_value=[
+            "checkpoints", "diffusion_models", "loras", "vae", "text_encoders",
+        ])
+        async def mock_get_models(folder):
+            return {
+                "diffusion_models": ["wan2.2-t2v-14b.safetensors"],
+                "text_encoders": ["t5xxl_fp16.safetensors"],
+            }.get(folder, [])
         mock_client.get_models = AsyncMock(side_effect=mock_get_models)
-        result = await comfy_search_models("model", ctx=mock_ctx)
+
+        # Query "wan" matches ONLY the diffusion_models entry - proving the
+        # default now searches that folder.
+        result = await comfy_search_models("wan", ctx=mock_ctx)
         data = json.loads(result)
-        # Should search checkpoints, loras, vae, controlnet, upscale_models
-        assert data["total_matches"] == 5
+        assert data["folders_source"] == "live"
+        assert "diffusion_models" in data["folders_scanned"]
+        assert data["matches"]["diffusion_models"] == ["wan2.2-t2v-14b.safetensors"]
+        assert data["total_matches"] == 1
+
+    @pytest.mark.asyncio
+    async def test_search_models_empty_query_returns_all(self, mock_ctx, mock_client):
+        """Empty query = full inventory across every discovered folder."""
+        mock_client.get_model_folders = AsyncMock(return_value=["checkpoints", "diffusion_models"])
+        async def mock_get_models(folder):
+            return [f"file_in_{folder}.safetensors"]
+        mock_client.get_models = AsyncMock(side_effect=mock_get_models)
+        result = await comfy_search_models("", ctx=mock_ctx)
+        data = json.loads(result)
+        assert data["total_matches"] == 2
+
+    @pytest.mark.asyncio
+    async def test_search_models_reports_caller_source_when_folders_passed(self, mock_ctx, mock_client):
+        """Explicit folders= means the caller chose the taxonomy; advertise that."""
+        mock_client.get_model_folders = AsyncMock(return_value=["should_not_be_used"])
+        mock_client.get_models = AsyncMock(return_value=["x.safetensors"])
+        result = await comfy_search_models("x", folders=["loras"], ctx=mock_ctx)
+        data = json.loads(result)
+        assert data["folders_source"] == "caller"
+        assert data["folders_scanned"] == ["loras"]
 
     @pytest.mark.asyncio
     async def test_search_models_no_matches(self, mock_ctx, mock_client):
@@ -179,11 +243,42 @@ class TestSearchModels:
 
 class TestRefreshModels:
     @pytest.mark.asyncio
-    async def test_refresh_models(self, mock_ctx, mock_client):
-        mock_client.get_models = AsyncMock(return_value=["model.safetensors"])
+    async def test_refresh_models_counts_every_folder(self, mock_ctx, mock_client):
+        """Regression: pre-1.6 refresh only hit `checkpoints`. Modern installs
+        store primary weights under `diffusion_models/` - that refresh ignored
+        them entirely."""
+        mock_client.get_model_folders = AsyncMock(return_value=[
+            "checkpoints", "diffusion_models", "loras",
+        ])
+
+        async def mock_get_models(folder):
+            return {
+                "checkpoints": ["sd15.safetensors"],
+                "diffusion_models": ["flux2.safetensors", "wan22.safetensors"],
+                "loras": [],
+            }.get(folder, [])
+        mock_client.get_models = AsyncMock(side_effect=mock_get_models)
+
         result = await comfy_refresh_models(ctx=mock_ctx)
         data = json.loads(result)
         assert data["status"] == "ok"
-        assert "fetched" in data["message"].lower()
-        assert data["checkpoint_count"] == 1
-        mock_client.get_models.assert_awaited_once_with("checkpoints")
+        assert data["folders_source"] == "live"
+        assert data["counts_by_folder"]["checkpoints"] == 1
+        assert data["counts_by_folder"]["diffusion_models"] == 2
+        assert data["counts_by_folder"]["loras"] == 0
+        assert data["total_models"] == 3
+
+    @pytest.mark.asyncio
+    async def test_refresh_models_surfaces_per_folder_errors(self, mock_ctx, mock_client):
+        mock_client.get_model_folders = AsyncMock(return_value=["checkpoints", "broken"])
+        async def mock_get_models(folder):
+            if folder == "broken":
+                raise Exception("index corrupted")
+            return ["ok.safetensors"]
+        mock_client.get_models = AsyncMock(side_effect=mock_get_models)
+
+        result = await comfy_refresh_models(ctx=mock_ctx)
+        data = json.loads(result)
+        assert data["counts_by_folder"]["checkpoints"] == 1
+        assert data["errors"]
+        assert data["errors"][0]["folder"] == "broken"

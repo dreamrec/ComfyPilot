@@ -169,3 +169,34 @@ class TestComfyClientHighLevel:
         })
         result = await client.get_extensions()
         assert result == ["ext1"]
+
+    @pytest.mark.asyncio
+    async def test_get_model_folders_returns_live_list(self, client_with_transport):
+        """GET /models returns ['checkpoints', 'diffusion_models', ...] directly."""
+        client = client_with_transport({
+            "/models": (200, [
+                "checkpoints", "diffusion_models", "loras", "vae", "text_encoders",
+                "clip_vision", "controlnet", "upscale_models", "style_models",
+                "embeddings", "gligen",
+            ]),
+        })
+        result = await client.get_model_folders()
+        assert "diffusion_models" in result
+        assert "text_encoders" in result
+        assert len(result) == 11
+
+    @pytest.mark.asyncio
+    async def test_get_model_folders_accepts_dict_shape(self, client_with_transport):
+        """Some wrappers return {'folders': [...]} or {'models': [...]}."""
+        client = client_with_transport({
+            "/models": (200, {"folders": ["checkpoints", "loras"]}),
+        })
+        result = await client.get_model_folders()
+        assert result == ["checkpoints", "loras"]
+
+    @pytest.mark.asyncio
+    async def test_get_model_folders_empty_on_error(self, client_with_transport):
+        """Unreachable endpoint -> empty list (callers do fallback)."""
+        client = client_with_transport({})  # no /models registered -> 404
+        result = await client.get_model_folders()
+        assert result == []
