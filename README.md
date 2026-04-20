@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.0.0
+# ComfyPilot v1.1.0
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
 
@@ -182,12 +182,15 @@ Blueprint storage: user-published at `~/.comfypilot/blueprints/` (override via `
 | Local ComfyUI (self-hosted) | Supported | Primary target |
 | Comfy Cloud API | Partial | Auth and route probing supported; progress depends on remote WS support |
 | stdio transport | Supported | Default |
-| Streamable HTTP transport | Not yet | Planned |
-| Workflow JSON (v0.17+ spec) | Supported | Multi-pass validation (schema + catalog + graph) |
-| V3 custom nodes | Not tested | V3 migration is ongoing in ComfyUI |
+| Streamable HTTP transport | Not yet | Planned (Phase 2) |
+| Workflow JSON (v0.17+ spec) | Supported | 5-pass validation: schema + catalog + graph + environment + execution-risk |
+| V3 custom nodes | Supported | Normalized NodeSchema parses V1 dict-of-tuples and V3 class-based shapes transparently |
+| Subgraph Blueprints | Supported | User + bundled store, list/insert/publish tools |
+| Model families (builder) | Supported | SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2 (t2v/i2v), LTX-2, HunyuanVideo (t2v/i2v), Hunyuan3D, ACE-Step |
 | WebSocket progress events | Supported where `/ws` is available | Binary preview frames are ignored safely |
 | Image content blocks | Supported | Inline image display in chat |
 | Cross-app routing | Filesystem only | Saves to disk with suggested commands |
+| `/workflow_templates` resource | Supported | Exposed as `comfy://templates/catalog` |
 
 ## Quick Setup
 
