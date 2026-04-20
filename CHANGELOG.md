@@ -2,6 +2,12 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.3.1] - 2026-04-20
+
+### Hotfix
+
+- fix(ci): use tomli backport for Python 3.10 compatibility (tomllib is 3.11+ stdlib). pyproject.toml claims support for 3.10+; tests now honor it.
+
 ## [1.3.0] - 2026-04-20
 
 ### Phase 3: Polish and Differentiation
