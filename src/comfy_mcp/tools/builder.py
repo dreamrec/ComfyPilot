@@ -1,4 +1,11 @@
-"""Builder tools - 5 tools for programmatic workflow construction."""
+"""Builder tools - 5 tools for programmatic workflow construction.
+
+Templates are resolved through the family registry (comfy_mcp.families):
+the detected checkpoint family picks which template module handles each
+intent (txt2img, img2img, txt2video, image2_3d, txt2music, etc.). This
+stops the old behavior of stuffing a Flux 2 / Wan / LTX checkpoint into
+an SD 1.5-shaped graph that cannot execute.
+"""
 from __future__ import annotations
 
 import copy
@@ -7,407 +14,10 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.families import Family, detect_family
+from comfy_mcp.families import registry as family_registry
 from comfy_mcp.server import mcp
 
-
-# ---------------------------------------------------------------------------
-# Template functions
-# ---------------------------------------------------------------------------
-
-
-def _build_txt2img(params: dict) -> dict:
-    """Standard txt2img workflow."""
-    return {
-        "1": {
-            "class_type": "CheckpointLoaderSimple",
-            "inputs": {
-                "ckpt_name": params.get("checkpoint", "v1-5-pruned-emaonly.safetensors"),
-            },
-        },
-        "2": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("positive", "beautiful landscape"),
-                "clip": ["1", 1],
-            },
-        },
-        "3": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("negative", "ugly, blurry"),
-                "clip": ["1", 1],
-            },
-        },
-        "4": {
-            "class_type": "EmptyLatentImage",
-            "inputs": {
-                "width": params.get("width", 512),
-                "height": params.get("height", 512),
-                "batch_size": params.get("batch_size", 1),
-            },
-        },
-        "5": {
-            "class_type": "KSampler",
-            "inputs": {
-                "model": ["1", 0],
-                "positive": ["2", 0],
-                "negative": ["3", 0],
-                "latent_image": ["4", 0],
-                "seed": params.get("seed", 42),
-                "steps": params.get("steps", 20),
-                "cfg": params.get("cfg", 7.0),
-                "sampler_name": params.get("sampler", "euler"),
-                "scheduler": params.get("scheduler", "normal"),
-                "denoise": params.get("denoise", 1.0),
-            },
-        },
-        "6": {
-            "class_type": "VAEDecode",
-            "inputs": {
-                "samples": ["5", 0],
-                "vae": ["1", 2],
-            },
-        },
-        "7": {
-            "class_type": "SaveImage",
-            "inputs": {
-                "images": ["6", 0],
-                "filename_prefix": params.get("filename_prefix", "ComfyPilot"),
-            },
-        },
-    }
-
-
-def _build_img2img(params: dict) -> dict:
-    """img2img workflow - loads an input image and denoises it."""
-    return {
-        "1": {
-            "class_type": "CheckpointLoaderSimple",
-            "inputs": {
-                "ckpt_name": params.get("checkpoint", "v1-5-pruned-emaonly.safetensors"),
-            },
-        },
-        "2": {
-            "class_type": "LoadImage",
-            "inputs": {
-                "image": params.get("image", "input.png"),
-            },
-        },
-        "3": {
-            "class_type": "VAEEncode",
-            "inputs": {
-                "pixels": ["2", 0],
-                "vae": ["1", 2],
-            },
-        },
-        "4": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("positive", "beautiful landscape"),
-                "clip": ["1", 1],
-            },
-        },
-        "5": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("negative", "ugly, blurry"),
-                "clip": ["1", 1],
-            },
-        },
-        "6": {
-            "class_type": "KSampler",
-            "inputs": {
-                "model": ["1", 0],
-                "positive": ["4", 0],
-                "negative": ["5", 0],
-                "latent_image": ["3", 0],
-                "seed": params.get("seed", 42),
-                "steps": params.get("steps", 20),
-                "cfg": params.get("cfg", 7.0),
-                "sampler_name": params.get("sampler", "euler"),
-                "scheduler": params.get("scheduler", "normal"),
-                "denoise": params.get("denoise", 0.75),
-            },
-        },
-        "7": {
-            "class_type": "VAEDecode",
-            "inputs": {
-                "samples": ["6", 0],
-                "vae": ["1", 2],
-            },
-        },
-        "8": {
-            "class_type": "SaveImage",
-            "inputs": {
-                "images": ["7", 0],
-                "filename_prefix": params.get("filename_prefix", "ComfyPilot_img2img"),
-            },
-        },
-    }
-
-
-def _build_upscale(params: dict) -> dict:
-    """Upscale workflow - latent upscale then re-sample."""
-    return {
-        "1": {
-            "class_type": "CheckpointLoaderSimple",
-            "inputs": {
-                "ckpt_name": params.get("checkpoint", "v1-5-pruned-emaonly.safetensors"),
-            },
-        },
-        "2": {
-            "class_type": "EmptyLatentImage",
-            "inputs": {
-                "width": params.get("width", 512),
-                "height": params.get("height", 512),
-                "batch_size": params.get("batch_size", 1),
-            },
-        },
-        "3": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("positive", "beautiful landscape"),
-                "clip": ["1", 1],
-            },
-        },
-        "4": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("negative", "ugly, blurry"),
-                "clip": ["1", 1],
-            },
-        },
-        "5": {
-            "class_type": "KSampler",
-            "inputs": {
-                "model": ["1", 0],
-                "positive": ["3", 0],
-                "negative": ["4", 0],
-                "latent_image": ["2", 0],
-                "seed": params.get("seed", 42),
-                "steps": params.get("steps", 20),
-                "cfg": params.get("cfg", 7.0),
-                "sampler_name": params.get("sampler", "euler"),
-                "scheduler": params.get("scheduler", "normal"),
-                "denoise": params.get("denoise", 1.0),
-            },
-        },
-        "6": {
-            "class_type": "LatentUpscale",
-            "inputs": {
-                "samples": ["5", 0],
-                "upscale_method": params.get("upscale_method", "nearest-exact"),
-                "width": params.get("upscale_width", 1024),
-                "height": params.get("upscale_height", 1024),
-                "crop": params.get("crop", "disabled"),
-            },
-        },
-        "7": {
-            "class_type": "KSampler",
-            "inputs": {
-                "model": ["1", 0],
-                "positive": ["3", 0],
-                "negative": ["4", 0],
-                "latent_image": ["6", 0],
-                "seed": params.get("upscale_seed", 43),
-                "steps": params.get("upscale_steps", 10),
-                "cfg": params.get("cfg", 7.0),
-                "sampler_name": params.get("sampler", "euler"),
-                "scheduler": params.get("scheduler", "normal"),
-                "denoise": params.get("upscale_denoise", 0.5),
-            },
-        },
-        "8": {
-            "class_type": "VAEDecode",
-            "inputs": {
-                "samples": ["7", 0],
-                "vae": ["1", 2],
-            },
-        },
-        "9": {
-            "class_type": "SaveImage",
-            "inputs": {
-                "images": ["8", 0],
-                "filename_prefix": params.get("filename_prefix", "ComfyPilot_upscale"),
-            },
-        },
-    }
-
-
-def _build_inpaint(params: dict) -> dict:
-    """Inpaint workflow - img2img with a noise mask for masked regions."""
-    return {
-        "1": {
-            "class_type": "CheckpointLoaderSimple",
-            "inputs": {
-                "ckpt_name": params.get("checkpoint", "v1-5-pruned-emaonly.safetensors"),
-            },
-        },
-        "2": {
-            "class_type": "LoadImage",
-            "inputs": {
-                "image": params.get("image", "input.png"),
-            },
-        },
-        "3": {
-            "class_type": "LoadImage",
-            "inputs": {
-                "image": params.get("mask", "mask.png"),
-            },
-        },
-        "4": {
-            "class_type": "VAEEncode",
-            "inputs": {
-                "pixels": ["2", 0],
-                "vae": ["1", 2],
-            },
-        },
-        "5": {
-            "class_type": "SetLatentNoiseMask",
-            "inputs": {
-                "samples": ["4", 0],
-                "mask": ["3", 0],
-            },
-        },
-        "6": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("positive", "beautiful landscape"),
-                "clip": ["1", 1],
-            },
-        },
-        "7": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("negative", "ugly, blurry"),
-                "clip": ["1", 1],
-            },
-        },
-        "8": {
-            "class_type": "KSampler",
-            "inputs": {
-                "model": ["1", 0],
-                "positive": ["6", 0],
-                "negative": ["7", 0],
-                "latent_image": ["5", 0],
-                "seed": params.get("seed", 42),
-                "steps": params.get("steps", 20),
-                "cfg": params.get("cfg", 7.0),
-                "sampler_name": params.get("sampler", "euler"),
-                "scheduler": params.get("scheduler", "normal"),
-                "denoise": params.get("denoise", 0.75),
-            },
-        },
-        "9": {
-            "class_type": "VAEDecode",
-            "inputs": {
-                "samples": ["8", 0],
-                "vae": ["1", 2],
-            },
-        },
-        "10": {
-            "class_type": "SaveImage",
-            "inputs": {
-                "images": ["9", 0],
-                "filename_prefix": params.get("filename_prefix", "ComfyPilot_inpaint"),
-            },
-        },
-    }
-
-
-def _build_controlnet(params: dict) -> dict:
-    """ControlNet workflow - condition generation on a control image."""
-    return {
-        "1": {
-            "class_type": "CheckpointLoaderSimple",
-            "inputs": {
-                "ckpt_name": params.get("checkpoint", "v1-5-pruned-emaonly.safetensors"),
-            },
-        },
-        "2": {
-            "class_type": "ControlNetLoader",
-            "inputs": {
-                "control_net_name": params.get(
-                    "controlnet_name", "control_v11p_sd15_canny.pth"
-                ),
-            },
-        },
-        "3": {
-            "class_type": "LoadImage",
-            "inputs": {
-                "image": params.get("control_image", "control.png"),
-            },
-        },
-        "4": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("positive", "beautiful landscape"),
-                "clip": ["1", 1],
-            },
-        },
-        "5": {
-            "class_type": "CLIPTextEncode",
-            "inputs": {
-                "text": params.get("negative", "ugly, blurry"),
-                "clip": ["1", 1],
-            },
-        },
-        "6": {
-            "class_type": "ControlNetApply",
-            "inputs": {
-                "conditioning": ["4", 0],
-                "control_net": ["2", 0],
-                "image": ["3", 0],
-                "strength": params.get("controlnet_strength", 1.0),
-            },
-        },
-        "7": {
-            "class_type": "EmptyLatentImage",
-            "inputs": {
-                "width": params.get("width", 512),
-                "height": params.get("height", 512),
-                "batch_size": params.get("batch_size", 1),
-            },
-        },
-        "8": {
-            "class_type": "KSampler",
-            "inputs": {
-                "model": ["1", 0],
-                "positive": ["6", 0],
-                "negative": ["5", 0],
-                "latent_image": ["7", 0],
-                "seed": params.get("seed", 42),
-                "steps": params.get("steps", 20),
-                "cfg": params.get("cfg", 7.0),
-                "sampler_name": params.get("sampler", "euler"),
-                "scheduler": params.get("scheduler", "normal"),
-                "denoise": params.get("denoise", 1.0),
-            },
-        },
-        "9": {
-            "class_type": "VAEDecode",
-            "inputs": {
-                "samples": ["8", 0],
-                "vae": ["1", 2],
-            },
-        },
-        "10": {
-            "class_type": "SaveImage",
-            "inputs": {
-                "images": ["9", 0],
-                "filename_prefix": params.get("filename_prefix", "ComfyPilot_controlnet"),
-            },
-        },
-    }
-
-
-_TEMPLATES = {
-    "txt2img": _build_txt2img,
-    "img2img": _build_img2img,
-    "upscale": _build_upscale,
-    "inpaint": _build_inpaint,
-    "controlnet": _build_controlnet,
-}
 
 
 # ---------------------------------------------------------------------------
@@ -440,21 +50,31 @@ async def comfy_build_workflow(
     params: dict | None = None,
     ctx: Context = None,
 ) -> str:
-    """Build a ComfyUI workflow from a template.
+    """Build a ComfyUI workflow for an intent, routed to the detected model family.
+
+    The checkpoint family is detected from params['checkpoint'] (or auto-detected
+    from the first installed checkpoint if ctx is provided) and dispatched to a
+    family-specific builder. SD 1.5 is the fallback when the family can't be
+    determined.
+
+    Intents by family:
+      SD 1.5:          txt2img, img2img, upscale, inpaint, controlnet
+      SDXL / SD 3.5:   txt2img
+      Flux 2 / Qwen:   txt2img
+      Wan 2.2:         txt2video, img2video
+      LTX-2:           txt2video
+      HunyuanVideo:    txt2video, img2video
+      Hunyuan3D:       image2_3d
+      ACE-Step:        txt2music
 
     Args:
-        template: Template name (txt2img, img2img, upscale, inpaint, controlnet)
-        params: Optional parameters to override template defaults
+        template: Intent name (e.g. 'txt2img', 'txt2video', 'image2_3d', 'txt2music').
+        params: Optional param overrides. If 'checkpoint' is set, family routing
+            uses it; otherwise the first installed checkpoint is auto-detected.
     """
-    if template not in _TEMPLATES:
-        return json.dumps({
-            "error": f"Unknown template: {template}",
-            "available": list(_TEMPLATES.keys()),
-        })
-
     resolved_params = dict(params or {})
 
-    # If ctx available, try to detect installed models
+    # Auto-detect installed checkpoint if none provided
     if ctx and "checkpoint" not in resolved_params:
         try:
             client = ctx.request_context.lifespan_context["comfy_client"]
@@ -462,11 +82,32 @@ async def comfy_build_workflow(
             if models:
                 resolved_params["checkpoint"] = models[0]
         except Exception:
-            pass  # Fallback to template default
+            pass  # Fallback to family default
 
-    workflow = _TEMPLATES[template](resolved_params)
+    checkpoint = resolved_params.get("checkpoint", "")
+    family = detect_family(checkpoint)
+
+    # If the checkpoint is unknown or empty, fall back to SD 1.5 baseline
+    if family == Family.UNKNOWN:
+        family = Family.SD15
+
+    if not family_registry.has(family, template):
+        return json.dumps({
+            "error": f"No template for intent={template!r} in family={family.value}",
+            "detected_family": family.value,
+            "available_intents_for_family": family_registry.list_intents(family),
+            "all_supported_families": [f.value for f in family_registry.list_families()],
+        })
+
+    workflow = family_registry.build(family, template, resolved_params)
     return json.dumps(
-        {"template": template, "node_count": len(workflow), "workflow": workflow},
+        {
+            "intent": template,
+            "family": family.value,
+            "checkpoint": checkpoint,
+            "node_count": len(workflow),
+            "workflow": workflow,
+        },
         indent=2,
     )
 

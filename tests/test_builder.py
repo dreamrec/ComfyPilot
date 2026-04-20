@@ -38,7 +38,7 @@ class TestBuildWorkflow:
     async def test_txt2img_returns_valid_workflow(self, builder_ctx):
         result = json.loads(await comfy_build_workflow("txt2img", ctx=builder_ctx))
         assert "workflow" in result
-        assert result["template"] == "txt2img"
+        assert result["intent"] == "txt2img"
         assert result["node_count"] == 7
         wf = result["workflow"]
         assert "1" in wf
@@ -52,9 +52,10 @@ class TestBuildWorkflow:
     async def test_unknown_template_returns_error(self, builder_ctx):
         result = json.loads(await comfy_build_workflow("nonexistent", ctx=builder_ctx))
         assert "error" in result
+        # Builder reports the intent and lists available intents for the detected family
         assert "nonexistent" in result["error"]
-        assert "available" in result
-        assert "txt2img" in result["available"]
+        assert "available_intents_for_family" in result
+        assert "txt2img" in result["available_intents_for_family"]
 
     @pytest.mark.asyncio
     async def test_params_override_defaults(self, builder_ctx):
@@ -79,7 +80,7 @@ class TestBuildWorkflow:
     async def test_img2img_template(self, builder_ctx):
         result = json.loads(await comfy_build_workflow("img2img", ctx=builder_ctx))
         wf = result["workflow"]
-        assert result["template"] == "img2img"
+        assert result["intent"] == "img2img"
         # Must have LoadImage node
         class_types = {v["class_type"] for v in wf.values()}
         assert "LoadImage" in class_types
@@ -92,7 +93,7 @@ class TestBuildWorkflow:
     async def test_upscale_template(self, builder_ctx):
         result = json.loads(await comfy_build_workflow("upscale", ctx=builder_ctx))
         wf = result["workflow"]
-        assert result["template"] == "upscale"
+        assert result["intent"] == "upscale"
         class_types = {v["class_type"] for v in wf.values()}
         assert "LatentUpscale" in class_types
         # Two KSampler nodes expected
@@ -103,7 +104,7 @@ class TestBuildWorkflow:
     async def test_inpaint_template(self, builder_ctx):
         result = json.loads(await comfy_build_workflow("inpaint", ctx=builder_ctx))
         wf = result["workflow"]
-        assert result["template"] == "inpaint"
+        assert result["intent"] == "inpaint"
         class_types = {v["class_type"] for v in wf.values()}
         assert "SetLatentNoiseMask" in class_types
         assert "LoadImage" in class_types
@@ -112,7 +113,7 @@ class TestBuildWorkflow:
     async def test_controlnet_template(self, builder_ctx):
         result = json.loads(await comfy_build_workflow("controlnet", ctx=builder_ctx))
         wf = result["workflow"]
-        assert result["template"] == "controlnet"
+        assert result["intent"] == "controlnet"
         class_types = {v["class_type"] for v in wf.values()}
         assert "ControlNetLoader" in class_types
         assert "ControlNetApply" in class_types
