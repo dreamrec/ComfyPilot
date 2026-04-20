@@ -44,6 +44,10 @@ def list_families() -> list[Family]:
 # --- Wire up built-in family templates ---
 
 from comfy_mcp.families.builders import sd15 as _sd15  # noqa: E402
+from comfy_mcp.families.builders import flux2 as _flux2  # noqa: E402
 
 for _intent, _fn in _sd15.TEMPLATES.items():
     register(Family.SD15, _intent, _fn)
+
+for _intent, _fn in _flux2.TEMPLATES.items():
+    register(Family.FLUX2, _intent, _fn)

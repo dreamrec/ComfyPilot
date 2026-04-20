@@ -52,12 +52,41 @@ class TestBuild:
         assert ksampler["inputs"]["steps"] == 30
 
 
+class TestFlux2:
+    def test_flux2_txt2img_uses_unet_loader(self):
+        workflow = build(Family.FLUX2, "txt2img", {"checkpoint": "flux2-klein.safetensors"})
+        class_types = {n["class_type"] for n in workflow.values()}
+        assert "UNETLoader" in class_types
+        assert "DualCLIPLoader" in class_types
+        assert "FluxGuidance" in class_types
+        assert "SamplerCustomAdvanced" in class_types
+        # Flux 2 must NOT use SD 1.5 loader
+        assert "CheckpointLoaderSimple" not in class_types
+
+    def test_flux2_uses_sd3_latent(self):
+        workflow = build(Family.FLUX2, "txt2img", {})
+        class_types = {n["class_type"] for n in workflow.values()}
+        assert "EmptySD3LatentImage" in class_types
+        assert "EmptyLatentImage" not in class_types
+
+    def test_flux2_defaults_to_1024px(self):
+        workflow = build(Family.FLUX2, "txt2img", {})
+        latent = next(n for n in workflow.values() if n["class_type"] == "EmptySD3LatentImage")
+        assert latent["inputs"]["width"] == 1024
+        assert latent["inputs"]["height"] == 1024
+
+    def test_flux2_guidance_default(self):
+        workflow = build(Family.FLUX2, "txt2img", {})
+        guidance = next(n for n in workflow.values() if n["class_type"] == "FluxGuidance")
+        assert guidance["inputs"]["guidance"] == 3.5
+
+
 class TestErrors:
     def test_unknown_intent_raises(self):
         with pytest.raises(KeyError):
             build(Family.SD15, "video2video", {})
 
-    def test_unregistered_family_raises(self):
-        # FLUX2 is not yet registered in Task 4 baseline
+    def test_ace_step_not_registered_yet_raises(self):
+        # ACE_STEP is not yet registered (comes in Task 6)
         with pytest.raises(KeyError):
-            build(Family.FLUX2, "txt2img", {})
+            build(Family.ACE_STEP, "txt2music", {})
