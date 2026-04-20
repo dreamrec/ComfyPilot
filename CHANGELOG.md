@@ -2,6 +2,21 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.2.0] - 2026-04-20
+
+### Phase 2: MCP 2026 Table Stakes
+
+- feat: pydantic response models for high-signal tools (SystemStats, ValidationReport, QueueAck, JobStatus, ModelList, TechniqueList, SnapshotList, VRAMStatus, DynamicsReport, WatchProgressFrame) - ready for incremental adoption by tool bodies.
+- feat: elicitation-backed confirmation on destructive tools (comfy_clear_queue, comfy_clear_history, comfy_delete_history, comfy_delete_snapshot, comfy_emergency_stop) via ctx.elicit. Each accepts confirm=True to bypass. Graceful fallback when host lacks elicitation support.
+- feat: paginated node catalog resource template comfy://nodes/catalog/{page} (100 per page) and comfy://nodes/by-category/{category} filter.
+- feat: --transport streamable-http CLI flag with --host/--port for remote or hosted deployments. stdio remains the default.
+- feat: MCP Registry manifest at server.json under namespace io.github.dreamrec/comfypilot. Declares elicitation capability and both transports.
+
+### Skipped this release
+
+- Tool body migration to pydantic-native return types (models shipped, migration is a follow-up so existing tests stay stable).
+- Sampling-backed prompt expansion (Context.sample not yet in the installed FastMCP SDK).
+
 ## [1.1.0] - 2026-04-20
 
 ### Phase 0: Truth Hygiene

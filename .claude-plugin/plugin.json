@@ -1,6 +1,6 @@
 {
   "name": "comfypilot",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "AI assistant for live control of ComfyUI with 69 MCP tools (family-aware builder, blueprints, V3 node schema)",
   "author": {
     "name": "silviu"

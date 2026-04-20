@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.1.0
+# ComfyPilot v1.2.0
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
 
@@ -182,7 +182,10 @@ Blueprint storage: user-published at `~/.comfypilot/blueprints/` (override via `
 | Local ComfyUI (self-hosted) | Supported | Primary target |
 | Comfy Cloud API | Partial | Auth and route probing supported; progress depends on remote WS support |
 | stdio transport | Supported | Default |
-| Streamable HTTP transport | Not yet | Planned (Phase 2) |
+| Streamable HTTP transport | Supported | `comfypilot --transport streamable-http --host 0.0.0.0 --port 8765` |
+| Elicitation on destructive tools | Supported | clear_queue, clear_history, delete_history, delete_snapshot, emergency_stop gate on ctx.elicit when confirm=False |
+| Paginated node catalog | Supported | `comfy://nodes/catalog/{page}` (100 per page) + `comfy://nodes/by-category/{category}` |
+| MCP Registry publishing | Manifest ready | `server.json` declares `io.github.dreamrec/comfypilot` |
 | Workflow JSON (v0.17+ spec) | Supported | 5-pass validation: schema + catalog + graph + environment + execution-risk |
 | V3 custom nodes | Supported | Normalized NodeSchema parses V1 dict-of-tuples and V3 class-based shapes transparently |
 | Subgraph Blueprints | Supported | User + bundled store, list/insert/publish tools |

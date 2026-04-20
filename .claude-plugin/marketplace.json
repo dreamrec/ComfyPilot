@@ -10,7 +10,7 @@
     {
       "name": "comfypilot",
       "description": "AI assistant for live control of ComfyUI with 69 MCP tools (family-aware builder, blueprints, V3 node schema)",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": {
         "name": "dreamrec"
       },
