@@ -129,15 +129,18 @@ async def comfy_restore_snapshot(snapshot_id: str, ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_delete_snapshot(snapshot_id: str, ctx: Context = None) -> str:
-    """Delete a snapshot.
+async def comfy_delete_snapshot(snapshot_id: str, confirm: bool = False, ctx: Context = None) -> str:
+    """Delete a snapshot. Destructive.
 
     Args:
         snapshot_id: The snapshot ID to delete
-
-    Returns:
-        JSON confirming deletion or error if not found
+        confirm: If False, the tool asks for explicit confirmation via
+            elicitation before proceeding. Pass True to skip the prompt.
     """
+    from comfy_mcp.safety.confirm import confirm_destructive
+    if not await confirm_destructive(ctx, f"Delete snapshot {snapshot_id}?", confirm):
+        return json.dumps({"status": "cancelled", "reason": "user_declined", "snapshot_id": snapshot_id}, indent=2)
+
     mgr = _snapshot_mgr(ctx)
     deleted = mgr.delete(snapshot_id)
     if not deleted:

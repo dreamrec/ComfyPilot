@@ -89,15 +89,18 @@ async def comfy_get_run_result(prompt_id: str, ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_delete_history(prompt_id: str, ctx: Context = None) -> str:
-    """Delete a specific history entry.
+async def comfy_delete_history(prompt_id: str, confirm: bool = False, ctx: Context = None) -> str:
+    """Delete a specific history entry. Destructive.
 
     Args:
         prompt_id: The ID of the prompt execution to delete
-
-    Returns:
-        JSON confirming deletion
+        confirm: If False, the tool asks for explicit confirmation via
+            elicitation before proceeding. Pass True to skip the prompt.
     """
+    from comfy_mcp.safety.confirm import confirm_destructive
+    if not await confirm_destructive(ctx, f"Delete history entry for prompt {prompt_id}?", confirm):
+        return json.dumps({"status": "cancelled", "reason": "user_declined", "prompt_id": prompt_id}, indent=2)
+
     await _client(ctx).delete_history(prompt_id=prompt_id)
     return json.dumps({
         "status": "deleted",
@@ -114,14 +117,17 @@ async def comfy_delete_history(prompt_id: str, ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_clear_history(ctx: Context = None) -> str:
-    """Clear all execution history.
+async def comfy_clear_history(confirm: bool = False, ctx: Context = None) -> str:
+    """Clear ALL execution history. Destructive and cannot be undone.
 
-    Warning: This action cannot be undone.
-
-    Returns:
-        JSON confirming all history cleared
+    Args:
+        confirm: If False, the tool asks for explicit confirmation via
+            elicitation before proceeding. Pass True to skip the prompt.
     """
+    from comfy_mcp.safety.confirm import confirm_destructive
+    if not await confirm_destructive(ctx, "Clear ALL execution history? This cannot be undone.", confirm):
+        return json.dumps({"status": "cancelled", "reason": "user_declined"}, indent=2)
+
     await _client(ctx).clear_history()
     return json.dumps({
         "status": "cleared",

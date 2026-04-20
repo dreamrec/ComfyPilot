@@ -225,8 +225,17 @@ async def comfy_interrupt(ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_clear_queue(ctx: Context = None) -> str:
-    """Clear all pending prompts from the queue."""
+async def comfy_clear_queue(confirm: bool = False, ctx: Context = None) -> str:
+    """Clear all pending prompts from the queue. Destructive.
+
+    Args:
+        confirm: If False, the tool asks for explicit confirmation via
+            elicitation before proceeding. Pass True to skip the prompt.
+    """
+    from comfy_mcp.safety.confirm import confirm_destructive
+    if not await confirm_destructive(ctx, "Clear all pending prompts from the ComfyUI queue?", confirm):
+        return json.dumps({"status": "cancelled", "reason": "user_declined"}, indent=2)
+
     await _client(ctx).clear_queue()
     return json.dumps({
         "status": "cleared",

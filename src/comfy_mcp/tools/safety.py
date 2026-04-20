@@ -99,14 +99,24 @@ async def comfy_detect_instability(ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_emergency_stop(ctx: Context = None) -> str:
-    """Emergency stop: interrupt current job, clear queue, and free VRAM.
+async def comfy_emergency_stop(confirm: bool = False, ctx: Context = None) -> str:
+    """Emergency stop: interrupt current job, clear queue, and free VRAM. Destructive.
 
     WARNING: This is destructive - it will cancel all running and pending jobs.
 
-    Returns:
-        JSON with status and list of actions taken
+    Args:
+        confirm: If False, the tool asks for explicit confirmation via
+            elicitation before proceeding. Pass True to skip the prompt
+            (useful when firing from automated safety checks).
     """
+    from comfy_mcp.safety.confirm import confirm_destructive
+    if not await confirm_destructive(
+        ctx,
+        "EMERGENCY STOP: interrupt current job, clear queue, and free VRAM?",
+        confirm,
+    ):
+        return json.dumps({"status": "cancelled", "reason": "user_declined"}, indent=2)
+
     guard = _vram_guard(ctx)
     result = await guard.emergency_stop()
     return json.dumps(result, indent=2)
