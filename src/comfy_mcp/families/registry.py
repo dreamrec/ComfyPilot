@@ -43,11 +43,30 @@ def list_families() -> list[Family]:
 
 # --- Wire up built-in family templates ---
 
-from comfy_mcp.families.builders import sd15 as _sd15  # noqa: E402
+from comfy_mcp.families.builders import ace_step as _ace_step  # noqa: E402
 from comfy_mcp.families.builders import flux2 as _flux2  # noqa: E402
+from comfy_mcp.families.builders import hunyuan_3d as _hunyuan_3d  # noqa: E402
+from comfy_mcp.families.builders import hunyuan_video as _hunyuan_video  # noqa: E402
+from comfy_mcp.families.builders import ltx2 as _ltx2  # noqa: E402
+from comfy_mcp.families.builders import qwen as _qwen  # noqa: E402
+from comfy_mcp.families.builders import sd15 as _sd15  # noqa: E402
+from comfy_mcp.families.builders import sd35 as _sd35  # noqa: E402
+from comfy_mcp.families.builders import sdxl as _sdxl  # noqa: E402
+from comfy_mcp.families.builders import wan22 as _wan22  # noqa: E402
 
-for _intent, _fn in _sd15.TEMPLATES.items():
-    register(Family.SD15, _intent, _fn)
 
-for _intent, _fn in _flux2.TEMPLATES.items():
-    register(Family.FLUX2, _intent, _fn)
+def _register_module(family: Family, module) -> None:
+    for intent, fn in module.TEMPLATES.items():
+        register(family, intent, fn)
+
+
+_register_module(Family.SD15, _sd15)
+_register_module(Family.SDXL, _sdxl)
+_register_module(Family.SD35, _sd35)
+_register_module(Family.FLUX2, _flux2)
+_register_module(Family.QWEN, _qwen)
+_register_module(Family.WAN22, _wan22)
+_register_module(Family.LTX2, _ltx2)
+_register_module(Family.HUNYUAN_VIDEO, _hunyuan_video)
+_register_module(Family.HUNYUAN_3D, _hunyuan_3d)
+_register_module(Family.ACE_STEP, _ace_step)
