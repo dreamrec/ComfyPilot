@@ -1,30 +1,76 @@
-"""SnapshotManager - in-memory workflow snapshots with LRU eviction.
+"""SnapshotManager - workflow snapshots with optional disk persistence.
 
-Stores workflow state snapshots for undo/restore capability.
-Snapshots are ordered by creation time; oldest evicted when limit reached.
+Stores workflow state snapshots for undo/restore capability. When
+storage_dir is set, snapshots persist as JSON files and survive restart;
+otherwise they live purely in memory. Eviction is LRU by creation time.
 """
 
 from __future__ import annotations
 
 import copy
+import json
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 
 class SnapshotManager:
-    """Manages workflow snapshots with bounded storage."""
+    """Manages workflow snapshots with bounded storage, optionally persisted to disk."""
 
-    def __init__(self, max_snapshots: int = 50):
+    def __init__(self, max_snapshots: int = 50, storage_dir: Path | str | None = None):
         """Initialize snapshot manager.
 
         Args:
             max_snapshots: Maximum number of snapshots to retain.
+            storage_dir: If set, snapshots persist as JSON files in this
+                directory and survive restart. If None, snapshots are
+                in-memory only (backward-compatible with pre-1.3 behavior).
         """
         self._max = max_snapshots
-        self._snapshots: dict[str, dict] = {}  # id -> snapshot data
-        self._order: list[str] = []  # oldest first
-        self.auto_snapshot = False  # Toggle for automatic snapshot creation
+        self._snapshots: dict[str, dict] = {}
+        self._order: list[str] = []
+        self.auto_snapshot = False
+        self._dir: Path | None = Path(storage_dir) if storage_dir else None
+        if self._dir is not None:
+            self._dir.mkdir(parents=True, exist_ok=True)
+            self._load_from_disk()
+
+    def _load_from_disk(self) -> None:
+        """Populate _snapshots and _order from persisted files (oldest first)."""
+        if self._dir is None:
+            return
+        files = sorted(self._dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
+        for p in files:
+            try:
+                data = json.loads(p.read_text())
+                sid = data.get("id") or p.stem
+                data["id"] = sid
+                self._snapshots[sid] = data
+                self._order.append(sid)
+            except (json.JSONDecodeError, OSError):
+                continue
+        # Respect max_snapshots after load
+        self._trim()
+
+    def _persist(self, snapshot_id: str) -> None:
+        if self._dir is None:
+            return
+        snap = self._snapshots.get(snapshot_id)
+        if snap is None:
+            return
+        try:
+            (self._dir / f"{snapshot_id}.json").write_text(json.dumps(snap, indent=2))
+        except OSError:
+            pass
+
+    def _unpersist(self, snapshot_id: str) -> None:
+        if self._dir is None:
+            return
+        try:
+            (self._dir / f"{snapshot_id}.json").unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def add(self, workflow: dict, name: str = "") -> dict:
         """Create a new snapshot. Returns snapshot metadata (id, name, timestamp, node_count).
@@ -46,6 +92,7 @@ class SnapshotManager:
         }
         self._snapshots[snapshot_id] = snapshot
         self._order.append(snapshot_id)
+        self._persist(snapshot_id)
         self._trim()
         return {
             "id": snapshot_id,
@@ -149,6 +196,7 @@ class SnapshotManager:
         if snapshot_id in self._snapshots:
             del self._snapshots[snapshot_id]
             self._order = [s for s in self._order if s != snapshot_id]
+            self._unpersist(snapshot_id)
             return True
         return False
 
@@ -157,3 +205,4 @@ class SnapshotManager:
         while len(self._snapshots) > self._max:
             oldest_id = self._order.pop(0)
             self._snapshots.pop(oldest_id, None)
+            self._unpersist(oldest_id)

@@ -22,7 +22,7 @@ It gives an AI agent a clean tool surface for workflow building, queueing, progr
 ## What This Is
 
 - A practical bridge between AI agents and ComfyUI.
-- A 69-tool MCP surface for workflows, models, images, monitoring, safety, routing, and blueprints.
+- A 72-tool MCP surface for workflows, models, images, monitoring, safety, routing, blueprints, visualization, PNG ingest, and parameter sweeps.
 - A workflow-oriented loop built for iteration, not one-shot guessing.
 - A small technique library for saving and replaying working patterns.
 
@@ -42,7 +42,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** - Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (69 Tools)
+## Tool Map (72 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -138,6 +138,13 @@ Use for assembling workflows from named reusable macros.
 - `comfy_publish_subgraph` - Save a set of nodes as a reusable named blueprint.
 
 Blueprint storage: user-published at `~/.comfypilot/blueprints/` (override via `COMFY_BLUEPRINT_DIR`); bundled examples ship in `blueprints/` inside the repo.
+
+### 14) Visualization + Ingest + Sweep
+Use for rendering workflows, re-importing PNG outputs, and parameter sweeps.
+
+- `comfy_visualize_workflow` - Render an API-format workflow as a Mermaid `flowchart TD` source.
+- `comfy_import_workflow_from_png` - Extract the embedded workflow JSON from a ComfyUI-saved PNG (prefers 'prompt' API-format chunk, falls back to 'workflow' UI chunk).
+- `comfy_sweep` - Enqueue N copies of a workflow with a single parameter varying across `values`; returns prompt_ids + grid layout hint.
 
 ## MCP Resources (5)
 

@@ -28,6 +28,7 @@ async def comfy_lifespan(server: FastMCP):
     api_key = os.environ.get("COMFY_API_KEY", "")
     timeout = float(os.environ.get("COMFY_TIMEOUT", "300"))
     snapshot_limit = int(os.environ.get("COMFY_SNAPSHOT_LIMIT", "50"))
+    snapshot_dir = os.environ.get("COMFY_SNAPSHOT_DIR", "")
     auth_method = os.environ.get("COMFY_AUTH_METHOD", "auto")
 
     client = ComfyClient(url, api_key=api_key, auth_method=auth_method, timeout=timeout)
@@ -43,7 +44,10 @@ async def comfy_lifespan(server: FastMCP):
     from comfy_mcp.safety.vram_guard import VRAMGuard
 
     event_mgr = EventManager(client)
-    snapshot_mgr = SnapshotManager(max_snapshots=snapshot_limit)
+    snapshot_mgr = SnapshotManager(
+        max_snapshots=snapshot_limit,
+        storage_dir=(snapshot_dir or None),
+    )
     technique_store = TechniqueStore()
     vram_guard = VRAMGuard(client)
     job_tracker = JobTracker(client, event_mgr)

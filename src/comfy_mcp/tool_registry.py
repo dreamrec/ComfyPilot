@@ -20,3 +20,6 @@ from comfy_mcp.tools import safety      # noqa: F401  -- Task 17
 from comfy_mcp.tools import builder     # noqa: F401  -- Task 18
 from comfy_mcp.tools import output_routing  # noqa: F401 -- Task 19
 from comfy_mcp.tools import blueprints  # noqa: F401  -- Phase 1 Task 10
+from comfy_mcp.tools import viz         # noqa: F401  -- Phase 3 Task 3
+from comfy_mcp.tools import ingest      # noqa: F401  -- Phase 3 Task 4
+from comfy_mcp.tools import sweep       # noqa: F401  -- Phase 3 Task 5
