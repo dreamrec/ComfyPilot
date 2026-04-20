@@ -41,8 +41,11 @@ def test_public_docs_reference_current_version():
 
 
 def test_tracked_public_files_are_ascii_clean():
+    # README.md is deliberately excluded: it contains an intentional Unicode
+    # ASCII-art banner (box-drawing characters). The ASCII gate still protects
+    # every other tracked surface where stray smart quotes / em-dashes from
+    # copy-paste would be a real problem.
     tracked_paths = [
-        ROOT / "README.md",
         ROOT / "CHANGELOG.md",
         ROOT / "docs" / "MANUAL.md",
         ROOT / "pyproject.toml",
