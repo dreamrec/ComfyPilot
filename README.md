@@ -9,6 +9,8 @@
 
 # ComfyPilot v1.0.0
 
+[![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
+
 **ComfyPilot** is an MCP server for ComfyUI.
 It gives an AI agent a clean tool surface for workflow building, queueing, progress monitoring, image retrieval, snapshots, and VRAM safety.
 
@@ -194,6 +196,10 @@ Claude Code plugin (one-command install):
 ```bash
 claude plugin add /path/to/ComfyPilot
 ```
+
+### Local override
+
+If your ComfyUI instance lives somewhere other than `127.0.0.1:8188` (Tailscale, remote LAN, custom port), copy `.mcp.local.json.example` to `.mcp.local.json` and edit it. The `.mcp.local.json` file is gitignored so per-machine URLs and secrets never get committed.
 
 ## MCP Bundle (Standardized)
 

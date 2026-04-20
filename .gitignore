@@ -15,3 +15,6 @@ htmlcov/
 *.swp
 .idea/
 .vscode/
+
+# Per-machine MCP overrides (Tailscale URLs, custom ports, secrets)
+.mcp.local.json

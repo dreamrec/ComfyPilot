@@ -1,0 +1,11 @@
+{
+  "_comment": "Copy to .mcp.local.json (gitignored) and edit. Your MCP client must merge this with .mcp.json.",
+  "mcpServers": {
+    "comfypilot": {
+      "env": {
+        "COMFY_URL": "http://127.0.0.1:8188",
+        "COMFY_API_KEY": ""
+      }
+    }
+  }
+}

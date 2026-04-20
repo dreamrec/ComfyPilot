@@ -2,6 +2,16 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [Unreleased]
+
+### Phase 0: Truth Hygiene
+
+- feat: add .mcp.local.json override pattern for per-machine config (Tailscale URLs, custom ports, secrets) - file is gitignored so per-machine URLs cannot accidentally be committed
+- ci: add pytest matrix workflow for Python 3.10 / 3.11 / 3.12
+- docs: add CI badge to README
+
+See docs/superpowers/plans/2026-04-20-modernization-roadmap.md for the full post-1.0 roadmap.
+
 ## [1.0.0] - 2026-03-16
 
 ### Release
