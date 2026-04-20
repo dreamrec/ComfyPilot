@@ -1,0 +1,16 @@
+{
+  "id": "acestep-txt2music",
+  "name": "acestep-txt2music",
+  "description": "ACE-Step 1.5 XL text-to-music baseline. 30-second clip with tags + optional lyrics.",
+  "tags": ["ace-step", "music", "audio", "txt2music"],
+  "node_count": 7,
+  "nodes": {
+    "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "ace-step-1.5-xl.safetensors"}},
+    "2": {"class_type": "EmptyAceStepLatentAudio", "inputs": {"seconds": 30.0, "batch_size": 1}},
+    "3": {"class_type": "TextEncodeAceStepAudio", "inputs": {"clip": ["1", 1], "tags": "electronic, ambient, cinematic", "lyrics": "", "lyrics_strength": 1.0}},
+    "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "low quality, distorted", "clip": ["1", 1]}},
+    "5": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["2", 0], "seed": 42, "steps": 50, "cfg": 5.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
+    "6": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["5", 0], "vae": ["1", 2]}},
+    "7": {"class_type": "SaveAudio", "inputs": {"audio": ["6", 0], "filename_prefix": "ComfyPilot_acestep"}}
+  }
+}

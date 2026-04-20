@@ -2,6 +2,14 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.5.0] - 2026-04-20
+
+### Cloud WS probe, hub search, bundled blueprints for every family
+
+- feat: ComfyClient.probe_capabilities now actively probes the WebSocket endpoint with a 3s timeout instead of hardcoding ws_available=(profile==local). Cloud ComfyUI exposes wss://cloud.comfy.org/ws; that surface was being wrongly disabled. Headers (bearer / X-API-Key) flow through to the probe.
+- feat: comfy_search_hub tool - searches HuggingFace (/api/models) or CivitAI (/api/v1/models) for public models. Normalized hit shape: {source, id, name, url, downloads, tags, + source-specific extras}. Tool count: 73.
+- feat: bundled blueprint library grows from 1 -> 9 (one per supported family): flux2-txt2img, sd35-txt2img, sdxl-hires-fix, qwen-txt2img, wan22-txt2video, ltx2-txt2video, hunyuan-video-txt2video, hunyuan3d-image2_3d, acestep-txt2music. comfy_list_blueprints returns all of them.
+
 ## [1.4.0] - 2026-04-20
 
 ### Phase 2 Task 2: Full structured-output migration

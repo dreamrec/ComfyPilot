@@ -100,8 +100,39 @@ class ComfyClient:
         except Exception:
             self.capabilities["features"] = []
 
-        self.capabilities["ws_available"] = self.capabilities["profile"] == "local"
+        # Probe WebSocket reachability instead of hardcoding by profile.
+        # Cloud ComfyUI (cloud.comfy.org/ws) does expose a WebSocket; the old
+        # 'ws_available = profile == "local"' was overly conservative.
+        self.capabilities["ws_available"] = await self._probe_ws_available()
         return self.capabilities
+
+    async def _probe_ws_available(self) -> bool:
+        """Attempt a short-timeout WS handshake and report success."""
+        try:
+            import asyncio as _asyncio
+
+            import websockets
+        except ImportError:
+            return False
+
+        base = self.base_url.replace("http://", "ws://").replace("https://", "wss://")
+        ws_url = f"{base}/ws?clientId={self._client_id}"
+        try:
+            headers = self.get_auth_headers()
+            kwargs: dict[str, object] = {}
+            if headers:
+                kwargs["additional_headers"] = headers
+            conn = websockets.connect(ws_url, **kwargs)
+            # Open & close immediately - the probe only cares about handshake
+            ws = await _asyncio.wait_for(conn, timeout=3.0)
+            try:
+                await ws.close()
+            finally:
+                # websockets >=13 exposes close() on the handshake object
+                pass
+            return True
+        except Exception:
+            return False
 
     def _ensure_connected(self) -> httpx.AsyncClient:
         if self._http is None:

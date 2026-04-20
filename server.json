@@ -2,7 +2,7 @@
   "$schema": "https://modelcontextprotocol.io/schemas/server.json",
   "name": "io.github.dreamrec/comfypilot",
   "description": "MCP server for ComfyUI. 72 tools for workflow building (family-aware: Flux 2, SD 3.5, Qwen, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, ACE-Step), queueing, monitoring, persistent snapshots, VRAM safety, subgraph blueprints, Mermaid visualization, PNG workflow ingest, parameter sweeps, and cross-app routing to TouchDesigner / Blender.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/dreamrec/ComfyPilot"
@@ -13,7 +13,7 @@
     {
       "registry": "pypi",
       "name": "comfypilot",
-      "version": "1.4.0"
+      "version": "1.5.0"
     }
   ],
   "runtime": {

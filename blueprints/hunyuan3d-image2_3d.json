@@ -1,0 +1,18 @@
+{
+  "id": "hunyuan3d-image2_3d",
+  "name": "hunyuan3d-image2_3d",
+  "description": "Hunyuan3D 2.1 single-image to textured GLB mesh baseline.",
+  "tags": ["hunyuan", "hunyuan3d", "3d", "mesh", "image2_3d"],
+  "node_count": 9,
+  "nodes": {
+    "1": {"class_type": "Hunyuan3Dv2ConditioningMultiView", "inputs": {"front": "", "left": "", "right": "", "back": ""}},
+    "2": {"class_type": "LoadImage", "inputs": {"image": "input.png"}},
+    "3": {"class_type": "Hunyuan3Dv2Conditioning", "inputs": {"image": ["2", 0]}},
+    "4": {"class_type": "UNETLoader", "inputs": {"unet_name": "hunyuan3d-dit-v2-1.safetensors", "weight_dtype": "default"}},
+    "5": {"class_type": "VAELoader", "inputs": {"vae_name": "hunyuan3d-vae-v2-1.safetensors"}},
+    "6": {"class_type": "EmptyLatentHunyuan3Dv2", "inputs": {"resolution": 3072, "batch_size": 1}},
+    "7": {"class_type": "KSampler", "inputs": {"model": ["4", 0], "positive": ["3", 0], "negative": ["3", 1], "latent_image": ["6", 0], "seed": 42, "steps": 30, "cfg": 5.5, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
+    "8": {"class_type": "VAEDecodeHunyuan3D", "inputs": {"samples": ["7", 0], "vae": ["5", 0]}},
+    "9": {"class_type": "SaveGLB", "inputs": {"mesh": ["8", 0], "filename_prefix": "ComfyPilot_hy3d"}}
+  }
+}

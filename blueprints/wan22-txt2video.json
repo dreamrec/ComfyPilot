@@ -1,0 +1,18 @@
+{
+  "id": "wan22-txt2video",
+  "name": "wan22-txt2video",
+  "description": "Wan 2.2 text-to-video baseline. 832x480 at 81 frames, uni_pc sampler, saved as animated WEBP at 16fps.",
+  "tags": ["wan", "wan2.2", "txt2video", "video"],
+  "node_count": 9,
+  "nodes": {
+    "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "wan2.2-t2v-14b.safetensors", "weight_dtype": "default"}},
+    "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan"}},
+    "3": {"class_type": "VAELoader", "inputs": {"vae_name": "wan_2.1_vae.safetensors"}},
+    "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "a sweeping cinematic shot over a mountain lake", "clip": ["2", 0]}},
+    "5": {"class_type": "CLIPTextEncode", "inputs": {"text": "low quality, static", "clip": ["2", 0]}},
+    "6": {"class_type": "EmptyHunyuanLatentVideo", "inputs": {"width": 832, "height": 480, "length": 81, "batch_size": 1}},
+    "7": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["6", 0], "seed": 42, "steps": 30, "cfg": 6.0, "sampler_name": "uni_pc", "scheduler": "simple", "denoise": 1.0}},
+    "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["3", 0]}},
+    "9": {"class_type": "SaveAnimatedWEBP", "inputs": {"images": ["8", 0], "filename_prefix": "ComfyPilot_wan22", "fps": 16, "quality": 80}}
+  }
+}

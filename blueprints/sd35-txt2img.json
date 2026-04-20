@@ -1,0 +1,17 @@
+{
+  "id": "sd35-txt2img",
+  "name": "sd35-txt2img",
+  "description": "SD 3.5 Large txt2img baseline. ModelSamplingSD3 shift + EmptySD3LatentImage + dpmpp_2m / sgm_uniform at 1024x1024.",
+  "tags": ["sd3.5", "sd35", "txt2img"],
+  "node_count": 8,
+  "nodes": {
+    "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "sd3.5_large.safetensors"}},
+    "2": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["1", 0], "shift": 3.0}},
+    "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "professional photograph, detailed", "clip": ["1", 1]}},
+    "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["1", 1]}},
+    "5": {"class_type": "EmptySD3LatentImage", "inputs": {"width": 1024, "height": 1024, "batch_size": 1}},
+    "6": {"class_type": "KSampler", "inputs": {"model": ["2", 0], "positive": ["3", 0], "negative": ["4", 0], "latent_image": ["5", 0], "seed": 42, "steps": 28, "cfg": 4.5, "sampler_name": "dpmpp_2m", "scheduler": "sgm_uniform", "denoise": 1.0}},
+    "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["1", 2]}},
+    "8": {"class_type": "SaveImage", "inputs": {"images": ["7", 0], "filename_prefix": "ComfyPilot_sd35"}}
+  }
+}

@@ -7,7 +7,7 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.4.0
+# ComfyPilot v1.5.0
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
 
@@ -22,7 +22,7 @@ It gives an AI agent a clean tool surface for workflow building, queueing, progr
 ## What This Is
 
 - A practical bridge between AI agents and ComfyUI.
-- A 72-tool MCP surface for workflows, models, images, monitoring, safety, routing, blueprints, visualization, PNG ingest, and parameter sweeps.
+- A 73-tool MCP surface for workflows, models, images, monitoring, safety, routing, blueprints, visualization, PNG ingest, parameter sweeps, and model-hub search.
 - A workflow-oriented loop built for iteration, not one-shot guessing.
 - A small technique library for saving and replaying working patterns.
 
@@ -42,7 +42,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** - Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (72 Tools)
+## Tool Map (73 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -145,6 +145,11 @@ Use for rendering workflows, re-importing PNG outputs, and parameter sweeps.
 - `comfy_visualize_workflow` - Render an API-format workflow as a Mermaid `flowchart TD` source.
 - `comfy_import_workflow_from_png` - Extract the embedded workflow JSON from a ComfyUI-saved PNG (prefers 'prompt' API-format chunk, falls back to 'workflow' UI chunk).
 - `comfy_sweep` - Enqueue N copies of a workflow with a single parameter varying across `values`; returns prompt_ids + grid layout hint.
+
+### 15) Model Hub Search
+Use for discovering models to download from public hubs.
+
+- `comfy_search_hub` - Search HuggingFace or CivitAI for models matching a query. Returns normalized hits (id, name, url, downloads, tags). Use `source="huggingface"` or `source="civitai"`.
 
 ## MCP Resources (5)
 

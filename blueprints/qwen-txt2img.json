@@ -1,0 +1,21 @@
+{
+  "id": "qwen-txt2img",
+  "name": "qwen-txt2img",
+  "description": "Qwen-Image-2.0 / 2512 txt2img baseline. UNETLoader + Qwen CLIPLoader + SamplerCustomAdvanced.",
+  "tags": ["qwen", "qwen-image", "txt2img"],
+  "node_count": 12,
+  "nodes": {
+    "1": {"class_type": "UNETLoader", "inputs": {"unet_name": "qwen-image-2512.safetensors", "weight_dtype": "default"}},
+    "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors", "type": "qwen_image"}},
+    "3": {"class_type": "VAELoader", "inputs": {"vae_name": "qwen_image_vae.safetensors"}},
+    "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "a detailed photograph of a quiet street at dusk", "clip": ["2", 0]}},
+    "5": {"class_type": "EmptySD3LatentImage", "inputs": {"width": 1328, "height": 1328, "batch_size": 1}},
+    "6": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}},
+    "7": {"class_type": "BasicScheduler", "inputs": {"model": ["1", 0], "scheduler": "simple", "steps": 20, "denoise": 1.0}},
+    "8": {"class_type": "RandomNoise", "inputs": {"noise_seed": 42}},
+    "9": {"class_type": "BasicGuider", "inputs": {"model": ["1", 0], "conditioning": ["4", 0]}},
+    "10": {"class_type": "SamplerCustomAdvanced", "inputs": {"noise": ["8", 0], "guider": ["9", 0], "sampler": ["6", 0], "sigmas": ["7", 0], "latent_image": ["5", 0]}},
+    "11": {"class_type": "VAEDecode", "inputs": {"samples": ["10", 0], "vae": ["3", 0]}},
+    "12": {"class_type": "SaveImage", "inputs": {"images": ["11", 0], "filename_prefix": "ComfyPilot_qwen"}}
+  }
+}
