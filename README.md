@@ -22,7 +22,7 @@ It gives an AI agent a clean tool surface for workflow building, queueing, progr
 ## What This Is
 
 - A practical bridge between AI agents and ComfyUI.
-- A 66-tool MCP surface for workflows, models, images, monitoring, safety, and routing.
+- A 69-tool MCP surface for workflows, models, images, monitoring, safety, routing, and blueprints.
 - A workflow-oriented loop built for iteration, not one-shot guessing.
 - A small technique library for saving and replaying working patterns.
 
@@ -42,7 +42,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** - Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (66 Tools)
+## Tool Map (69 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -129,6 +129,15 @@ Use for agent-orchestrated cross-app delivery of generated images.
 - `comfy_send_to_td` - Route output to TouchDesigner project directory.
 - `comfy_send_to_blender` - Route output to Blender project directory.
 - `comfy_list_destinations` - List configured output destinations.
+
+### 13) Subgraph Blueprints
+Use for assembling workflows from named reusable macros.
+
+- `comfy_list_blueprints` - List all available blueprints (user + bundled).
+- `comfy_insert_blueprint` - Materialize a blueprint into a workflow dict with optional per-node input overrides.
+- `comfy_publish_subgraph` - Save a set of nodes as a reusable named blueprint.
+
+Blueprint storage: user-published at `~/.comfypilot/blueprints/` (override via `COMFY_BLUEPRINT_DIR`); bundled examples ship in `blueprints/` inside the repo.
 
 ## MCP Resources (5)
 
