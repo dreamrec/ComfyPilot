@@ -1,4 +1,9 @@
-"""Node tools - 6 tools for node type inspection and search."""
+"""Node tools - 6 tools for node type inspection and search.
+
+All tools that return per-node detail use the normalized NodeSchema shape so
+V1 (dict-of-tuples) and V3 (class-based) object_info entries look identical
+to agents.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.schemas.node_schema import parse_object_info
 from comfy_mcp.server import mcp
 
 
@@ -63,13 +69,14 @@ async def comfy_list_node_types(
     }
 )
 async def comfy_get_node_info(node_type: str, ctx: Context = None) -> str:
-    """Get detailed info about a specific node type.
+    """Get detailed normalized info about a specific node type.
+
+    Returns a NodeSchema-shaped payload: class_type, category, description,
+    inputs (with name/type/required/constraints/is_link_target per input),
+    outputs, is_output_node, schema_version ('v1' or 'v3').
 
     Args:
         node_type: The node type name to get info for
-
-    Returns:
-        JSON with full node info (inputs, outputs, category, etc.)
     """
     all_nodes = await _client(ctx).get_object_info()
     if node_type not in all_nodes:
@@ -78,8 +85,8 @@ async def comfy_get_node_info(node_type: str, ctx: Context = None) -> str:
             "available_count": len(all_nodes),
         }, indent=2)
 
-    result = {node_type: all_nodes[node_type]}
-    return json.dumps(result, indent=2)
+    schema = parse_object_info(node_type, all_nodes[node_type])
+    return json.dumps(schema.model_dump(), indent=2)
 
 
 @mcp.tool(
@@ -187,13 +194,16 @@ async def comfy_get_embeddings(ctx: Context = None) -> str:
     }
 )
 async def comfy_inspect_widget(node_type: str, ctx: Context = None) -> str:
-    """Get widget/input details for a specific node type.
+    """Get widget/input details for a node type (normalized, V1/V3 transparent).
+
+    Returns:
+        node_type: class name
+        inputs: list of {name, type_name, required, constraints, is_link_target}
+        widget_inputs: subset of inputs that are widgets (is_link_target=False)
+        link_inputs: subset of inputs that expect links from other nodes
 
     Args:
         node_type: The node type name to inspect
-
-    Returns:
-        JSON with input definitions (required and optional inputs)
     """
     all_nodes = await _client(ctx).get_object_info()
     if node_type not in all_nodes:
@@ -201,11 +211,15 @@ async def comfy_inspect_widget(node_type: str, ctx: Context = None) -> str:
             "error": f"Node type '{node_type}' not found",
         }, indent=2)
 
-    node_info = all_nodes[node_type]
-    inputs = node_info.get("input", {})
+    schema = parse_object_info(node_type, all_nodes[node_type])
+    inputs_dump = [i.model_dump() for i in schema.inputs]
+    widget_inputs = [i for i in inputs_dump if not i["is_link_target"]]
+    link_inputs = [i for i in inputs_dump if i["is_link_target"]]
 
-    result = {
+    return json.dumps({
         "node_type": node_type,
-        "input": inputs,
-    }
-    return json.dumps(result, indent=2)
+        "schema_version": schema.schema_version,
+        "inputs": inputs_dump,
+        "widget_inputs": widget_inputs,
+        "link_inputs": link_inputs,
+    }, indent=2)

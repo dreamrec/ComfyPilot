@@ -67,18 +67,52 @@ class TestListNodeTypes:
         assert result["next_offset"] is None
 
 
+MOCK_V3_OBJECT_INFO = {
+    "V3ExampleNode": {
+        "schema_version": "v3",
+        "name": "V3ExampleNode",
+        "category": "testing",
+        "description": "V3-shape node",
+        "output_node": False,
+        "inputs": [
+            {"name": "image", "type": "IMAGE", "required": True, "is_link_target": True},
+            {"name": "iterations", "type": "INT", "required": True, "default": 5, "min": 1, "max": 100},
+        ],
+        "outputs": [{"name": "image", "type": "IMAGE"}],
+    },
+}
+
+
 class TestGetNodeInfo:
     @pytest.mark.asyncio
+    async def test_get_v3_node_transparently(self, mock_ctx, mock_client):
+        """V3-shape object_info entries are normalized to the same shape as V1."""
+        mock_client.get_object_info = AsyncMock(return_value=MOCK_V3_OBJECT_INFO)
+        from comfy_mcp.tools.nodes import comfy_get_node_info
+
+        result = json.loads(
+            await comfy_get_node_info(node_type="V3ExampleNode", ctx=mock_ctx)
+        )
+        assert result["class_type"] == "V3ExampleNode"
+        assert result["schema_version"] == "v3"
+        assert result["category"] == "testing"
+        names = {i["name"] for i in result["inputs"]}
+        assert names == {"image", "iterations"}
+
+    @pytest.mark.asyncio
     async def test_get_existing_node(self, mock_ctx, mock_client):
-        """Test getting info for an existing node."""
+        """Returns the normalized NodeSchema payload (class_type, category, inputs, outputs)."""
         mock_client.get_object_info = AsyncMock(return_value=MOCK_OBJECT_INFO)
         from comfy_mcp.tools.nodes import comfy_get_node_info
 
         result = json.loads(
             await comfy_get_node_info(node_type="KSampler", ctx=mock_ctx)
         )
-        assert "KSampler" in result
-        assert result["KSampler"]["category"] == "sampling"
+        assert result["class_type"] == "KSampler"
+        assert result["category"] == "sampling"
+        assert result["schema_version"] == "v1"
+        assert isinstance(result["inputs"], list)
+        assert isinstance(result["outputs"], list)
 
     @pytest.mark.asyncio
     async def test_get_nonexistent_node(self, mock_ctx, mock_client):
@@ -190,7 +224,7 @@ class TestGetEmbeddings:
 class TestInspectWidget:
     @pytest.mark.asyncio
     async def test_inspect_existing_node(self, mock_ctx, mock_client):
-        """Test inspecting widgets of an existing node."""
+        """Returns normalized inputs list with widget_inputs/link_inputs split."""
         mock_client.get_object_info = AsyncMock(return_value=MOCK_OBJECT_INFO)
         from comfy_mcp.tools.nodes import comfy_inspect_widget
 
@@ -198,8 +232,10 @@ class TestInspectWidget:
             await comfy_inspect_widget(node_type="KSampler", ctx=mock_ctx)
         )
         assert result["node_type"] == "KSampler"
-        assert "input" in result
-        assert "required" in result["input"]
+        assert isinstance(result["inputs"], list)
+        assert isinstance(result["widget_inputs"], list)
+        assert isinstance(result["link_inputs"], list)
+        assert result["schema_version"] in ("v1", "v3")
 
     @pytest.mark.asyncio
     async def test_inspect_nonexistent_node(self, mock_ctx, mock_client):
@@ -214,7 +250,7 @@ class TestInspectWidget:
 
     @pytest.mark.asyncio
     async def test_inspect_widget_details(self, mock_ctx, mock_client):
-        """Test that widget details are correct."""
+        """Widget details come back with names, types, and constraints intact."""
         mock_client.get_object_info = AsyncMock(return_value=MOCK_OBJECT_INFO)
         from comfy_mcp.tools.nodes import comfy_inspect_widget
 
@@ -222,6 +258,6 @@ class TestInspectWidget:
             await comfy_inspect_widget(node_type="CLIPTextEncode", ctx=mock_ctx)
         )
         assert result["node_type"] == "CLIPTextEncode"
-        required = result["input"]["required"]
-        assert "text" in required
-        assert "clip" in required
+        input_names = {i["name"] for i in result["inputs"]}
+        assert "text" in input_names
+        assert "clip" in input_names
