@@ -1,0 +1,69 @@
+{
+  "CheckpointLoaderSimple": {
+    "input": {
+      "required": {
+        "ckpt_name": [
+          ["v1-5-pruned-emaonly.safetensors", "sd_xl_base_1.0.safetensors"]
+        ]
+      }
+    },
+    "input_order": {"required": ["ckpt_name"]},
+    "output": ["MODEL", "CLIP", "VAE"],
+    "output_is_list": [false, false, false],
+    "output_name": ["MODEL", "CLIP", "VAE"],
+    "name": "CheckpointLoaderSimple",
+    "display_name": "Load Checkpoint",
+    "description": "Loads a diffusion model checkpoint (model, CLIP, VAE).",
+    "python_module": "nodes",
+    "category": "loaders",
+    "output_node": false
+  },
+  "KSampler": {
+    "input": {
+      "required": {
+        "model": ["MODEL"],
+        "seed": ["INT", {"default": 0, "min": 0, "max": 18446744073709551615}],
+        "steps": ["INT", {"default": 20, "min": 1, "max": 10000}],
+        "cfg": ["FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step": 0.1, "round": 0.01}],
+        "sampler_name": [["euler", "euler_ancestral", "dpmpp_2m", "dpmpp_sde", "ddim"]],
+        "scheduler": [["normal", "karras", "exponential", "simple", "ddim_uniform"]],
+        "positive": ["CONDITIONING"],
+        "negative": ["CONDITIONING"],
+        "latent_image": ["LATENT"],
+        "denoise": ["FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}]
+      }
+    },
+    "input_order": {"required": ["model", "seed", "steps", "cfg", "sampler_name", "scheduler", "positive", "negative", "latent_image", "denoise"]},
+    "output": ["LATENT"],
+    "output_is_list": [false],
+    "output_name": ["LATENT"],
+    "name": "KSampler",
+    "display_name": "KSampler",
+    "description": "Denoises latent images into clean latents.",
+    "python_module": "nodes",
+    "category": "sampling",
+    "output_node": false
+  },
+  "SaveImage": {
+    "input": {
+      "required": {
+        "images": ["IMAGE"],
+        "filename_prefix": ["STRING", {"default": "ComfyUI"}]
+      },
+      "hidden": {
+        "prompt": "PROMPT",
+        "extra_pnginfo": "EXTRA_PNGINFO"
+      }
+    },
+    "input_order": {"required": ["images", "filename_prefix"]},
+    "output": [],
+    "output_is_list": [],
+    "output_name": [],
+    "name": "SaveImage",
+    "display_name": "Save Image",
+    "description": "Saves images to the output folder.",
+    "python_module": "nodes",
+    "category": "image",
+    "output_node": true
+  }
+}

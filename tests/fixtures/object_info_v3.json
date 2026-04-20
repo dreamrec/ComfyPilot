@@ -1,0 +1,34 @@
+{
+  "ExampleV3Node": {
+    "schema_version": "v3",
+    "name": "ExampleV3Node",
+    "display_name": "Example V3 Node",
+    "description": "Sample V3-schema node for testing the normalized parser.",
+    "category": "utils/testing",
+    "output_node": false,
+    "inputs": [
+      {"name": "image", "type": "IMAGE", "required": true, "is_link_target": true},
+      {"name": "strength", "type": "FLOAT", "required": true, "default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01},
+      {"name": "iterations", "type": "INT", "required": true, "default": 5, "min": 1, "max": 100},
+      {"name": "note", "type": "STRING", "required": false, "multiline": true, "default": ""}
+    ],
+    "outputs": [
+      {"name": "image", "type": "IMAGE"},
+      {"name": "mask", "type": "MASK"}
+    ]
+  },
+  "V3ImageLoader": {
+    "schema_version": "v3",
+    "name": "V3ImageLoader",
+    "display_name": "V3 Image Loader",
+    "description": "Loads an image using the V3 schema shape.",
+    "category": "loaders",
+    "output_node": false,
+    "inputs": [
+      {"name": "filename", "type": "STRING", "required": true, "default": "input.png"}
+    ],
+    "outputs": [
+      {"name": "image", "type": "IMAGE"}
+    ]
+  }
+}
