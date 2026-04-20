@@ -32,7 +32,7 @@ class Family(str, Enum):
     UNKNOWN = "unknown"
 
 
-# Patterns are evaluated in order — more specific before general.
+# Patterns are evaluated in order - more specific before general.
 # SD3.5 must match before SD3; Flux2 before Flux1; Hunyuan3D and HunyuanVideo
 # disambiguated explicitly. Patterns match anywhere in the basename (filenames
 # may carry prefix like "folder/file.safetensors").
