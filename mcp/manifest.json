@@ -1,7 +1,7 @@
 {
   "name": "comfypilot",
-  "version": "1.2.0",
-  "description": "MCP server for live control of ComfyUI with 69 tools across 13 categories",
+  "version": "1.3.0",
+  "description": "MCP server for live control of ComfyUI with 72 tools across 14 categories",
   "author": "ComfyPilot",
   "license": "MIT",
   "transport": "stdio",
@@ -50,6 +50,7 @@
     "safety",
     "builder",
     "output_routing",
-    "blueprints"
+    "blueprints",
+    "viz_ingest_sweep"
   ]
 }

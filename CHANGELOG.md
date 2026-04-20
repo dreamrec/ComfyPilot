@@ -2,6 +2,18 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.3.0] - 2026-04-20
+
+### Phase 3: Polish and Differentiation
+
+- feat: persistent snapshots via COMFY_SNAPSHOT_DIR env var. SnapshotManager now optionally persists to JSON on disk and reloads on restart. LRU eviction trims both memory and disk together.
+- feat: output routing emits sidecar manifests (filename.json) alongside each saved image with schema_version, prompt_id, seeds, model_refs, dimensions, timestamp, size_bytes. Writes are atomic (temp file + os.replace).
+- feat: comfy_send_to_disk, comfy_send_to_td, comfy_send_to_blender accept an optional prompt_id param that pulls seeds / model refs / dimensions from /history/{prompt_id} into the manifest.
+- feat: comfy_visualize_workflow renders an API-format workflow as Mermaid flowchart TD source. Arrows trace input links with names.
+- feat: comfy_import_workflow_from_png extracts embedded workflow JSON from ComfyUI-saved PNGs. Parses tEXt / zTXt / iTXt chunks using stdlib only (no Pillow dep). Prefers 'prompt' (API format) over 'workflow' (UI format).
+- feat: comfy_sweep enqueues N variants of a workflow with a single parameter varying. Returns prompt_ids plus a square-ish grid layout hint. Each prompt auto-registers with the job tracker.
+- chore: bump tool count 69 -> 72. Test count 460 -> 492.
+
 ## [1.2.0] - 2026-04-20
 
 ### Phase 2: MCP 2026 Table Stakes
