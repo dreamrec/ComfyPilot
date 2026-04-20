@@ -5,15 +5,26 @@ Usage:
     if not await confirm_destructive(ctx, "Really clear the entire queue?", confirm):
         return {"status": "cancelled", "reason": "user_declined"}
 
-confirm is the tool's own `confirm: bool = False` param. If the caller sets
-confirm=True, elicitation is bypassed (used by agents that have already
-verified intent). Otherwise we ask the client/user to explicitly accept.
+`confirm` is the tool's own `confirm: bool = False` param. If the caller
+sets confirm=True, elicitation is bypassed (used by agents that have
+already verified intent). Otherwise we ask the client/user to explicitly
+accept.
 
-If the client does not support elicitation, we degrade to "allow" so the
-existing behavior is preserved for non-elicitation-aware hosts.
+Fallback behaviour when the host does not support elicitation:
+
+- Default (`COMFY_STRICT_CONFIRM` unset or 0): fail-OPEN - allow the
+  destructive operation. This preserves backward compatibility with
+  elicitation-unaware MCP hosts where the gate would otherwise silently
+  block every destructive call.
+
+- Strict mode (`COMFY_STRICT_CONFIRM=1`): fail-CLOSED - any path that
+  cannot obtain an explicit positive confirmation blocks the operation.
+  Use this on shared/automated setups where a failed elicitation round
+  trip should never be interpreted as consent.
 """
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -31,6 +42,12 @@ class ConfirmDestructive(BaseModel):
     )
 
 
+def _strict_mode() -> bool:
+    """True when COMFY_STRICT_CONFIRM is set to a truthy value."""
+    val = os.environ.get("COMFY_STRICT_CONFIRM", "").strip().lower()
+    return val in {"1", "true", "yes", "on"}
+
+
 async def confirm_destructive(
     ctx: "Context | None",
     message: str,
@@ -39,22 +56,26 @@ async def confirm_destructive(
     """Return True if the destructive operation should proceed.
 
     - If the caller passed confirm=True, proceed immediately.
-    - If no Context or no elicit capability, proceed (graceful fallback).
-    - Otherwise ask via ctx.elicit and return True only when user accepts AND
-      the submitted schema data has confirm=True.
+    - If no Context or no elicit capability:
+        - strict mode -> block (False)
+        - default     -> allow (True, backward compat)
+    - If elicit is called but raises:
+        - strict mode -> block (False)
+        - default     -> allow (True)
+    - Otherwise block unless the response is accept + data.confirm=True.
     """
     if already_confirmed:
         return True
+
+    strict = _strict_mode()
+
     if ctx is None or not hasattr(ctx, "elicit"):
-        return True
+        return not strict
 
     try:
         result = await ctx.elicit(message, ConfirmDestructive)
     except Exception:
-        # If elicitation itself errors (client doesn't support it etc.),
-        # fall back to allow - we don't want to silently block users on
-        # elicitation-unaware hosts.
-        return True
+        return not strict
 
     action = getattr(result, "action", None)
     data = getattr(result, "data", None)

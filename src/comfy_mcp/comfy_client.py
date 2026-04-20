@@ -96,9 +96,26 @@ class ComfyClient:
 
         try:
             features = await self.get_features()
-            self.capabilities["features"] = features if isinstance(features, list) else []
+            # ComfyUI returns either a list (historical) or a dict of feature
+            # flags (v0.17+, e.g. {"progress_text": "binary", ...}). Preserve
+            # whichever shape arrived; drop only unexpected types.
+            if isinstance(features, (list, dict)):
+                self.capabilities["features"] = features
+            else:
+                self.capabilities["features"] = []
         except Exception:
             self.capabilities["features"] = []
+
+        # Record the actual auth header style that will be used, not the
+        # unresolved "auto" literal. Consumers of comfy://server/capabilities
+        # can then introspect the final choice without re-running resolution.
+        if self.api_key:
+            actual = self.auth_method
+            if actual == "auto":
+                actual = "x-api-key" if self._is_cloud() else "bearer"
+            self.capabilities["auth_method"] = actual
+        else:
+            self.capabilities["auth_method"] = "none"
 
         # Probe WebSocket reachability instead of hardcoding by profile.
         # Cloud ComfyUI (cloud.comfy.org/ws) does expose a WebSocket; the old

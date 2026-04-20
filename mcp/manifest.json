@@ -1,6 +1,6 @@
 {
   "name": "comfypilot",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "MCP server for live control of ComfyUI with 73 tools across 15 categories: system, models, workflow execution, nodes, images, history, monitoring, snapshots, memory, safety, builder, output routing, blueprints, viz/ingest/sweep, hub search.",
   "author": "ComfyPilot",
   "license": "MIT",

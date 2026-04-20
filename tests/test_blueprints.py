@@ -101,6 +101,23 @@ class TestStoreDirect:
         with pytest.raises(ValueError):
             store.publish("nested/name", SAMPLE_NODES)
 
+    def test_publish_rejects_windows_separator(self, tmp_path):
+        """Regression: backslash escapes the single-file layout on Windows."""
+        store = BlueprintStore(user_dir=tmp_path)
+        with pytest.raises(ValueError):
+            store.publish("foo\\bar", SAMPLE_NODES)
+        with pytest.raises(ValueError):
+            store.publish("..\\evil", SAMPLE_NODES)
+
+    def test_publish_rejects_hidden_and_control_names(self, tmp_path):
+        store = BlueprintStore(user_dir=tmp_path)
+        with pytest.raises(ValueError):
+            store.publish(".hidden", SAMPLE_NODES)
+        with pytest.raises(ValueError):
+            store.publish("name\x00null", SAMPLE_NODES)
+        with pytest.raises(ValueError):
+            store.publish("name\nnewline", SAMPLE_NODES)
+
 
 class TestTools:
     @pytest.mark.asyncio

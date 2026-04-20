@@ -28,7 +28,19 @@ class BlueprintStore:
     def publish(self, name: str, nodes: dict, description: str = "", tags: list[str] | None = None) -> dict:
         if self._user_dir is None:
             raise RuntimeError("BlueprintStore has no writable user directory configured")
-        if not name or "/" in name or ".." in name:
+        # Reject path separators on every platform. Windows treats '\' as a
+        # separator and our manifest advertises win32 support, so names like
+        # 'foo\bar' would escape the intended single-file layout. Also reject
+        # NUL, control characters, and leading dots (hidden files).
+        if (
+            not name
+            or "/" in name
+            or "\\" in name
+            or ".." in name
+            or "\x00" in name
+            or name.startswith(".")
+            or any(ord(c) < 0x20 for c in name)
+        ):
             raise ValueError(f"Invalid blueprint name: {name!r}")
 
         record = {

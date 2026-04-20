@@ -79,6 +79,52 @@ class TestConfirmDestructive:
         assert allowed is True
 
 
+class TestStrictMode:
+    """COMFY_STRICT_CONFIRM=1 flips the fallback to fail-closed."""
+
+    @pytest.mark.asyncio
+    async def test_strict_mode_blocks_when_no_ctx(self, monkeypatch):
+        monkeypatch.setenv("COMFY_STRICT_CONFIRM", "1")
+        allowed = await confirm_destructive(None, "really?", already_confirmed=False)
+        assert allowed is False
+
+    @pytest.mark.asyncio
+    async def test_strict_mode_blocks_when_host_lacks_elicit(self, monkeypatch):
+        monkeypatch.setenv("COMFY_STRICT_CONFIRM", "1")
+        class NoElicit:
+            pass
+        allowed = await confirm_destructive(NoElicit(), "really?", already_confirmed=False)
+        assert allowed is False
+
+    @pytest.mark.asyncio
+    async def test_strict_mode_blocks_when_elicit_raises(self, monkeypatch):
+        monkeypatch.setenv("COMFY_STRICT_CONFIRM", "1")
+        ctx = MagicMock(spec=Context)
+        ctx.elicit = AsyncMock(side_effect=Exception("not supported"))
+        allowed = await confirm_destructive(ctx, "really?", already_confirmed=False)
+        assert allowed is False
+
+    @pytest.mark.asyncio
+    async def test_strict_mode_still_respects_confirm_true(self, monkeypatch):
+        """Explicit confirm=True always wins, regardless of strict mode."""
+        monkeypatch.setenv("COMFY_STRICT_CONFIRM", "1")
+        allowed = await confirm_destructive(None, "really?", already_confirmed=True)
+        assert allowed is True
+
+    @pytest.mark.asyncio
+    async def test_strict_mode_still_accepts_explicit_yes(self, monkeypatch):
+        monkeypatch.setenv("COMFY_STRICT_CONFIRM", "1")
+        ctx = _ctx_with_elicit_result("accept", confirm_value=True)
+        allowed = await confirm_destructive(ctx, "really?", already_confirmed=False)
+        assert allowed is True
+
+    @pytest.mark.asyncio
+    async def test_false_value_disables_strict(self, monkeypatch):
+        monkeypatch.setenv("COMFY_STRICT_CONFIRM", "0")
+        allowed = await confirm_destructive(None, "really?", already_confirmed=False)
+        assert allowed is True
+
+
 class TestToolIntegration:
     """End-to-end: destructive tools gate on confirm param and ctx.elicit."""
 

@@ -159,21 +159,37 @@ class TestListOutputImages:
 
 class TestDownloadBatch:
     @pytest.mark.asyncio
-    async def test_returns_metadata_only(self, mock_ctx, mock_client):
-        fake_bytes = b"A" * 512
-        mock_client.get_image = AsyncMock(return_value=fake_bytes)
+    async def test_returns_metadata_only_no_network(self, mock_ctx, mock_client):
+        """Default call must not hit get_image at all - it's pure metadata."""
+        mock_client.get_image = AsyncMock()
         from comfy_mcp.tools.images import comfy_download_batch
         result = json.loads(await comfy_download_batch(
             filenames=["img1.png", "img2.png"],
             ctx=mock_ctx,
         ))
         assert result["count"] == 2
-        assert result["images"][0]["filename"] == "img1.png"
-        assert result["images"][0]["size_bytes"] == 512
-        assert result["images"][1]["filename"] == "img2.png"
-        # No raw image data in response
+        mock_client.get_image.assert_not_awaited()
+        # Metadata fields present
         for entry in result["images"]:
+            assert "filename" in entry
+            assert "url" in entry
+            assert "/view?" in entry["url"]
             assert "data" not in entry
+            assert "size_bytes" not in entry  # skipped without include_size
+
+    @pytest.mark.asyncio
+    async def test_include_size_opt_in_populates_size_bytes(self, mock_ctx, mock_client):
+        fake_bytes = b"A" * 512
+        mock_client.get_image = AsyncMock(return_value=fake_bytes)
+        from comfy_mcp.tools.images import comfy_download_batch
+        result = json.loads(await comfy_download_batch(
+            filenames=["img1.png", "img2.png"],
+            include_size=True,
+            ctx=mock_ctx,
+        ))
+        assert result["images"][0]["size_bytes"] == 512
+        assert result["images"][1]["size_bytes"] == 512
+        assert mock_client.get_image.call_count == 2
 
     @pytest.mark.asyncio
     async def test_empty_list(self, mock_ctx, mock_client):
@@ -183,11 +199,25 @@ class TestDownloadBatch:
         assert result["images"] == []
 
     @pytest.mark.asyncio
-    async def test_calls_get_image_per_file(self, mock_ctx, mock_client):
-        mock_client.get_image = AsyncMock(return_value=b"x" * 10)
+    async def test_include_size_error_does_not_abort_batch(self, mock_ctx, mock_client):
+        """One failing image must not break the whole batch."""
+        call = [0]
+        async def flaky(*args, **kwargs):
+            call[0] += 1
+            if call[0] == 2:
+                raise Exception("boom")
+            return b"x" * 10
+        mock_client.get_image = AsyncMock(side_effect=flaky)
         from comfy_mcp.tools.images import comfy_download_batch
-        await comfy_download_batch(filenames=["a.png", "b.png", "c.png"], ctx=mock_ctx)
-        assert mock_client.get_image.call_count == 3
+        result = json.loads(await comfy_download_batch(
+            filenames=["a.png", "b.png", "c.png"],
+            include_size=True,
+            ctx=mock_ctx,
+        ))
+        assert result["count"] == 3
+        assert result["images"][0]["size_bytes"] == 10
+        assert "size_error" in result["images"][1]
+        assert result["images"][2]["size_bytes"] == 10
 
 
 class TestGetImageUrl:

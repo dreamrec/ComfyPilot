@@ -2,6 +2,24 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.5.3] - 2026-04-20
+
+### Code-review fixes: builder / VRAM / capability / blueprint / batch + fail-closed option
+
+- **P1 fix** (builder.py): auto-detect now probes both `diffusion_models/` and `checkpoints/` folders. Modern families (Flux 2, Qwen, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D) store weights under `diffusion_models/` via UNETLoader; the old code only looked in `checkpoints/` so installs with only `diffusion_models/wan2.2-...` fell back to SD 1.5 and then rejected `txt2video`. Resolution strategy: collect candidates from both folders, pick the first whose family supports the requested intent; fall back to any recognised family, then any available file.
+
+- **P2 fix** (vram_guard.py): `check_vram` used to copy `vram_used_pct` from `devices[0]` while aggregating `status` across all devices. On multi-GPU rigs that produced contradictory snapshots like `status=critical` with `vram_used_pct=10.0`. Now reports the max used_pct across devices so the top-level number matches the worst device (and the overall status).
+
+- **P2 fix** (comfy_client.py): `probe_capabilities` preserves `/features` dict payloads (ComfyUI v0.17+ returns `{"progress_text": "binary", ...}`), not just lists. Also resolves `auth_method` from `"auto"` to the actual choice (`"bearer"` / `"x-api-key"` / `"none"`) so `comfy://server/capabilities` no longer underreports.
+
+- **P2 fix** (blueprints/store.py): blueprint name validation rejects `\` (Windows path separator), null bytes, leading dots, and control characters in addition to `/` and `..`. Matters because the MCPB manifest advertises `win32` support.
+
+- **P3 fix** (images.py): `comfy_download_batch` no longer downloads every full image body just to compute size. Now returns pure metadata (filename, subfolder, type, URL) by default. Pass `include_size=True` to opt into per-file `size_bytes` (still requires fetching). Individual size-fetch failures now surface as `size_error` rather than aborting the whole batch.
+
+- **feat** (safety/confirm.py): new `COMFY_STRICT_CONFIRM=1` env var flips destructive-op confirmation to fail-closed. Default stays fail-open (backward compat with elicitation-unaware hosts). Strict mode blocks when no context, no `ctx.elicit`, or `ctx.elicit` raises - ensuring agents can't silently bypass confirmation on broken hosts.
+
+- chore: tool count unchanged (73). Tests 516 -> 533 (17 new regression tests covering every fix above).
+
 ## [1.5.2] - 2026-04-20
 
 ### MCPB one-click install for Claude Desktop + GitHub releases for every tag

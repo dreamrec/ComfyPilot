@@ -106,6 +106,29 @@ class TestCheckVram:
             assert hasattr(dev, field)
 
     @pytest.mark.asyncio
+    async def test_multi_gpu_reports_worst_device_pct(self, safety_ctx):
+        """Regression: on multi-GPU machines the top-level vram_used_pct must
+        match the worst device, not device[0]. Old behaviour produced
+        contradictory snapshots like status=critical + vram_used_pct=10 when
+        GPU0 was idle and GPU1 was saturated."""
+        guard = _guard(safety_ctx)
+        guard._client.get_system_stats = AsyncMock(return_value={
+            "devices": [
+                {"name": "GPU0", "vram_total": 1000, "vram_free": 900},  # 10% used
+                {"name": "GPU1", "vram_total": 1000, "vram_free": 10},   # 99% used
+            ],
+        })
+        result = await comfy_check_vram(ctx=safety_ctx)
+        assert result.status == "critical"
+        # Must reflect the critical device, not the idle one at index 0
+        assert result.vram_used_pct == 99.0
+        # Per-device info still reports each device independently
+        assert result.devices[0].vram_used_pct == 10.0
+        assert result.devices[1].vram_used_pct == 99.0
+        assert result.devices[0].status == "ok"
+        assert result.devices[1].status == "critical"
+
+    @pytest.mark.asyncio
     async def test_exactly_at_warn_threshold(self, safety_ctx):
         guard = _guard(safety_ctx)
         guard._client.get_system_stats = AsyncMock(return_value={

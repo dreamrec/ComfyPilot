@@ -7,16 +7,16 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.5.2
+# ComfyPilot v1.5.3
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.5.2-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.5.2)
+[![Version](https://img.shields.io/badge/version-1.5.3-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.5.3)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![MCP tools](https://img.shields.io/badge/MCP%20tools-73-brightgreen)](#tool-map-73-tools)
 [![MCP resources](https://img.shields.io/badge/MCP%20resources-5%20%2B%203%20templates-brightgreen)](#mcp-resources)
 [![Blueprints](https://img.shields.io/badge/bundled%20blueprints-9-teal)](blueprints/)
-[![Tests](https://img.shields.io/badge/tests-516%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-533%20passing-brightgreen)](tests/)
 [![MCP spec](https://img.shields.io/badge/MCP-2026--03--26-blueviolet)](https://modelcontextprotocol.io)
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-v0.17%2B-orange)](https://github.com/comfyanonymous/ComfyUI)
 [![Families](https://img.shields.io/badge/model%20families-10-teal)](#model-families)
@@ -267,7 +267,7 @@ uv run comfypilot --transport streamable-http --host 0.0.0.0 --port 8765
 
 Easiest for Claude Desktop users:
 
-1. Download `comfypilot-v1.5.2.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
+1. Download `comfypilot-v1.5.3.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
 2. Double-click the file (or drag it into Claude Desktop's Settings > Extensions panel).
 3. Claude Desktop renders a form for `COMFY_URL`, `COMFY_API_KEY`, and the other config fields — fill in what you need.
 4. Click Install. Restart is handled automatically.
@@ -332,6 +332,7 @@ Manual client configuration example (Claude Desktop):
 | `COMFY_SNAPSHOT_LIMIT` | `50` | Maximum workflow snapshots retained |
 | `COMFY_SNAPSHOT_DIR` | *(empty)* | If set, persists snapshots to this directory. If empty, snapshots are in-memory only (pre-1.3 behavior). |
 | `COMFY_BLUEPRINT_DIR` | `~/.comfypilot/blueprints` | User-published subgraph blueprints (bundled examples fall back automatically). |
+| `COMFY_STRICT_CONFIRM` | *(unset)* | Set to `1` to fail-closed on destructive tools: if the host lacks elicitation (or `ctx.elicit` errors), the operation is rejected. Default is fail-open for backward compat with elicitation-unaware hosts. |
 | `COMFY_OUTPUT_DIR` | `~/comfypilot_output` | Image output directory for disk routing |
 | `COMFY_TD_OUTPUT_DIR` | `~/comfypilot_output/touchdesigner` | TouchDesigner output path |
 | `COMFY_BLENDER_OUTPUT_DIR` | `~/comfypilot_output/blender` | Blender output path |

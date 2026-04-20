@@ -74,15 +74,50 @@ async def comfy_build_workflow(
     """
     resolved_params = dict(params or {})
 
-    # Auto-detect installed checkpoint if none provided
+    # Auto-detect an installed model if none provided. Modern families (Flux 2,
+    # Qwen, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D) store weights under
+    # `diffusion_models/` via UNETLoader; traditional SD-family checkpoints live
+    # under `checkpoints/` via CheckpointLoaderSimple. Probe both and prefer
+    # whichever yields a family that supports the requested intent.
     if ctx and "checkpoint" not in resolved_params:
         try:
             client = ctx.request_context.lifespan_context["comfy_client"]
-            models = await client.get_models("checkpoints")
-            if models:
-                resolved_params["checkpoint"] = models[0]
+            candidates: list[tuple[str, Family]] = []
+            for folder in ("diffusion_models", "checkpoints"):
+                try:
+                    models = await client.get_models(folder)
+                except Exception:
+                    continue
+                for name in models or []:
+                    fam = detect_family(name)
+                    if fam != Family.UNKNOWN:
+                        candidates.append((name, fam))
+
+            # 1) Prefer the first candidate whose family supports this intent.
+            picked = next(
+                (c for c in candidates if family_registry.has(c[1], template)),
+                None,
+            )
+            # 2) Otherwise the first recognised family at all (still better than
+            #    guessing SD 1.5).
+            if picked is None and candidates:
+                picked = candidates[0]
+
+            if picked is not None:
+                resolved_params["checkpoint"] = picked[0]
+            else:
+                # No recognisable model found - fall back to first available file
+                # so the user at least gets a concrete filename back in the graph.
+                for folder in ("checkpoints", "diffusion_models"):
+                    try:
+                        models = await client.get_models(folder)
+                    except Exception:
+                        continue
+                    if models:
+                        resolved_params["checkpoint"] = models[0]
+                        break
         except Exception:
-            pass  # Fallback to family default
+            pass  # Fallback to family default below
 
     checkpoint = resolved_params.get("checkpoint", "")
     family = detect_family(checkpoint)

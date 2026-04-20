@@ -140,3 +140,69 @@ async def test_response_shape_has_intent_family_checkpoint():
     assert set(result.keys()) >= {"intent", "family", "checkpoint", "node_count", "workflow"}
     assert result["intent"] == "txt2img"
     assert result["checkpoint"] == "flux2-klein.safetensors"
+
+
+@pytest.mark.asyncio
+async def test_diffusion_models_folder_discovered_when_checkpoints_empty():
+    """Modern families (Wan 2.2, Qwen, Hunyuan) store weights under
+    diffusion_models/. A valid install with an empty checkpoints/ folder
+    must still route correctly."""
+    client = MagicMock()
+
+    async def get_models(folder):
+        if folder == "diffusion_models":
+            return ["wan2.2-t2v-14b.safetensors"]
+        if folder == "checkpoints":
+            return []
+        return []
+    client.get_models = AsyncMock(side_effect=get_models)
+
+    result = json.loads(
+        await comfy_build_workflow(template="txt2video", params=None, ctx=_ctx(client))
+    )
+    assert result["family"] == "wan22"
+    assert result["checkpoint"] == "wan2.2-t2v-14b.safetensors"
+    assert "SaveAnimatedWEBP" in {n["class_type"] for n in result["workflow"].values()}
+
+
+@pytest.mark.asyncio
+async def test_builder_prefers_candidate_that_supports_intent():
+    """When both folders have recognised models, prefer the one whose family
+    actually supports the requested intent - so asking for txt2video with
+    both a Flux 2 checkpoint and a Wan 2.2 model installed picks Wan 2.2."""
+    client = MagicMock()
+
+    async def get_models(folder):
+        return {
+            "diffusion_models": ["flux2-klein.safetensors", "wan2.2-t2v-14b.safetensors"],
+            "checkpoints": ["v1-5-pruned-emaonly.safetensors"],
+        }.get(folder, [])
+    client.get_models = AsyncMock(side_effect=get_models)
+
+    result = json.loads(
+        await comfy_build_workflow(template="txt2video", params=None, ctx=_ctx(client))
+    )
+    assert result["family"] == "wan22"
+
+
+@pytest.mark.asyncio
+async def test_builder_falls_back_to_any_model_when_none_match_intent():
+    """If nothing matches the requested intent, still return a concrete
+    checkpoint filename rather than an empty string so downstream tools
+    have something to inspect."""
+    client = MagicMock()
+
+    async def get_models(folder):
+        return {
+            "diffusion_models": ["flux2-klein.safetensors"],
+            "checkpoints": [],
+        }.get(folder, [])
+    client.get_models = AsyncMock(side_effect=get_models)
+
+    # txt2music is ACE-Step-only; Flux 2 doesn't support it.
+    result = json.loads(
+        await comfy_build_workflow(template="txt2music", params=None, ctx=_ctx(client))
+    )
+    assert "error" in result
+    assert result["detected_family"] == "flux2"
+    assert "txt2music" not in result["available_intents_for_family"]

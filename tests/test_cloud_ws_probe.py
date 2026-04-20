@@ -59,6 +59,77 @@ async def test_ws_probe_respects_timeout(client):
 
 
 @pytest.mark.asyncio
+async def test_capability_preserves_dict_features(client):
+    """Modern ComfyUI returns `/features` as a dict of flags (not a list).
+    The capability snapshot must preserve that shape."""
+    resp = MagicMock(is_success=True, status_code=200)
+    resp.json = MagicMock(side_effect=[
+        {"system": {"comfyui_version": "0.19.3"}},        # /system_stats
+        {"progress_text": "binary", "preview": True},      # /features dict
+    ])
+    client._http.get = AsyncMock(return_value=resp)
+
+    fake_ws = MagicMock()
+    fake_ws.close = AsyncMock()
+    async def fake_connect(*args, **kwargs):
+        return fake_ws
+    with patch("websockets.connect", return_value=fake_connect()):
+        caps = await client.probe_capabilities()
+
+    assert caps["features"] == {"progress_text": "binary", "preview": True}
+
+
+@pytest.mark.asyncio
+async def test_capability_resolves_auth_method_for_local_bearer():
+    """When api_key is set and auth_method='auto' on a local URL, the
+    snapshot must report 'bearer' (the resolved choice) not 'auto'."""
+    c = ComfyClient("http://127.0.0.1:8188", api_key="sk-local", auth_method="auto")
+    c._http = MagicMock()
+    resp = MagicMock(is_success=True, status_code=200)
+    resp.json = MagicMock(return_value={"system": {"comfyui_version": "0.19.3"}})
+    c._http.get = AsyncMock(return_value=resp)
+
+    async def fake_connect(*args, **kwargs):
+        raise ConnectionRefusedError("offline")
+    with patch("websockets.connect", return_value=fake_connect()):
+        caps = await c.probe_capabilities()
+
+    assert caps["auth_method"] == "bearer"
+
+
+@pytest.mark.asyncio
+async def test_capability_resolves_auth_method_for_cloud_x_api_key():
+    c = ComfyClient("https://cloud.comfy.org", api_key="sk-cloud", auth_method="auto")
+    c._http = MagicMock()
+    resp = MagicMock(is_success=True, status_code=200)
+    resp.json = MagicMock(return_value={"system": {"comfyui_version": "0.19.3"}})
+    c._http.get = AsyncMock(return_value=resp)
+
+    async def fake_connect(*args, **kwargs):
+        raise ConnectionRefusedError("offline")
+    with patch("websockets.connect", return_value=fake_connect()):
+        caps = await c.probe_capabilities()
+
+    assert caps["auth_method"] == "x-api-key"
+
+
+@pytest.mark.asyncio
+async def test_capability_auth_method_none_when_no_api_key():
+    c = ComfyClient("http://127.0.0.1:8188")  # no api_key
+    c._http = MagicMock()
+    resp = MagicMock(is_success=True, status_code=200)
+    resp.json = MagicMock(return_value={"system": {"comfyui_version": "0.19.3"}})
+    c._http.get = AsyncMock(return_value=resp)
+
+    async def fake_connect(*args, **kwargs):
+        raise ConnectionRefusedError("offline")
+    with patch("websockets.connect", return_value=fake_connect()):
+        caps = await c.probe_capabilities()
+
+    assert caps["auth_method"] == "none"
+
+
+@pytest.mark.asyncio
 async def test_ws_url_uses_wss_for_https_base():
     """Cloud (https://...) base must derive a wss:// URL for the probe."""
     c = ComfyClient("https://cloud.comfy.org", api_key="sk-test")

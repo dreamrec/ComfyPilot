@@ -118,17 +118,44 @@ async def comfy_list_output_images(subfolder: str = "", limit: int = 50, ctx: Co
         "openWorldHint": False,
     }
 )
-async def comfy_download_batch(filenames: list[str], subfolder: str = "", ctx: Context = None) -> str:
-    """Get metadata for multiple output images (no image bytes returned).
+async def comfy_download_batch(
+    filenames: list[str],
+    subfolder: str = "",
+    include_size: bool = False,
+    ctx: Context = None,
+) -> str:
+    """Get lightweight metadata for multiple output images.
+
+    By default this is a pure metadata lookup - no image bytes cross the
+    wire. Each entry contains `{filename, subfolder, type, url}`.
+    Pass `include_size=True` to also populate `size_bytes`, which requires
+    downloading each image. That path should only be used for short lists.
 
     Args:
-        filenames: List of image filenames to query
-        subfolder: Optional subfolder within the output directory
+        filenames: List of image filenames to query.
+        subfolder: Optional subfolder within the output directory.
+        include_size: If True, fetch each image to populate size_bytes.
+            Default False - the tool advertised itself as "metadata only"
+            but the pre-1.5.3 implementation downloaded every full body.
     """
-    results = []
+    client = _client(ctx)
+    base_url = client.base_url
+    results: list[dict[str, Any]] = []
     for filename in filenames:
-        image_bytes = await _client(ctx).get_image(filename, subfolder)
-        results.append({"filename": filename, "size_bytes": len(image_bytes)})
+        query = urlencode({"filename": filename, "type": "output", "subfolder": subfolder})
+        entry: dict[str, Any] = {
+            "filename": filename,
+            "subfolder": subfolder,
+            "type": "output",
+            "url": f"{base_url}/view?{query}",
+        }
+        if include_size:
+            try:
+                image_bytes = await client.get_image(filename, subfolder)
+                entry["size_bytes"] = len(image_bytes)
+            except Exception as e:
+                entry["size_error"] = str(e)
+        results.append(entry)
     return json.dumps({"images": results, "count": len(results)}, indent=2)
 
 

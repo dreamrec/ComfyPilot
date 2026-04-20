@@ -49,9 +49,16 @@ class VRAMGuard:
                 "status": status,
             })
 
+        # Report the max used_pct so the top-level number matches the worst
+        # device, which is the one that drives `overall_status`. The old code
+        # copied device 0 unconditionally, which could yield contradictory
+        # results like status=critical + vram_used_pct=10 on multi-GPU rigs.
+        max_used_pct = max(
+            (d["vram_used_pct"] for d in device_infos), default=0,
+        )
         return {
             "status": overall_status,
-            "vram_used_pct": device_infos[0]["vram_used_pct"] if device_infos else 0,
+            "vram_used_pct": max_used_pct,
             "devices": device_infos,
         }
 
