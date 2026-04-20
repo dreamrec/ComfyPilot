@@ -148,15 +148,120 @@ async def templates_resource() -> str:
         return json.dumps({"error": f"Could not fetch workflow templates: {e}"})
 
 
+@mcp.resource("comfy://nodes/catalog/{page}")
+async def nodes_catalog_page(page: str) -> str:
+    """Paginated node catalog - 100 names per page.
+
+    URLs: comfy://nodes/catalog/0, comfy://nodes/catalog/1, ...
+    Returns {page, total_pages, total_nodes, nodes: [class_type, ...]}.
+    """
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    try:
+        p = int(page)
+    except (TypeError, ValueError):
+        return json.dumps({"error": f"Invalid page: {page!r}"})
+    if p < 0:
+        return json.dumps({"error": f"Page must be >= 0, got {p}"})
+
+    try:
+        all_info = await _shared_client.get_object_info()
+    except Exception as e:
+        return json.dumps({"error": f"Could not fetch object_info: {e}"})
+
+    keys = sorted(all_info.keys())
+    total = len(keys)
+    per_page = 100
+    total_pages = (total + per_page - 1) // per_page if total else 0
+    start = p * per_page
+    end = start + per_page
+    return json.dumps({
+        "page": p,
+        "total_pages": total_pages,
+        "total_nodes": total,
+        "per_page": per_page,
+        "nodes": keys[start:end],
+    }, indent=2)
+
+
+@mcp.resource("comfy://nodes/by-category/{category}")
+async def nodes_by_category(category: str) -> str:
+    """All node class_types whose category starts with the given prefix.
+
+    E.g. comfy://nodes/by-category/sampling returns all nodes in sampling
+    and its sub-categories.
+    """
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    from comfy_mcp.schemas.node_schema import parse_object_info
+
+    try:
+        all_info = await _shared_client.get_object_info()
+    except Exception as e:
+        return json.dumps({"error": f"Could not fetch object_info: {e}"})
+
+    hits = []
+    for class_type, raw in all_info.items():
+        try:
+            schema = parse_object_info(class_type, raw)
+        except Exception:
+            continue
+        if schema.category and schema.category.startswith(category):
+            hits.append({"class_type": class_type, "category": schema.category})
+
+    hits.sort(key=lambda h: h["class_type"])
+    return json.dumps({
+        "category_prefix": category,
+        "count": len(hits),
+        "nodes": hits,
+    }, indent=2)
+
+
 def _register_tools():
     """Import tool modules to trigger @mcp.tool() registration."""
     import comfy_mcp.tool_registry  # noqa: F401
 
 
+def _parse_cli_args(argv: list[str] | None = None):
+    """CLI parser factored out for testability."""
+    import argparse
+    parser = argparse.ArgumentParser(
+        prog="comfypilot",
+        description="ComfyPilot MCP server - controls ComfyUI via agent tools.",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default="stdio",
+        help="MCP transport: 'stdio' for local clients (default), 'streamable-http' for remote/hosted use.",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind when transport=streamable-http (default 127.0.0.1).",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8765,
+        help="Port to bind when transport=streamable-http (default 8765).",
+    )
+    return parser.parse_args(argv)
+
+
 def main():
     """CLI entry point."""
+    args = _parse_cli_args()
     _register_tools()
-    mcp.run(transport="stdio")
+
+    if args.transport == "streamable-http":
+        # The MCP streamable-http transport binds via settings on the FastMCP
+        # instance. Host/port come from the SDK's HTTP-transport config.
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":

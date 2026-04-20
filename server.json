@@ -1,0 +1,86 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/server.json",
+  "name": "io.github.dreamrec/comfypilot",
+  "description": "MCP server for ComfyUI. 69 tools for workflow building (family-aware: Flux 2, SD 3.5, Qwen, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, ACE-Step), queueing, monitoring, snapshots, VRAM safety, subgraph blueprints, and cross-app routing to TouchDesigner / Blender.",
+  "version": "1.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dreamrec/ComfyPilot"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/dreamrec/ComfyPilot",
+  "packages": [
+    {
+      "registry": "pypi",
+      "name": "comfypilot",
+      "version": "1.1.0"
+    }
+  ],
+  "runtime": {
+    "command": "uv",
+    "args": ["run", "comfypilot"],
+    "env": {
+      "COMFY_URL": {
+        "description": "ComfyUI server URL",
+        "default": "http://127.0.0.1:8188"
+      },
+      "COMFY_API_KEY": {
+        "description": "Optional API key (Authorization: Bearer for local, X-API-Key for Comfy Cloud)",
+        "default": ""
+      },
+      "COMFY_AUTH_METHOD": {
+        "description": "auto | bearer | x-api-key",
+        "default": "auto"
+      },
+      "COMFY_TIMEOUT": {
+        "description": "HTTP request timeout in seconds",
+        "default": "300"
+      },
+      "COMFY_SNAPSHOT_LIMIT": {
+        "description": "Max workflow snapshots retained in memory",
+        "default": "50"
+      },
+      "COMFY_BLUEPRINT_DIR": {
+        "description": "User blueprint directory",
+        "default": "~/.comfypilot/blueprints"
+      },
+      "COMFY_OUTPUT_DIR": {
+        "description": "Disk output directory",
+        "default": "~/comfypilot_output"
+      },
+      "COMFY_TD_OUTPUT_DIR": {
+        "description": "TouchDesigner output path",
+        "default": "~/comfypilot_output/touchdesigner"
+      },
+      "COMFY_BLENDER_OUTPUT_DIR": {
+        "description": "Blender output path",
+        "default": "~/comfypilot_output/blender"
+      }
+    }
+  },
+  "transports": ["stdio", "streamable-http"],
+  "capabilities": {
+    "tools": true,
+    "resources": true,
+    "resource_templates": true,
+    "prompts": false,
+    "completions": false,
+    "elicitation": true,
+    "sampling": false,
+    "logging": true
+  },
+  "keywords": [
+    "comfyui",
+    "stable-diffusion",
+    "flux",
+    "wan",
+    "ltx",
+    "hunyuan",
+    "ace-step",
+    "image-generation",
+    "video-generation",
+    "workflow-automation",
+    "ai",
+    "agent"
+  ]
+}
