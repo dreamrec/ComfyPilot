@@ -1,0 +1,51 @@
+# Version control and CI
+.git/
+.github/
+.gitignore
+
+# Dev environment
+.venv/
+.worktrees/
+.pytest_cache/
+.coverage
+htmlcov/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+dist/
+
+# Editor noise
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local config overrides (not meant to ship)
+.mcp.json
+.mcp.local.json
+.mcp.local.json.example
+
+# Tests and dev artefacts - not needed at runtime
+tests/
+scripts/
+uv.lock
+
+# Docs - Claude Desktop users click the homepage link
+docs/
+CHANGELOG.md
+ComfyPilot-improvement-action-plan.md
+
+# Other distribution manifests (not needed inside the .mcpb)
+.claude-plugin/
+mcp/
+server.json
+
+# Plan artefacts (local-only)
+docs/superpowers/
+docs/extra/
+
+# The bundle output itself
+*.mcpb

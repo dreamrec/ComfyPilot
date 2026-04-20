@@ -1,0 +1,145 @@
+{
+  "manifest_version": "0.4",
+  "name": "comfypilot",
+  "display_name": "ComfyPilot",
+  "version": "1.5.2",
+  "description": "MCP server for ComfyUI. 73 tools, 10 model families, subgraph blueprints, 5-pass validation.",
+  "long_description": "ComfyPilot gives an AI agent a clean tool surface for building, queueing, monitoring, and routing ComfyUI workflows. Family-aware builder covers SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, and ACE-Step. Ships 9 bundled subgraph blueprints, a 5-pass workflow validator (schema + catalog + graph + environment + execution-risk), VRAM safety with elicitation-gated destructive operations, persistent snapshots, output manifests with atomic writes, Mermaid visualization, PNG-metadata workflow ingest, parameter sweeps, and HuggingFace + CivitAI model-hub search. Structured output (Pydantic) on the top 10 tools. stdio and streamable-http transports.",
+  "author": {
+    "name": "dreamrec",
+    "url": "https://github.com/dreamrec"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dreamrec/ComfyPilot"
+  },
+  "homepage": "https://github.com/dreamrec/ComfyPilot",
+  "documentation": "https://github.com/dreamrec/ComfyPilot/blob/main/docs/MANUAL.md",
+  "support": "https://github.com/dreamrec/ComfyPilot/issues",
+  "license": "MIT",
+  "keywords": [
+    "comfyui",
+    "stable-diffusion",
+    "sdxl",
+    "sd3.5",
+    "flux",
+    "flux2",
+    "qwen-image",
+    "wan",
+    "wan2.2",
+    "ltx",
+    "ltx-2",
+    "hunyuanvideo",
+    "hunyuan3d",
+    "ace-step",
+    "image-generation",
+    "video-generation",
+    "music-generation",
+    "image-to-3d",
+    "workflow-automation",
+    "subgraph-blueprints",
+    "mcp-server",
+    "ai",
+    "agent"
+  ],
+  "server": {
+    "type": "uv",
+    "entry_point": "src/comfy_mcp/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "comfypilot"],
+      "env": {
+        "COMFY_URL": "${user_config.comfy_url}",
+        "COMFY_API_KEY": "${user_config.comfy_api_key}",
+        "COMFY_AUTH_METHOD": "${user_config.comfy_auth_method}",
+        "COMFY_TIMEOUT": "${user_config.comfy_timeout}",
+        "COMFY_SNAPSHOT_LIMIT": "${user_config.comfy_snapshot_limit}",
+        "COMFY_SNAPSHOT_DIR": "${user_config.comfy_snapshot_dir}",
+        "COMFY_BLUEPRINT_DIR": "${user_config.comfy_blueprint_dir}",
+        "COMFY_OUTPUT_DIR": "${user_config.comfy_output_dir}",
+        "COMFY_TD_OUTPUT_DIR": "${user_config.comfy_td_output_dir}",
+        "COMFY_BLENDER_OUTPUT_DIR": "${user_config.comfy_blender_output_dir}"
+      }
+    }
+  },
+  "user_config": {
+    "comfy_url": {
+      "type": "string",
+      "title": "ComfyUI URL",
+      "description": "URL of the ComfyUI server. Use http://127.0.0.1:8188 for a local install, https://cloud.comfy.org for Comfy Cloud, or your Tailscale / LAN / port-forwarded address.",
+      "default": "http://127.0.0.1:8188",
+      "required": true
+    },
+    "comfy_api_key": {
+      "type": "string",
+      "title": "ComfyUI API key",
+      "description": "Optional API key for authenticated ComfyUI instances. Bearer for local, X-API-Key for Comfy Cloud (auto-detected).",
+      "default": "",
+      "sensitive": true,
+      "required": false
+    },
+    "comfy_auth_method": {
+      "type": "string",
+      "title": "Auth header style",
+      "description": "Force a specific auth header style, or leave as auto to let ComfyPilot pick based on the URL. Options: auto, bearer, x-api-key.",
+      "default": "auto",
+      "required": false
+    },
+    "comfy_timeout": {
+      "type": "number",
+      "title": "HTTP timeout (seconds)",
+      "description": "Per-request timeout. 300 is plenty for most generations; raise for very slow video models.",
+      "default": 300,
+      "required": false
+    },
+    "comfy_snapshot_limit": {
+      "type": "number",
+      "title": "Max snapshots retained",
+      "description": "Oldest snapshots are evicted beyond this cap.",
+      "default": 50,
+      "required": false
+    },
+    "comfy_snapshot_dir": {
+      "type": "directory",
+      "title": "Snapshot directory (optional)",
+      "description": "If set, snapshots persist to this directory and survive restarts. If empty, snapshots are in-memory only.",
+      "default": "",
+      "required": false
+    },
+    "comfy_blueprint_dir": {
+      "type": "directory",
+      "title": "Blueprint directory",
+      "description": "Where user-published subgraph blueprints live. Bundled examples (Flux 2, Wan 2.2, etc.) are always available.",
+      "default": "~/.comfypilot/blueprints",
+      "required": false
+    },
+    "comfy_output_dir": {
+      "type": "directory",
+      "title": "Disk output directory",
+      "description": "Default destination for images routed via comfy_send_to_disk.",
+      "default": "~/comfypilot_output",
+      "required": false
+    },
+    "comfy_td_output_dir": {
+      "type": "directory",
+      "title": "TouchDesigner output directory",
+      "description": "Destination when routing images to a TouchDesigner project.",
+      "default": "~/comfypilot_output/touchdesigner",
+      "required": false
+    },
+    "comfy_blender_output_dir": {
+      "type": "directory",
+      "title": "Blender output directory",
+      "description": "Destination when routing images to a Blender project.",
+      "default": "~/comfypilot_output/blender",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

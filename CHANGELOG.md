@@ -2,6 +2,16 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.5.2] - 2026-04-20
+
+### MCPB one-click install for Claude Desktop + GitHub releases for every tag
+
+- feat: ships a ready-to-install `.mcpb` bundle (Anthropic's MCP Bundle format) - download `comfypilot-v1.5.2.mcpb` from the latest release and drag into Claude Desktop. Uses `type: "uv"` (manifest v0.4) so compiled deps like pydantic just work. User config (COMFY_URL, API key, dirs, etc.) renders as a GUI form.
+- feat: `manifest.json` at repo root (MCPB spec) + `.mcpbignore` to strip tests/docs/build artefacts from the bundle.
+- feat: README adds MCPB + GitHub-release badges; Quick Setup gains an "Option 1: MCPB (one-click)" section ahead of the dev-runtime and plugin paths.
+- chore: create retroactive GitHub releases for every tag back to v1.1.0 so the Claude Code plugin update surface actually fires. Previously only v1.0.0 had a release published; v1.1.0 through v1.5.1 existed as tags but never as releases.
+- chore: attach the `.mcpb` artefact to the v1.5.2 release as a downloadable asset.
+
 ## [1.5.1] - 2026-04-20
 
 ### Docs refresh: full audit, drift repair, badge row

@@ -7,10 +7,10 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.5.1
+# ComfyPilot v1.5.2
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.5.1-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.5.1)
+[![Version](https://img.shields.io/badge/version-1.5.2-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.5.2)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![MCP tools](https://img.shields.io/badge/MCP%20tools-73-brightgreen)](#tool-map-73-tools)
@@ -21,6 +21,8 @@
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-v0.17%2B-orange)](https://github.com/comfyanonymous/ComfyUI)
 [![Families](https://img.shields.io/badge/model%20families-10-teal)](#model-families)
 [![Transports](https://img.shields.io/badge/transports-stdio%20%7C%20streamable--http-lightgrey)](#transports)
+[![MCPB](https://img.shields.io/badge/install-MCPB-purple)](https://github.com/dreamrec/ComfyPilot/releases/latest)
+[![GitHub release](https://img.shields.io/github/v/release/dreamrec/ComfyPilot?include_prereleases&sort=semver)](https://github.com/dreamrec/ComfyPilot/releases)
 
 **ComfyPilot** is an MCP server for ComfyUI.
 It gives an AI agent a clean tool surface for workflow building, queueing, progress monitoring, image retrieval, snapshots, and VRAM safety.
@@ -261,7 +263,20 @@ uv run comfypilot --transport streamable-http --host 0.0.0.0 --port 8765
 
 ## Quick Setup
 
-Local development runtime:
+### Option 1: MCPB (one-click, Claude Desktop)
+
+Easiest for Claude Desktop users:
+
+1. Download `comfypilot-v1.5.2.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
+2. Double-click the file (or drag it into Claude Desktop's Settings > Extensions panel).
+3. Claude Desktop renders a form for `COMFY_URL`, `COMFY_API_KEY`, and the other config fields — fill in what you need.
+4. Click Install. Restart is handled automatically.
+
+MCPB uses the `type: "uv"` server mode, so Python dependencies (`mcp`, `httpx`, `pydantic`, `websockets`) are resolved by `uv` at first run. You need `uv` installed on the host — [install uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+The bundle ships `manifest.json` + `pyproject.toml` + the full `src/comfy_mcp/` package + the 9 bundled blueprints. Manifest: [manifest.json](manifest.json).
+
+### Option 2: Local development runtime
 
 ```bash
 git clone https://github.com/dreamrec/ComfyPilot.git
@@ -270,7 +285,7 @@ uv sync
 uv run comfypilot
 ```
 
-Claude Code plugin (one-command install):
+### Option 3: Claude Code plugin
 
 ```bash
 claude plugin add /path/to/ComfyPilot
