@@ -240,6 +240,14 @@ class ComfyClient:
             return result
         return result.get("embeddings", [])
 
+    async def get_workflow_templates(self) -> dict[str, Any]:
+        """Fetch workflow templates mapped by custom-node package.
+
+        ComfyUI v0.17+ exposes /workflow_templates for frontend template discovery.
+        Falls back gracefully when the endpoint isn't available.
+        """
+        return await self._get_profiled_endpoint("/workflow_templates", "/api/workflow_templates")
+
     async def queue_prompt(self, workflow: dict, front: bool = False) -> dict[str, Any]:
         data = {
             "prompt": workflow,

@@ -132,6 +132,22 @@ async def capabilities_resource() -> str:
     return json.dumps(_shared_client.capabilities, indent=2)
 
 
+@mcp.resource("comfy://templates/catalog")
+async def templates_resource() -> str:
+    """Workflow templates advertised by ComfyUI core and custom nodes.
+
+    Comes from ComfyUI's /workflow_templates endpoint (v0.17+). Returns
+    a mapping of custom-node package -> list of template workflow JSON names.
+    """
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    try:
+        result = await _shared_client.get_workflow_templates()
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": f"Could not fetch workflow templates: {e}"})
+
+
 def _register_tools():
     """Import tool modules to trigger @mcp.tool() registration."""
     import comfy_mcp.tool_registry  # noqa: F401
