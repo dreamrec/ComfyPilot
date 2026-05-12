@@ -16,7 +16,7 @@
 [![MCP tools](https://img.shields.io/badge/MCP%20tools-88-brightgreen)](#tool-map-88-tools)
 [![MCP resources](https://img.shields.io/badge/MCP%20resources-6%20%2B%204%20templates-brightgreen)](#mcp-resources)
 [![Blueprints](https://img.shields.io/badge/bundled%20blueprints-13-teal)](blueprints/)
-[![Tests](https://img.shields.io/badge/tests-755%2B%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-770%20passing-brightgreen)](tests/)
 [![MCP spec](https://img.shields.io/badge/MCP-2026--03--26-blueviolet)](https://modelcontextprotocol.io)
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-v0.20%2B-orange)](https://github.com/comfyanonymous/ComfyUI)
 [![Families](https://img.shields.io/badge/model%20families-11%20%2B%205%20intent--overrides-teal)](#model-families)
