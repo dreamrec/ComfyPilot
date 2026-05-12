@@ -21,3 +21,8 @@ htmlcov/
 
 # Local git worktrees for parallel audits / experiments
 .worktrees/
+
+# Two-tier CONTEXT pattern: public CONTEXT.md ships, CONTEXT-local.md
+# carries session-specific paths and personal notes.
+CONTEXT-local.md
+*.mcpb

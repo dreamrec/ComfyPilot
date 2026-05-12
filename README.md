@@ -7,10 +7,10 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.8.0
+# ComfyPilot v1.8.1
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.8.0-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.8.0)
+[![Version](https://img.shields.io/badge/version-1.8.1-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.8.1)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![MCP tools](https://img.shields.io/badge/MCP%20tools-88-brightgreen)](#tool-map-88-tools)
@@ -320,7 +320,7 @@ uv run comfypilot --transport streamable-http --host 0.0.0.0 --port 8765
 
 Easiest for Claude Desktop users:
 
-1. Download `comfypilot-v1.8.0.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
+1. Download `comfypilot-v1.8.1.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
 2. Double-click the file (or drag it into Claude Desktop's Settings > Extensions panel).
 3. Claude Desktop renders a form for `COMFY_URL`, `COMFY_API_KEY`, and the other config fields — fill in what you need.
 4. Click Install. Restart is handled automatically.

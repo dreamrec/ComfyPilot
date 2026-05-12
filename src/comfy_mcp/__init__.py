@@ -1,3 +1,3 @@
 """ComfyPilot - MCP server for live AI control of ComfyUI."""
 
-__version__ = "1.8.0"
+__version__ = "1.8.1"

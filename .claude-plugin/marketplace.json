@@ -10,7 +10,7 @@
     {
       "name": "comfypilot",
       "description": "AI assistant for live control of ComfyUI v0.20+ with 88 MCP tools - family-aware builder for 11 model families + 5 intent-overrides; 13 bundled subgraph blueprints; OpenAPI 3.1 ingestion; 6-pass validator (with anti-cycle + deprecated-model lint + editor-format pre-pass); n-dim parameter sweeps; partner-API directory; HuggingFace + CivitAI hub search; comfy-cli lifecycle (launch/stop/install_node/download_model); diagnostics (extract_schema/fetch_logs/inspect_workflow/recommend_runtime/suggest_timeout); convenience (install_workflow_deps/run_with_inputs/randomize_seeds); streamable-http transport; elicitation-gated destructive ops.",
-      "version": "1.8.0",
+      "version": "1.8.1",
       "author": {
         "name": "dreamrec"
       },

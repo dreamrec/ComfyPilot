@@ -2,6 +2,29 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.8.1] - 2026-05-12
+
+### Repo-checkout MCP connectivity fix
+
+- fix (.mcp.json): drop `--directory ${CLAUDE_PLUGIN_ROOT}` from the
+  comfypilot launch args. `uv run` defaults to cwd to find the
+  `pyproject.toml`, which works for BOTH contexts where this file is
+  loaded:
+  - **Plugin context** (Claude Code's plugin loader): cwd is the plugin
+    install dir which has `pyproject.toml`. Works.
+  - **Project context** (`.mcp.json` picked up automatically when the
+    repo is opened as a project): cwd is the repo root which also has
+    `pyproject.toml`. Now works - previously failed because
+    `${CLAUDE_PLUGIN_ROOT}` only resolves inside the plugin loader.
+
+  Symptom prior to this fix: developers who installed the v1.8.0 plugin
+  AND had a local checkout would see `comfypilot: ... ${CLAUDE_PLUGIN_ROOT}
+  ... Failed to connect` in `claude mcp list` when running from inside the
+  repo dir. End-users installing only via .mcpb / plugin marketplace
+  never hit this since they have no project-scope load path.
+
+- chore: version bumped 1.8.0 -> 1.8.1 in all seven release files.
+
 ## [1.8.0] - 2026-05-12
 
 ### Operational toolkit: lifecycle + diagnostics + convenience

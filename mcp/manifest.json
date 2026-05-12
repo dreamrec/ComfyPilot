@@ -1,13 +1,21 @@
 {
   "name": "comfypilot",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "MCP server for live control of ComfyUI v0.20+ with 88 tools across 19 categories: system, models, workflow execution, nodes, images, history, monitoring, snapshots, memory, safety, builder, output routing, blueprints, viz/ingest/sweep, hub search, partner APIs, lifecycle (comfy-cli), diagnostics, convenience.",
   "author": "ComfyPilot",
   "license": "MIT",
-  "transports": ["stdio", "streamable-http"],
+  "transports": [
+    "stdio",
+    "streamable-http"
+  ],
   "transport": "stdio",
   "command": "uv",
-  "args": ["run", "--directory", "/path/to/ComfyPilot", "comfypilot"],
+  "args": [
+    "run",
+    "--directory",
+    "/path/to/ComfyPilot",
+    "comfypilot"
+  ],
   "env": {
     "COMFY_URL": {
       "description": "ComfyUI server URL",
