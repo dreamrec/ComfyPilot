@@ -223,27 +223,75 @@ Every tool in this group uses live folder discovery. `comfy_list_model_folders` 
 |------|--------|-------------|
 | `comfy_search_hub` | json str | Search HuggingFace (`source="huggingface"`) or CivitAI (`source="civitai"`) for models. Returns normalized hits `{source, id, name, url, downloads, tags, ...source-specific extras}`. Limit clamped to 1-50. |
 
+### Partner APIs (1)
+
+| Tool | Return | Description |
+|------|--------|-------------|
+| `comfy_list_partner_apis` | json str | Intersects installed-extensions list with a curated catalog (Veo, Kling, ByteDance Seedance/Seedream, GPT-Image, Topaz, Tripo3D, Rodin, Recraft, Ideogram, NanoBanana, Sonilo, ElevenLabs, etc.) and reports which are live with vendor / category / homepage metadata. |
+
+### Viz + Ingest + Sweep additions (1, sweep_grid)
+
+| Tool | Return | Description |
+|------|--------|-------------|
+| `comfy_sweep_grid` | json str | N-dim Cartesian-product sweep over `axes = {"node_id.param": [values]}`. Capped at 64 combinations by default; override with `max_combinations`. |
+
+### Lifecycle (5)
+
+Shell out to the official [comfy-cli](https://github.com/Comfy-Org/comfy-cli). When comfy-cli isn't on PATH each tool returns a structured `error` JSON with install hints (`pipx install comfy-cli` / `uvx --from comfy-cli comfy ...` / `pip install --user comfy-cli`).
+
+| Tool | Return | Description |
+|------|--------|-------------|
+| `comfy_launch_server` | json str | Start ComfyUI (`comfy launch --background --port N --listen H`). Warns when `extra_args` overrides the structured `port`/`host`. |
+| `comfy_stop_server` | json str | Stop the running server (`comfy stop`). |
+| `comfy_install_node` | json str | Install a custom-node package by slug via Comfy Manager (`comfy node install <slug>`). Path-traversal-safe. |
+| `comfy_list_installed_nodes` | json str | List currently-installed custom nodes (`comfy node show installed`). |
+| `comfy_download_model` | json str | Download a model by URL into `models/<folder>`. Supports `civitai_api_token`. |
+
+### Diagnostics (5)
+
+Workflow introspection, hardware verdicts, traceback extraction.
+
+| Tool | Return | Description |
+|------|--------|-------------|
+| `comfy_extract_schema` | json str | Workflow-level controllable params + dependencies summary. `summary_only=True` returns just the counts/flags (parameter_count, has_negative_prompt, has_seed, model_count, embedding_count, output_node_count). |
+| `comfy_fetch_logs` | json str | Per-node traceback from `/history/{id}` (handles both `status.exec_info.errors` and `status.messages` execution_error shapes, deduplicated). |
+| `comfy_inspect_workflow` | json str | Trust check classifying every class_type as stock / custom. Returns `trust_level` (`stock` / `mixed` / `fully_custom`) plus warnings. |
+| `comfy_recommend_runtime` | json str | Hardware verdict (`ok` / `marginal` / `cloud`) + the matching `comfy-cli` install flag (--nvidia / --amd / --m-series / --cpu) + per-family supports flags. |
+| `comfy_suggest_timeout` | json str | Per-workflow HTTP timeout based on long-running output classes (VHS_VideoCombine 900s, SUPIRSample 600s, TrainLora 3600s, default 300s). |
+
+### Convenience (3)
+
+Multi-step flow compressors.
+
+| Tool | Return | Description |
+|------|--------|-------------|
+| `comfy_install_workflow_deps` | json str | Auto-install every missing custom-node package the workflow references (wraps `comfy node install-deps --workflow=<tmp>`). |
+| `comfy_run_with_inputs` | `QueueAck` | Upload local images + inject as workflow inputs + queue. `inputs={"label": "/local/path.png"}` where labels are `node_id.input_name` (explicit) or just `input_name` (implicit). |
+| `comfy_randomize_seeds` | json str | Replace `seed=-1` / `noise_seed=-1` sentinels with cryptographic-grade random uint32 (range [1, 2^32) - excludes 0 which some custom nodes treat as sentinel). `force=True` randomises every seed widget. |
+
 ## MCP Resources (6 + 4 resource templates)
 
 Resources provide static/semi-static data without tool-call overhead.
 
-### Fixed resources (5)
+### Fixed resources (6)
 
 | URI | Description |
 |-----|-------------|
 | `comfy://system/info` | System stats, GPU info, ComfyUI version |
-| `comfy://server/capabilities` | Detected server profile, version, auth method, WebSocket availability |
+| `comfy://server/capabilities` | Profile, version, frontend_version, auth method, WS availability, openapi_version, cache_provider, cloud tier |
 | `comfy://nodes/catalog` | First 100 node class_types (preview) |
 | `comfy://models/{folder}` | Models in a specific folder |
 | `comfy://embeddings` | Available embeddings |
+| `comfy://api/openapi` | ComfyUI OpenAPI 3.1 spec (v0.20.0+; returns `{"error": ...}` on older builds) |
 
-### Resource templates (3)
+### Resource templates (4)
 
 | URI pattern | Description |
 |-----|-------------|
 | `comfy://nodes/catalog/{page}` | Paginated node catalog (100 per page, `{page}` = 0, 1, 2, ...) |
 | `comfy://nodes/by-category/{category}` | All nodes whose category starts with the given prefix (e.g. `sampling`, `loaders/video`) |
 | `comfy://templates/catalog` | Workflow templates advertised by ComfyUI core + custom nodes (via `/workflow_templates`) |
+| `comfy://docs/{node_class}` | Embedded node documentation (v0.3.68+ docs endpoint, with object_info description fallback) |
 
 ## Structured Output Models
 
