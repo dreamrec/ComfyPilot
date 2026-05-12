@@ -152,6 +152,76 @@ async def templates_resource() -> str:
         return json.dumps({"error": f"Could not fetch workflow templates: {e}"})
 
 
+@mcp.resource("comfy://docs/{node_class}")
+async def node_docs_resource(node_class: str) -> str:
+    """Embedded documentation for a node class (ComfyUI v0.3.68+).
+
+    Tries the v0.3.68 docs endpoint first; falls back to the node's
+    object_info description when the endpoint is unavailable so this
+    resource never returns empty as long as the node exists.
+    """
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    if not node_class:
+        return json.dumps({"error": "node_class is required"})
+
+    docs = None
+    try:
+        docs = await _shared_client.get_node_docs(node_class)
+    except Exception as e:
+        return json.dumps({"error": f"Could not fetch docs for {node_class!r}: {e}"})
+
+    if docs is not None:
+        return json.dumps({"node_class": node_class, "source": "docs_endpoint", **docs}, indent=2)
+
+    # Fall back to object_info description.
+    try:
+        info = await _shared_client.get_object_info(node_class)
+    except Exception:
+        info = None
+    if isinstance(info, dict):
+        # /object_info/{node_class} returns either the raw class info or
+        # {class_type: info}. Normalize.
+        raw = info.get(node_class, info) if node_class in info else info
+        if isinstance(raw, dict):
+            description = raw.get("description", "")
+            category = raw.get("category", "")
+            return json.dumps({
+                "node_class": node_class,
+                "source": "object_info_fallback",
+                "description": description,
+                "category": category,
+            }, indent=2)
+
+    return json.dumps({
+        "node_class": node_class,
+        "error": "No docs and no object_info entry available",
+    })
+
+
+@mcp.resource("comfy://api/openapi")
+async def openapi_resource() -> str:
+    """OpenAPI 3.1 spec ComfyUI v0.20+ serves at /openapi.json.
+
+    The full spec is too large to inline in tool descriptions, but exposing
+    it as an MCP resource lets agents fetch it on demand for endpoint
+    introspection, schema-backed validation, or auto-generated client code.
+    Returns {"error": ...} when the underlying ComfyUI doesn't ship a spec.
+    """
+    if _shared_client is None:
+        return json.dumps({"error": "Server not initialized"})
+    try:
+        spec = await _shared_client.get_openapi_spec()
+    except Exception as e:
+        return json.dumps({"error": f"Could not fetch /openapi.json: {e}"})
+    if spec is None:
+        return json.dumps({
+            "error": "ComfyUI did not return an OpenAPI spec",
+            "hint": "Upgrade to ComfyUI v0.20.0+ for /openapi.json",
+        })
+    return json.dumps(spec, indent=2)
+
+
 @mcp.resource("comfy://nodes/catalog/{page}")
 async def nodes_catalog_page(page: str) -> str:
     """Paginated node catalog - 100 names per page.

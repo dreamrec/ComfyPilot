@@ -1,0 +1,15 @@
+{
+  "id": "supir-upscale",
+  "name": "supir-upscale",
+  "description": "SUPIR image super-resolution / restoration pipeline (ComfyUI v0.20.0+). Family-agnostic - works on any image.",
+  "tags": ["supir", "super_resolution", "upscale", "restoration"],
+  "node_count": 6,
+  "nodes": {
+    "1": {"class_type": "LoadImage", "inputs": {"image": "input.png"}},
+    "2": {"class_type": "SUPIRLoader", "inputs": {"supir_model": "SUPIR-v0Q.safetensors", "sdxl_model": "sd_xl_base_1.0.safetensors", "fp8_unet": false, "diffusion_dtype": "fp16"}},
+    "3": {"class_type": "SUPIREncode", "inputs": {"SUPIR_VAE": ["2", 0], "image": ["1", 0], "use_tiled_vae": true, "encoder_tile_size": 1024, "encoder_dtype": "auto"}},
+    "4": {"class_type": "SUPIRSample", "inputs": {"SUPIR_model": ["2", 1], "latents": ["3", 0], "positive_prompt": "cinematic photograph, ultra-detailed, sharp focus", "negative_prompt": "painting, blurry, low quality", "seed": 42, "steps": 45, "cfg_scale_start": 4.0, "cfg_scale_end": 4.0, "EDM_s_churn": 5, "s_noise": 1.003, "DPMPP_eta": 1.0, "control_scale_start": 1.0, "control_scale_end": 1.0, "restore_cfg": -1.0, "keep_model_loaded": true, "sampler": "RestoreEDMSampler"}},
+    "5": {"class_type": "SUPIRDecode", "inputs": {"SUPIR_VAE": ["2", 0], "latents": ["4", 0], "use_tiled_vae": true, "decoder_tile_size": 512}},
+    "6": {"class_type": "SaveImage", "inputs": {"images": ["5", 0], "filename_prefix": "ComfyPilot_supir"}}
+  }
+}

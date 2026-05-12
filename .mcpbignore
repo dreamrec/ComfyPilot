@@ -36,7 +36,6 @@ uv.lock
 # Docs - Claude Desktop users click the homepage link
 docs/
 CHANGELOG.md
-ComfyPilot-improvement-action-plan.md
 
 # Other distribution manifests (not needed inside the .mcpb)
 .claude-plugin/
@@ -45,7 +44,6 @@ server.json
 
 # Plan artefacts (local-only)
 docs/superpowers/
-docs/extra/
 
 # The bundle output itself
 *.mcpb

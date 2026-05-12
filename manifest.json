@@ -2,9 +2,9 @@
   "manifest_version": "0.4",
   "name": "comfypilot",
   "display_name": "ComfyPilot",
-  "version": "1.6.0",
-  "description": "MCP server for ComfyUI. 73 tools, 10 model families, subgraph blueprints, 5-pass validation.",
-  "long_description": "ComfyPilot gives an AI agent a clean tool surface for building, queueing, monitoring, and routing ComfyUI workflows. Family-aware builder covers SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, and ACE-Step. Ships 9 bundled subgraph blueprints, a 5-pass workflow validator (schema + catalog + graph + environment + execution-risk), VRAM safety with elicitation-gated destructive operations, persistent snapshots, output manifests with atomic writes, Mermaid visualization, PNG-metadata workflow ingest, parameter sweeps, and HuggingFace + CivitAI model-hub search. Structured output (Pydantic) on the top 10 tools. stdio and streamable-http transports.",
+  "version": "1.8.0",
+  "description": "MCP server for ComfyUI v0.20+. 88 tools, 11 model families + 5 family-agnostic intents, 13 bundled subgraph blueprints, 6-pass validation (anti-cycle), OpenAPI 3.1 ingestion, comfy-cli lifecycle + diagnostics + convenience layers.",
+  "long_description": "ComfyPilot gives an AI agent a clean tool surface for building, queueing, monitoring, and routing ComfyUI v0.20+ workflows. Family-aware builder covers SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D, ACE-Step, and Ernie Image, plus 5 family-agnostic intents (SUPIR super-resolution, RIFE/FILM frame interpolation, SAM 3.1 segmentation, native LoRA training, Stable Audio text-to-audio). Ships 13 bundled subgraph blueprints, a 6-pass workflow validator (schema + catalog + graph + anti-cycle + environment + execution-risk plus an editor-format pre-pass), VRAM safety with elicitation-gated destructive operations, persistent snapshots, output manifests with atomic writes (handles v0.19+ asset registration), Mermaid visualization, PNG-metadata workflow ingest, single + n-dimensional parameter sweeps, partner-API directory (Veo, Kling, Seedream, GPT-Image, Topaz, Tripo3D, Rodin, etc.), OpenAPI 3.1 spec ingestion, deprecated-model lint, native subgraph awareness, HuggingFace + CivitAI model-hub search, and (v1.8.0) comfy-cli lifecycle (launch/stop/install_node/list_installed_nodes/download_model), diagnostics (extract_schema/fetch_logs/inspect_workflow/recommend_runtime/suggest_timeout), and convenience tools (install_workflow_deps/run_with_inputs/randomize_seeds). Structured output (Pydantic) on the top 10 tools. stdio and streamable-http transports.",
   "author": {
     "name": "dreamrec",
     "url": "https://github.com/dreamrec"
@@ -58,7 +58,8 @@
         "COMFY_BLUEPRINT_DIR": "${user_config.comfy_blueprint_dir}",
         "COMFY_OUTPUT_DIR": "${user_config.comfy_output_dir}",
         "COMFY_TD_OUTPUT_DIR": "${user_config.comfy_td_output_dir}",
-        "COMFY_BLENDER_OUTPUT_DIR": "${user_config.comfy_blender_output_dir}"
+        "COMFY_BLENDER_OUTPUT_DIR": "${user_config.comfy_blender_output_dir}",
+        "COMFY_STRICT_CONFIRM": "${user_config.comfy_strict_confirm}"
       }
     }
   },
@@ -132,6 +133,13 @@
       "title": "Blender output directory",
       "description": "Destination when routing images to a Blender project.",
       "default": "~/comfypilot_output/blender",
+      "required": false
+    },
+    "comfy_strict_confirm": {
+      "type": "string",
+      "title": "Strict-confirm destructive ops",
+      "description": "Set to `1` to fail-closed on destructive tools (clear_queue, clear_history, delete_history, delete_snapshot, emergency_stop) when the host lacks elicitation support. Default is fail-open for backward compatibility.",
+      "default": "",
       "required": false
     }
   },

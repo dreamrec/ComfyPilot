@@ -2,6 +2,211 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [1.8.0] - 2026-05-12
+
+### Operational toolkit: lifecycle + diagnostics + convenience
+
+Adds an operational layer on top of v1.7.0's structural surface. Original
+anchors stay untouched: family-aware builder, snapshot/restore, technique
+memory, blueprint library, 6-pass validator. New additions are strictly
+additive.
+
+**Lifecycle (5 new tools - comfy-cli wrappers)**
+- feat (cli/comfy_cli.py): async subprocess wrapper for the official
+  comfy-cli binary. Detects the binary on PATH (tries `comfy` then
+  `comfy-cli`), enforces `--skip-prompt` by default, supports per-call
+  workspace overrides, kills subprocesses on timeout.
+- feat (tools/lifecycle.py): five MCP tools wrap comfy-cli:
+  - `comfy_launch_server` (`comfy launch --background --port N --listen H`)
+  - `comfy_stop_server` (`comfy stop`)
+  - `comfy_install_node` (`comfy node install <slug>`, path-traversal-safe)
+  - `comfy_list_installed_nodes` (`comfy node show installed`)
+  - `comfy_download_model` (`comfy model download --url ... --relative-path models/<folder>`,
+    with optional `--set-civitai-api-token`)
+- All five degrade gracefully when comfy-cli isn't installed, returning
+  a structured error with `pipx install` / `uvx` / `pip install --user`
+  install hints.
+
+**Diagnostics (5 new tools)**
+- feat (tools/diagnostics.py::comfy_extract_schema): walks a workflow
+  and surfaces every controllable widget input across all nodes, every
+  model dependency (loader nodes), every `embedding:NAME` reference in
+  text inputs, and every output node. `summary_only=True` returns just
+  the counts/flags (parameter_count, has_negative_prompt, has_seed, etc.)
+- feat (tools/diagnostics.py::comfy_fetch_logs): pulls /history/{id}
+  and extracts just the log-relevant fields - errors with per-node
+  traceback, completed nodes list, raw message count. Handles both
+  status.exec_info.errors and status.messages execution_error shapes.
+- feat (tools/diagnostics.py::comfy_inspect_workflow): trust check. Walks
+  every node and classifies its class_type as stock (matches ComfyUI
+  core patterns) or custom (everything else). Returns trust_level
+  (`stock` / `mixed` / `fully_custom`) plus warnings - useful before
+  auto-queueing workflows from untrusted sources.
+- feat (tools/diagnostics.py::comfy_recommend_runtime): hardware verdict
+  (`ok` / `marginal` / `cloud`) based on /system_stats. Picks the right
+  `comfy-cli` install flag (--nvidia / --amd / --m-series / --cpu) and
+  declares supports for each family class (sd15 / sdxl / flux2 / video).
+- feat (tools/diagnostics.py::comfy_suggest_timeout): scans the workflow
+  for long-running output classes (VHS_VideoCombine, SaveAnimatedWEBP,
+  SUPIRSample, TrainLora, etc.) and recommends a per-workflow HTTP
+  timeout. Default 300s; up to 3600s for training.
+
+**Auto-fix + run-with-inputs convenience (2 new tools)**
+- feat (tools/auto_fix_deps.py::comfy_install_workflow_deps): writes the
+  workflow to a temp file and shells out to `comfy node install-deps`,
+  closing the validate-then-fix loop the validator's environment pass
+  starts. Temp file cleaned up after - even on error.
+- feat (tools/run_with_inputs.py::comfy_run_with_inputs): collapses the
+  three-step img2img / inpaint flow (upload + patch + queue) into one
+  call. Accepts `inputs = {"label": "/local/path.png"}` where labels are
+  either `node_id.input_name` (explicit) or just `input_name` (implicit -
+  patches every matching LoadImage widget). Returns typed QueueAck with
+  the upload map in `auto_snapshot`.
+
+**Seed sentinel handling (1 new tool)**
+- feat (tools/randomize_seeds.py::comfy_randomize_seeds): replaces
+  `seed=-1` / `noise_seed=-1` sentinels with cryptographic-grade random
+  uint32 values via `secrets.randbelow(2**32)`. `force=True` randomises
+  every seed widget regardless of current value. Wired links (seed
+  driven by another node) are never overwritten.
+
+**Validator pre-pass: editor-format detection**
+- feat (tools/workflow.py): a Pass 0 short-circuit detects ComfyUI editor
+  format (top-level `nodes` + `links` arrays) and returns a specific
+  "Re-export via Workflow -> Export (API)" message instead of N generic
+  "missing class_type" errors. Saves an agent's debugging round-trip.
+
+**Cloud tier awareness**
+- feat (comfy_client.py::_probe_cloud_tier): when the connected profile
+  is `cloud`, capabilities now include a `tier` field. Tries user-info
+  endpoints (`/api/user`, `/user`, `/api/account`, `/api/me`); falls back
+  to behavioural inference (200 on `/api/object_info` = paid tier, 403 =
+  free). Local profiles report `tier: null`.
+
+**Security hardening**
+- feat (output_routing.py): regression-locked path-traversal protection.
+  `_validate_filename` rejects POSIX absolute paths, Windows absolute
+  paths, `..` traversal, `/`-separators, `\\`-separators, and bare `.`
+  / `..` filenames. 24 new tests pin the contract against malicious
+  workflows whose custom save nodes might return crafted filenames.
+
+- chore: tool count 75 -> **88** (+13 operational tools). Tests
+  638 -> 755+ green across 11 new test modules.
+
+- docs: README, MANUAL, SKILL extended with the new tool categories.
+  The new patterns are operational, not structural - our family-aware
+  builder, 6-pass validator, snapshot/memory layer remain unchanged.
+
+## [1.7.0] - 2026-05-12
+
+### ComfyUI v0.20 alignment - new families, new intents, new validator pass
+
+Brings ComfyPilot's surface up to ComfyUI v0.20.1 (was claiming v0.17+).
+Adds the Ernie Image family, four new family-agnostic intents (SUPIR
+super-resolution, RIFE/FILM frame interpolation, SAM 3.1 segmentation,
+native LoRA training, Stable Audio txt2audio), an anti-cycle validator
+pass mirroring v0.20's execution-side enforcement, OpenAPI 3.1 ingestion
+with a `comfy://api/openapi` resource, native-subgraph awareness, an
+asset-manifest parser for v0.19+ output shapes, a deprecated-model lint,
+n-dimensional parameter sweep, and a partner-API directory.
+
+- feat (families/detector.py + families/builders/ernie.py + blueprints/ernie-txt2img.json):
+  Ernie Image (v0.19.0+) - new image family. UNETLoader + ErnieTEModel_
+  CLIP + SamplerCustomAdvanced. v0.19.2 fixed the TE class name to
+  `ErnieTEModel_` with trailing underscore - the public selector
+  `type="ernie_image"` stays stable.
+
+- feat (families/registry.py): intent-override map. Family-agnostic
+  intents (`super_resolution`, `interpolate_frames`, `segment`,
+  `train_lora`, `txt2audio`) dispatch by intent name and bypass the
+  checkpoint-family probe. The classic family-routed intents
+  (`txt2img`/`img2img`/etc.) keep working unchanged.
+
+- feat (families/builders/supir.py + blueprints/supir-upscale.json):
+  SUPIR super-resolution (v0.20.0+) - SUPIRLoader + SUPIREncode +
+  SUPIRSample + SUPIRDecode pipeline with EDM sampler controls.
+
+- feat (families/builders/interpolation.py + blueprints/rife-interpolate.json):
+  RIFE / FILM frame interpolation (v0.20.0+). Method-selectable
+  (`method="rife" | "film"`) with multiplier-aware output FPS.
+
+- feat (families/builders/segment.py + blueprints/sam31-segment.json):
+  SAM 3.1 prompt-based segmentation (v0.20.0+). Returns masks ready to
+  chain into inpaint / controlnet.
+
+- feat (families/builders/training.py): native LoRA training intent
+  using v0.3.41 TrainLoraDataLoader + TrainLora + SaveLora. Picks up
+  v0.3.45 multi-image-caption datasets and v0.3.76 multi-resolution
+  buckets via dataset metadata.
+
+- feat (families/builders/audio_t2a.py): general text-to-audio intent
+  for Stable Audio 2.5 (v0.3.58) and similar native audio diffusion
+  models. ConditioningStableAudio + EmptyLatentAudio + VAEDecodeAudio.
+
+- feat (tools/workflow.py): pass 4 of validator is now `anti_cycle`,
+  mirroring ComfyUI v0.20's execution-side cycle detection. Iterative
+  DFS with 3-coloring returns the offending node IDs so the error
+  message names the cycle. Existing acyclic DAGs unchanged. Passes
+  list expands from 5 to 6.
+
+- feat (safety/deprecated_models.py): deprecated-model lint pass on the
+  environment-pass model names. Emits warnings (not errors) for
+  `seedream-3-0-t2i`, `seedance-1-0-lite`, `seededit`, `gpt-image-1`,
+  legacy `kling-2-1-master`, and `veo-3-0`.
+
+- feat (schemas/node_schema.py): RANGE input type (v0.20.1) is now a
+  primitive widget, not a link target. Two-handle range slider with
+  `min`/`max`/`step` constraints.
+
+- feat (comfy_client.py + server.py): `get_openapi_spec()` +
+  `comfy://api/openapi` resource (v0.20.0). `capabilities.openapi_version`
+  records the spec version when reachable. Falls back gracefully when
+  /openapi.json is missing.
+
+- feat (comfy_client.py): `frontend_version` (v0.3.46+) and
+  `cache_provider` (v0.18+ CacheProvider API) recorded in capabilities.
+
+- feat (comfy_client.py + tools/blueprints.py): `get_published_subgraphs()`
+  hits ComfyUI's v0.3.67+ subgraph endpoint. `comfy_list_blueprints`
+  accepts `source="user" | "bundled" | "native" | "all"` (default `all`)
+  to merge ComfyPilot blueprints with native published subgraphs.
+
+- feat (comfy_client.py + server.py): `comfy://docs/{node_class}`
+  resource template proxies v0.3.68 embedded docs; falls back to
+  object_info description when the endpoint is absent.
+
+- feat (tools/sweep.py): `comfy_sweep_grid` enqueues an n-dimensional
+  Cartesian product across multiple `node.param` axes. Hard cap at 64
+  combinations by default (override via `max_combinations`).
+
+- feat (tools/partner_apis.py): `comfy_list_partner_apis` reports which
+  partner/API custom nodes (Veo, Kling, Seedance, GPT-Image, Topaz,
+  Tripo3D, Rodin, Recraft, Ideogram, NanoBanana, Sonilo, ElevenLabs,
+  etc.) are installed on the connected ComfyUI.
+
+- feat (tools/images.py): `_iter_node_outputs` parses both the legacy
+  `images` key and the v0.19+ `assets` manifest shape (plus gifs / webp
+  / audio / videos). `comfy_list_output_images` now finds output files
+  regardless of which response shape ComfyUI returned.
+
+- feat (responses/models.py + tools/history.py): `RunResult.create_time`
+  surfaces the v0.3.69+ `/history` `create_time` field. Reads from
+  either the top-level key or `status.create_time` (some forks pack
+  it inside).
+
+- feat (safety/vram_guard.py): `recommended_flags()` documents v0.16+
+  default-dynamic-VRAM, plus `--fp16-intermediates` (v0.18+),
+  `--enable-dynamic-vram`, mxfp8 / nvfp4 precision. Surfaced in
+  `detect_instability` output when issues are present.
+
+- chore: tool count 73 -> 75 (+comfy_sweep_grid, +comfy_list_partner_apis).
+  Family count 10 -> 11 (+Ernie Image). New family-agnostic intents: 5.
+  Bundled blueprints 9 -> 13 (+ernie, +supir, +rife, +sam31). MCP
+  resources 5+3 -> 6+4 (+api/openapi, +docs/{node_class}). Tests
+  541 -> 700+ green across 21 new and updated test modules.
+
+- chore: bump claim from "ComfyUI v0.17+" to "v0.20+" everywhere.
+
 ## [1.6.0] - 2026-04-20
 
 ### Unified model discovery across the full ComfyUI folder taxonomy

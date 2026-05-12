@@ -24,3 +24,9 @@ from comfy_mcp.tools import viz         # noqa: F401  -- Phase 3 Task 3
 from comfy_mcp.tools import ingest      # noqa: F401  -- Phase 3 Task 4
 from comfy_mcp.tools import sweep       # noqa: F401  -- Phase 3 Task 5
 from comfy_mcp.tools import hub         # noqa: F401  -- Phase 3 Task 6
+from comfy_mcp.tools import partner_apis  # noqa: F401 -- v1.7.0 / Task 13
+from comfy_mcp.tools import diagnostics   # noqa: F401 -- v1.8.0 operational toolkit
+from comfy_mcp.tools import lifecycle     # noqa: F401 -- v1.8.0 comfy-cli wrappers
+from comfy_mcp.tools import auto_fix_deps # noqa: F401 -- v1.8.0 auto-install workflow deps
+from comfy_mcp.tools import run_with_inputs  # noqa: F401 -- v1.8.0 upload+inject+queue
+from comfy_mcp.tools import randomize_seeds  # noqa: F401 -- v1.8.0 seed sentinel handling

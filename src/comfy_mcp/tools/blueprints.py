@@ -43,13 +43,40 @@ def _store(ctx: Context | None) -> BlueprintStore:
         "openWorldHint": False,
     }
 )
-async def comfy_list_blueprints(ctx: Context = None) -> str:
-    """List all available subgraph blueprints (user-published + bundled).
+async def comfy_list_blueprints(source: str = "all", ctx: Context = None) -> str:
+    """List subgraph blueprints from the configured sources.
 
-    User blueprints shadow bundled ones when names collide.
+    Sources:
+    - "all" (default): user + bundled + native (everything available).
+    - "user": only the user-published store (COMFY_BLUEPRINT_DIR).
+    - "bundled": only the bundled examples shipping with ComfyPilot.
+    - "native": only the subgraphs ComfyUI itself publishes (v0.3.67+).
+
+    User blueprints shadow bundled ones when names collide. Native entries
+    are tagged with `source: "native"` so the caller can distinguish them
+    from ComfyPilot-managed blueprints.
     """
+    if source not in {"all", "user", "bundled", "native"}:
+        return json.dumps({"error": f"Unknown source {source!r}"})
+
     store = _store(ctx)
-    return json.dumps({"blueprints": store.list()}, indent=2)
+    blueprints: list[dict] = []
+
+    if source in {"all", "user", "bundled"}:
+        local_filter = None if source == "all" else source
+        for bp in store.list():
+            if local_filter is None or bp.get("source") == local_filter:
+                blueprints.append(bp)
+
+    if source in {"all", "native"} and ctx is not None:
+        try:
+            client = ctx.request_context.lifespan_context["comfy_client"]
+            for native in await client.get_published_subgraphs():
+                blueprints.append({**native, "source": "native"})
+        except Exception as e:
+            blueprints.append({"source": "native", "error": f"Could not fetch native subgraphs: {e}"})
+
+    return json.dumps({"blueprints": blueprints, "source": source}, indent=2)
 
 
 @mcp.tool(

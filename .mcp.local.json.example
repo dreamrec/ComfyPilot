@@ -1,10 +1,19 @@
 {
-  "_comment": "Copy to .mcp.local.json (gitignored) and edit. Your MCP client must merge this with .mcp.json.",
+  "_comment": "Copy to .mcp.local.json (gitignored) and edit. Your MCP client must merge this with .mcp.json. Only set the keys you need - the others fall back to .mcp.json / server defaults.",
   "mcpServers": {
     "comfypilot": {
       "env": {
         "COMFY_URL": "http://127.0.0.1:8188",
-        "COMFY_API_KEY": ""
+        "COMFY_API_KEY": "",
+        "COMFY_AUTH_METHOD": "auto",
+        "COMFY_TIMEOUT": "300",
+        "COMFY_SNAPSHOT_LIMIT": "50",
+        "COMFY_SNAPSHOT_DIR": "",
+        "COMFY_BLUEPRINT_DIR": "~/.comfypilot/blueprints",
+        "COMFY_OUTPUT_DIR": "~/comfypilot_output",
+        "COMFY_TD_OUTPUT_DIR": "~/comfypilot_output/touchdesigner",
+        "COMFY_BLENDER_OUTPUT_DIR": "~/comfypilot_output/blender",
+        "COMFY_STRICT_CONFIRM": ""
       }
     }
   }

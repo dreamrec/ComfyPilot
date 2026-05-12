@@ -162,12 +162,27 @@ class TestAceStep:
         assert "SaveAudio" in class_types
 
 
+class TestErnie:
+    def test_ernie_uses_unet_loader_with_ernie_clip(self):
+        workflow = build(Family.ERNIE_IMAGE, "txt2img", {})
+        class_types = {n["class_type"] for n in workflow.values()}
+        assert "UNETLoader" in class_types
+        clip_loader = next(n for n in workflow.values() if n["class_type"] == "CLIPLoader")
+        assert clip_loader["inputs"]["type"] == "ernie_image"
+
+    def test_ernie_defaults_to_1024(self):
+        workflow = build(Family.ERNIE_IMAGE, "txt2img", {})
+        latent = next(n for n in workflow.values() if n["class_type"] == "EmptySD3LatentImage")
+        assert latent["inputs"]["width"] == 1024
+
+
 class TestAllFamiliesRegistered:
     def test_every_supported_family_has_at_least_one_intent(self):
         for family in [
             Family.SD15, Family.SDXL, Family.SD35, Family.FLUX2,
             Family.QWEN, Family.WAN22, Family.LTX2,
             Family.HUNYUAN_VIDEO, Family.HUNYUAN_3D, Family.ACE_STEP,
+            Family.ERNIE_IMAGE,
         ]:
             assert list_intents(family), f"{family} has no registered intents"
 

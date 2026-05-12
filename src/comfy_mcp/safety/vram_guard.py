@@ -127,9 +127,55 @@ class VRAMGuard:
 
         running = queue.get("queue_running", [])
 
-        return {
+        result = {
             "stable": len(issues) == 0,
             "issues": issues,
             "queue_running": len(running),
             "queue_pending": len(queue.get("queue_pending", [])),
+        }
+        if issues:
+            result["recommendations"] = self.recommended_flags()
+        return result
+
+    @staticmethod
+    def recommended_flags() -> dict:
+        """ComfyUI memory-management flags worth knowing about.
+
+        Dynamic VRAM mode (v0.16.0+) is now the *default* - older guides that
+        tell users to opt in are out of date. The other two flags are
+        opt-in escape hatches for near-OOM situations on large video models.
+        """
+        return {
+            "dynamic_vram_default": True,
+            "notes": (
+                "ComfyUI v0.16+ enables dynamic VRAM by default. The flags "
+                "below are explicit overrides - useful when the heuristic "
+                "guesses wrong on large Flux/Wan/LTX video graphs."
+            ),
+            "flags": {
+                "--enable-dynamic-vram": (
+                    "Force dynamic VRAM management even when ComfyUI has "
+                    "decided not to enable it on this hardware. Helpful on "
+                    "borderline GPUs with the older detection heuristic."
+                ),
+                "--fp16-intermediates": (
+                    "Run intermediate tensors at fp16 precision (v0.18.0+). "
+                    "Significant VRAM savings on Flux 2 / Wan 2.2 / LTX-2 / "
+                    "HunyuanVideo with minimal quality cost."
+                ),
+                "--cpu-vae": (
+                    "Move VAE decode to CPU when GPU is near full. Slows "
+                    "decode but unblocks generation."
+                ),
+                "--lowvram": (
+                    "Last-resort mode that aggressively offloads models. "
+                    "Use --enable-dynamic-vram first - lowvram is a "
+                    "fallback for systems where dynamic VRAM fails."
+                ),
+            },
+            "precision_formats": {
+                "mxfp8": "Supported since v0.18.0 - 8-bit microscaled FP for transformers.",
+                "nvfp4": "Supported since v0.8.0 - NVIDIA FP4 matrix multiplication.",
+                "fp8": "Long-supported; combine with --fp16-intermediates for best memory.",
+            },
         }

@@ -1,7 +1,7 @@
 {
   "name": "comfypilot",
-  "version": "1.6.0",
-  "description": "MCP server for live control of ComfyUI with 73 tools across 15 categories: system, models, workflow execution, nodes, images, history, monitoring, snapshots, memory, safety, builder, output routing, blueprints, viz/ingest/sweep, hub search.",
+  "version": "1.8.0",
+  "description": "MCP server for live control of ComfyUI v0.20+ with 88 tools across 19 categories: system, models, workflow execution, nodes, images, history, monitoring, snapshots, memory, safety, builder, output routing, blueprints, viz/ingest/sweep, hub search, partner APIs, lifecycle (comfy-cli), diagnostics, convenience.",
   "author": "ComfyPilot",
   "license": "MIT",
   "transports": ["stdio", "streamable-http"],
@@ -48,6 +48,10 @@
     "COMFY_BLENDER_OUTPUT_DIR": {
       "description": "Output directory for Blender images",
       "default": "~/comfypilot_output/blender"
+    },
+    "COMFY_STRICT_CONFIRM": {
+      "description": "Set to '1' to fail-closed on destructive tools (clear_queue, clear_history, delete_history, delete_snapshot, emergency_stop) when the host lacks elicitation support. Default is fail-open for backward compatibility.",
+      "default": ""
     }
   },
   "categories": [
@@ -65,6 +69,10 @@
     "output_routing",
     "blueprints",
     "viz_ingest_sweep",
-    "hub_search"
+    "hub_search",
+    "partner_apis",
+    "lifecycle",
+    "diagnostics",
+    "convenience"
   ]
 }

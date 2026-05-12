@@ -63,6 +63,10 @@ class QueueAck(BaseModel):
     error: str | None = None
     node_errors: dict[str, NodeError] | None = None
     auto_snapshot: dict[str, Any] | None = None
+    # Populated by comfy_run_with_inputs with the per-label upload record
+    # (local_path, uploaded_filename, size_bytes, applied_to). Stays None
+    # for the regular comfy_queue_prompt path.
+    upload_map: dict[str, Any] | None = None
 
 
 JobState = Literal[
@@ -89,6 +93,9 @@ class RunResult(BaseModel):
     status: dict[str, Any] = Field(default_factory=dict)
     outputs: dict[str, Any] = Field(default_factory=dict)
     prompt: list[Any] = Field(default_factory=list)
+    # ComfyUI v0.3.69+ exposes a `create_time` field on /history entries -
+    # epoch seconds when the prompt was queued. Older builds omit it.
+    create_time: float | None = None
     error: str | None = None
 
 

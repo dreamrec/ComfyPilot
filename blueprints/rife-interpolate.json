@@ -1,0 +1,12 @@
+{
+  "id": "rife-interpolate",
+  "name": "rife-interpolate",
+  "description": "RIFE frame interpolation 2x (ComfyUI v0.20.0+). Smooths motion or doubles framerate. Family-agnostic.",
+  "tags": ["rife", "interpolate_frames", "video", "frame-interpolation"],
+  "node_count": 3,
+  "nodes": {
+    "1": {"class_type": "LoadVideo", "inputs": {"video": "input.mp4", "force_rate": 0, "force_size": "Disabled", "custom_width": 0, "custom_height": 0, "frame_load_cap": 0, "skip_first_frames": 0, "select_every_nth": 1}},
+    "2": {"class_type": "RIFE_VFI", "inputs": {"frames": ["1", 0], "ckpt_name": "rife49.pth", "clear_cache_after_n_frames": 10, "multiplier": 2, "fast_mode": true, "ensemble": true, "scale_factor": 1.0}},
+    "3": {"class_type": "SaveAnimatedWEBP", "inputs": {"images": ["2", 0], "filename_prefix": "ComfyPilot_rife_x2", "fps": 48, "lossless": false, "quality": 90, "method": "default"}}
+  }
+}
