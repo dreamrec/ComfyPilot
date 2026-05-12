@@ -58,7 +58,8 @@
         "COMFY_BLUEPRINT_DIR": "${user_config.comfy_blueprint_dir}",
         "COMFY_OUTPUT_DIR": "${user_config.comfy_output_dir}",
         "COMFY_TD_OUTPUT_DIR": "${user_config.comfy_td_output_dir}",
-        "COMFY_BLENDER_OUTPUT_DIR": "${user_config.comfy_blender_output_dir}"
+        "COMFY_BLENDER_OUTPUT_DIR": "${user_config.comfy_blender_output_dir}",
+        "COMFY_STRICT_CONFIRM": "${user_config.comfy_strict_confirm}"
       }
     }
   },
@@ -132,6 +133,13 @@
       "title": "Blender output directory",
       "description": "Destination when routing images to a Blender project.",
       "default": "~/comfypilot_output/blender",
+      "required": false
+    },
+    "comfy_strict_confirm": {
+      "type": "string",
+      "title": "Strict-confirm destructive ops",
+      "description": "Set to `1` to fail-closed on destructive tools (clear_queue, clear_history, delete_history, delete_snapshot, emergency_stop) when the host lacks elicitation support. Default is fail-open for backward compatibility.",
+      "default": "",
       "required": false
     }
   },
