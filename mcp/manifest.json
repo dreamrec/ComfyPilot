@@ -48,6 +48,10 @@
     "COMFY_BLENDER_OUTPUT_DIR": {
       "description": "Output directory for Blender images",
       "default": "~/comfypilot_output/blender"
+    },
+    "COMFY_STRICT_CONFIRM": {
+      "description": "Set to '1' to fail-closed on destructive tools (clear_queue, clear_history, delete_history, delete_snapshot, emergency_stop) when the host lacks elicitation support. Default is fail-open for backward compatibility.",
+      "default": ""
     }
   },
   "categories": [

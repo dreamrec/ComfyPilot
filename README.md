@@ -246,10 +246,9 @@ Plus four resource templates (parameterized URIs):
 ## What It Is Not Good At
 
 - Replacing artistic direction by itself.
-- Running without a live ComfyUI instance (this is a bridge, not a runtime).
 - Streaming real-time video output (snapshots and polls, not live frames).
-- Automatic custom node installation or dependency management.
 - "One shot perfect generation" without iterative refinement.
+- Running without a working ComfyUI instance somewhere (cloud or local). The lifecycle tools (`comfy_launch_server`, `comfy_install_node`, `comfy_install_workflow_deps`, `comfy_download_model`) can bring a local install from zero to ready, but they need comfy-cli on `PATH` — install via `pipx install comfy-cli` or `uvx --from comfy-cli comfy ...` first.
 
 ## Model Families
 

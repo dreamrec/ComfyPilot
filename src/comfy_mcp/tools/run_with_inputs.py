@@ -179,5 +179,5 @@ async def comfy_run_with_inputs(
         queue_position=result.get("number") if isinstance(result, dict) else None,
         error=result.get("error") if isinstance(result, dict) else None,
         node_errors=result.get("node_errors") if isinstance(result, dict) else None,
-        auto_snapshot={"upload_map": upload_map},
+        upload_map=upload_map,
     )

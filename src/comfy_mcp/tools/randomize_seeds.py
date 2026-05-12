@@ -39,7 +39,12 @@ def _is_link(value) -> bool:
 @mcp.tool(
     annotations={
         "title": "Randomize Seeds",
-        "readOnlyHint": True,
+        # Returns a NEW workflow dict; doesn't mutate the input. Marked
+        # not-read-only because the same call produces different output
+        # each invocation (secrets.randbelow). MCP spec treats a
+        # read-only tool as effectively idempotent at the caller level,
+        # which would contradict idempotentHint=False below.
+        "readOnlyHint": False,
         "destructiveHint": False,
         "idempotentHint": False,
         "openWorldHint": False,

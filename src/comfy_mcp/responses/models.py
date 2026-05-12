@@ -63,6 +63,10 @@ class QueueAck(BaseModel):
     error: str | None = None
     node_errors: dict[str, NodeError] | None = None
     auto_snapshot: dict[str, Any] | None = None
+    # Populated by comfy_run_with_inputs with the per-label upload record
+    # (local_path, uploaded_filename, size_bytes, applied_to). Stays None
+    # for the regular comfy_queue_prompt path.
+    upload_map: dict[str, Any] | None = None
 
 
 JobState = Literal[

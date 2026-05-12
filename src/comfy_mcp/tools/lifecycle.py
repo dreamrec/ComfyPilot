@@ -110,8 +110,22 @@ async def comfy_launch_server(
 async def comfy_stop_server(workspace: str = "", ctx: Context = None) -> str:
     """Stop the running ComfyUI server via `comfy stop`.
 
+    Calls `comfy stop` (15s timeout) and reports the result. After this
+    returns successfully, subsequent calls to `comfy_get_system_stats`
+    will fail until the server is relaunched (`comfy_launch_server`).
+
     Args:
-        workspace: Optional --workspace path passed to comfy-cli.
+        workspace: Optional --workspace path passed to comfy-cli (selects
+            which ComfyUI install to stop when multiple are present).
+
+    Returns:
+        JSON with one of three shapes:
+        - {status: "stopped", comfy_cli_returncode: 0, stdout, stderr} on
+          successful shutdown.
+        - {status: "failed", comfy_cli_returncode: N, stdout, stderr}
+          when the binary is present but the call exits non-zero (most
+          commonly: no server was running to stop).
+        - {error: "...install hints..."} when comfy-cli is not on PATH.
     """
     try:
         result = await run_comfy_cli(["stop"], workspace=workspace or None, timeout=15.0)
@@ -181,7 +195,25 @@ async def comfy_install_node(
     }
 )
 async def comfy_list_installed_nodes(workspace: str = "", ctx: Context = None) -> str:
-    """Run `comfy node show installed` and return the parsed list."""
+    """List custom-node packages installed via Comfy Manager.
+
+    Wraps `comfy node show installed` (30s timeout) and returns the
+    human-readable list as raw lines. Pair with `comfy_install_node`
+    when checking whether a package is already installed before
+    re-installing.
+
+    Args:
+        workspace: Optional --workspace path passed to comfy-cli.
+
+    Returns:
+        JSON with one of three shapes:
+        - {status: "ok", raw_lines: [...], line_count: N} when the
+          listing succeeded. line_count==0 means no custom nodes are
+          installed (or only stock ComfyUI is present).
+        - {status: "failed", comfy_cli_returncode, stderr} when the
+          binary is present but the call exits non-zero.
+        - {error: "...install hints..."} when comfy-cli is not on PATH.
+    """
     try:
         result = await run_comfy_cli(
             ["node", "show", "installed"],
