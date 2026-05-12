@@ -89,6 +89,9 @@ class RunResult(BaseModel):
     status: dict[str, Any] = Field(default_factory=dict)
     outputs: dict[str, Any] = Field(default_factory=dict)
     prompt: list[Any] = Field(default_factory=list)
+    # ComfyUI v0.3.69+ exposes a `create_time` field on /history entries -
+    # epoch seconds when the prompt was queued. Older builds omit it.
+    create_time: float | None = None
     error: str | None = None
 
 

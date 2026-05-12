@@ -29,6 +29,7 @@ class Family(str, Enum):
     HUNYUAN_VIDEO = "hunyuan_video"
     HUNYUAN_3D = "hunyuan_3d"
     ACE_STEP = "ace_step"
+    ERNIE_IMAGE = "ernie_image"
     UNKNOWN = "unknown"
 
 
@@ -40,6 +41,11 @@ _PATTERNS: list[tuple[re.Pattern[str], Family]] = [
     # Product-specific patterns go FIRST so they claim version-like suffixes
     # (e.g. "ace_step_v1.5" should not be misread as SD 1.5)
     (re.compile(r"ace[._\-]?step", re.I), Family.ACE_STEP),
+
+    # Ernie Image (v0.19.0+). The text encoder class is `ErnieTEModel_` with
+    # a trailing underscore (v0.19.2 fix), but checkpoints typically ship as
+    # ernie_image_*.safetensors / ernie-image-*.safetensors.
+    (re.compile(r"ernie[._\-]?image|ernie[._\-]?te|^ernie", re.I), Family.ERNIE_IMAGE),
 
     # Hunyuan variants (3d must beat video to avoid 'hunyuan_3d_video_xyz' edge cases)
     (re.compile(r"hunyuan[._\-]?3d|hunyuan3d", re.I), Family.HUNYUAN_3D),

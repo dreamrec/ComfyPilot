@@ -71,6 +71,46 @@ class TestGetRunResult:
         assert result.error is not None
         assert result.prompt_id == "nonexistent"
 
+    @pytest.mark.asyncio
+    async def test_get_run_result_surfaces_create_time(self, mock_ctx, mock_client):
+        """ComfyUI v0.3.69+ exposes create_time on /history entries."""
+        mock_client.get_history = AsyncMock(return_value={
+            "prompt_1": {
+                "create_time": 1747000000.5,
+                "prompt": [1, "prompt_1", {}, {}, []],
+                "outputs": {},
+                "status": {"status_str": "success"},
+            },
+        })
+        result = await comfy_get_run_result(prompt_id="prompt_1", ctx=mock_ctx)
+        assert result.create_time == 1747000000.5
+
+    @pytest.mark.asyncio
+    async def test_get_run_result_create_time_in_status(self, mock_ctx, mock_client):
+        """Some forks pack create_time inside the status dict - handle both."""
+        mock_client.get_history = AsyncMock(return_value={
+            "prompt_1": {
+                "prompt": [1, "prompt_1", {}, {}, []],
+                "outputs": {},
+                "status": {"status_str": "success", "create_time": 1747000123},
+            },
+        })
+        result = await comfy_get_run_result(prompt_id="prompt_1", ctx=mock_ctx)
+        assert result.create_time == 1747000123.0
+
+    @pytest.mark.asyncio
+    async def test_get_run_result_create_time_absent_on_old_comfy(self, mock_ctx, mock_client):
+        """Older ComfyUI builds omit create_time - field stays None."""
+        mock_client.get_history = AsyncMock(return_value={
+            "prompt_1": {
+                "prompt": [1, "prompt_1", {}, {}, []],
+                "outputs": {},
+                "status": {"status_str": "success"},
+            },
+        })
+        result = await comfy_get_run_result(prompt_id="prompt_1", ctx=mock_ctx)
+        assert result.create_time is None
+
 
 class TestDeleteHistory:
     @pytest.mark.asyncio

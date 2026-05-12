@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.responses import RunResult
 from comfy_mcp.server import mcp
 
 
@@ -55,14 +56,12 @@ async def comfy_get_history(limit: int = 20, ctx: Context = None) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_get_run_result(prompt_id: str, ctx: Context = None) -> "RunResult":
+async def comfy_get_run_result(prompt_id: str, ctx: Context = None) -> RunResult:
     """Get result of a specific prompt execution. Returns structured RunResult.
 
     Args:
         prompt_id: The ID of the prompt execution to retrieve
     """
-    from comfy_mcp.responses import RunResult
-
     history = await _client(ctx).get_history(prompt_id=prompt_id)
     if not history:
         return RunResult(
@@ -71,11 +70,24 @@ async def comfy_get_run_result(prompt_id: str, ctx: Context = None) -> "RunResul
         )
 
     data = history.get(prompt_id, {})
+
+    # /history entries on v0.3.69+ carry a numeric create_time. Some
+    # custom-node forks shove it inside `status` instead - check both.
+    create_time = data.get("create_time")
+    if create_time is None and isinstance(data.get("status"), dict):
+        create_time = data["status"].get("create_time")
+    if create_time is not None:
+        try:
+            create_time = float(create_time)
+        except (TypeError, ValueError):
+            create_time = None
+
     return RunResult(
         prompt_id=prompt_id,
         status=data.get("status", {}) or {},
         outputs=data.get("outputs", {}) or {},
         prompt=data.get("prompt", []) or [],
+        create_time=create_time,
     )
 
 

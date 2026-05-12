@@ -100,3 +100,51 @@ def test_roundtrips_to_json():
     payload = schema.model_dump()
     assert payload["class_type"] == "CheckpointLoaderSimple"
     assert isinstance(payload["inputs"], list)
+
+
+def test_v3_range_type_recognized():
+    """ComfyUI v0.20.1 added a RANGE input type with min/max/step bounds.
+
+    RANGE is a numeric-range widget (two-handle slider), not a link target.
+    """
+    raw = {
+        "schema_version": "v3",
+        "category": "utils",
+        "inputs": [
+            {
+                "name": "speed_range",
+                "type": "RANGE",
+                "required": True,
+                "min": 0.0,
+                "max": 1.0,
+                "step": 0.01,
+                "default": [0.0, 1.0],
+            }
+        ],
+        "outputs": [],
+    }
+    schema = parse_object_info("RangeNode", raw)
+    by_name = {i.name: i for i in schema.inputs}
+    speed = by_name["speed_range"]
+    assert speed.type_name == "RANGE"
+    assert speed.is_link_target is False, "RANGE is a widget, not a link"
+    assert speed.constraints is not None
+    assert speed.constraints["min"] == 0.0
+    assert speed.constraints["max"] == 1.0
+    assert speed.constraints["step"] == 0.01
+
+
+def test_v1_range_type_recognized():
+    """If a custom node exposes RANGE via the V1 dict-of-tuples shape, treat it as a widget."""
+    raw = {
+        "category": "utils",
+        "input": {
+            "required": {
+                "speed_range": ["RANGE", {"min": 0.0, "max": 1.0, "step": 0.01}],
+            }
+        },
+    }
+    schema = parse_object_info("RangeNode", raw)
+    speed = next(i for i in schema.inputs if i.name == "speed_range")
+    assert speed.type_name == "RANGE"
+    assert speed.is_link_target is False

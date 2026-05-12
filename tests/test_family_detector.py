@@ -47,6 +47,10 @@ from comfy_mcp.families.detector import Family, detect_family
     # ACE-Step
     ("ace-step-1.5-xl.safetensors", Family.ACE_STEP),
     ("ace_step_v1.5.safetensors", Family.ACE_STEP),
+    # Ernie Image (v0.19.0+)
+    ("ernie_image_v1.safetensors", Family.ERNIE_IMAGE),
+    ("ernie-image-1.0.safetensors", Family.ERNIE_IMAGE),
+    ("ernie_te_fp16.safetensors", Family.ERNIE_IMAGE),
     # Unknown
     ("custom-checkpoint.safetensors", Family.UNKNOWN),
     ("", Family.UNKNOWN),

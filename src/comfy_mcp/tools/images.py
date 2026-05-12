@@ -18,6 +18,36 @@ def _client(ctx: Context):
     return ctx.request_context.lifespan_context["comfy_client"]
 
 
+def _iter_node_outputs(node_output: dict) -> list[dict]:
+    """Return a flat list of {filename, subfolder, type, asset_id?} dicts.
+
+    ComfyUI v0.19+ added an asset-registration system. Outputs may appear
+    under `images` (legacy), `assets` (v0.19+ asset manifest), or both.
+    Some output nodes also produce `gifs`, `webp`, or `audio`. This helper
+    normalises every shape into the same minimal record so downstream
+    listing/retrieval works regardless of which ComfyUI version is on the
+    other end.
+    """
+    out: list[dict] = []
+    for key in ("images", "assets", "gifs", "webp", "audio", "videos"):
+        items = node_output.get(key) or []
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            record: dict[str, Any] = {
+                "filename": item.get("filename", "") or item.get("name", ""),
+                "subfolder": item.get("subfolder", ""),
+                "type": item.get("type", "output"),
+            }
+            asset_id = item.get("asset_id") or item.get("id")
+            if asset_id:
+                record["asset_id"] = asset_id
+            out.append(record)
+    return out
+
+
 @mcp.tool(
     annotations={
         "title": "Get Output Image",
@@ -92,11 +122,13 @@ async def comfy_list_output_images(subfolder: str = "", limit: int = 50, ctx: Co
     for prompt_id, entry in history.items():
         outputs = entry.get("outputs", {})
         for node_id, node_output in outputs.items():
-            images = node_output.get("images", [])
-            for img in images:
-                name = img.get("filename", "")
-                img_subfolder = img.get("subfolder", "")
-                if subfolder and img_subfolder != subfolder:
+            if not isinstance(node_output, dict):
+                continue
+            # Handles both legacy `images` key and v0.19+ `assets` manifest.
+            for record in _iter_node_outputs(node_output):
+                name = record.get("filename", "")
+                rec_subfolder = record.get("subfolder", "")
+                if subfolder and rec_subfolder != subfolder:
                     continue
                 if name and name not in filenames:
                     filenames.append(name)

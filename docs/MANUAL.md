@@ -1,7 +1,7 @@
 # ComfyPilot Production Manual
 
 Complete reference for operating ComfyPilot - the MCP server for live control of ComfyUI.
-73 tools, 5 resources + 3 resource templates, 10 model families, 9 bundled blueprints.
+88 tools, 6 resources + 4 resource templates, 11 model families + 5 intent-overrides, 13 bundled blueprints. ComfyUI v0.20+. v1.8.0 adds comfy-cli lifecycle + diagnostics + convenience layers.
 
 ## Architecture
 
@@ -59,7 +59,7 @@ ComfyPilot runs as an MCP server over stdio (default) or streamable-http (remote
 
 ## Tool Reference
 
-**73 tools across 15 categories.**
+**88 tools across 19 categories.**
 
 ### System Tools (6)
 
@@ -95,7 +95,7 @@ Every tool in this group uses live folder discovery. `comfy_list_model_folders` 
 | `comfy_cancel_run` | json str | Cancel a specific queued prompt by ID |
 | `comfy_interrupt` | json str | Interrupt the currently running generation |
 | `comfy_clear_queue` | json str | Clear all pending prompts (gated by elicitation when `confirm=False`) |
-| `comfy_validate_workflow` | `ValidationReport` | Typed: 5-pass validation (schema + catalog + graph + environment + execution_risk) |
+| `comfy_validate_workflow` | `ValidationReport` | Typed: 6-pass validation (schema + catalog + graph + anti_cycle + environment + execution_risk) |
 | `comfy_export_workflow` | json str | Export a workflow as shareable JSON |
 | `comfy_import_workflow` | json str | Parse a JSON string into a workflow dict |
 
@@ -207,7 +207,7 @@ Every tool in this group uses live folder discovery. `comfy_list_model_folders` 
 | `comfy_insert_blueprint` | json str | Materialize a blueprint into a workflow dict with optional per-node input overrides |
 | `comfy_publish_subgraph` | json str | Save a set of nodes as a reusable named blueprint |
 
-**Bundled library** ships 9 blueprints in `blueprints/`: `flux2-txt2img`, `sd35-txt2img`, `sdxl-hires-fix`, `qwen-txt2img`, `wan22-txt2video`, `ltx2-txt2video`, `hunyuan-video-txt2video`, `hunyuan3d-image2_3d`, `acestep-txt2music`. User-published blueprints live at `COMFY_BLUEPRINT_DIR` (default `~/.comfypilot/blueprints`).
+**Bundled library** ships 13 blueprints in `blueprints/`: `flux2-txt2img`, `sd35-txt2img`, `sdxl-hires-fix`, `qwen-txt2img`, `wan22-txt2video`, `ltx2-txt2video`, `hunyuan-video-txt2video`, `hunyuan3d-image2_3d`, `acestep-txt2music`, `ernie-txt2img`, `supir-upscale`, `rife-interpolate`, `sam31-segment`. User-published blueprints live at `COMFY_BLUEPRINT_DIR` (default `~/.comfypilot/blueprints`). Native ComfyUI subgraphs (v0.3.67+) surface via `comfy_list_blueprints(source="native")`.
 
 ### Viz + Ingest + Sweep (3)
 
@@ -223,7 +223,7 @@ Every tool in this group uses live folder discovery. `comfy_list_model_folders` 
 |------|--------|-------------|
 | `comfy_search_hub` | json str | Search HuggingFace (`source="huggingface"`) or CivitAI (`source="civitai"`) for models. Returns normalized hits `{source, id, name, url, downloads, tags, ...source-specific extras}`. Limit clamped to 1-50. |
 
-## MCP Resources (5 + 3 resource templates)
+## MCP Resources (6 + 4 resource templates)
 
 Resources provide static/semi-static data without tool-call overhead.
 
@@ -281,7 +281,7 @@ Call with `confirm=True` to skip the elicitation (useful for agents with already
 ### Before Every Generation
 1. `comfy_check_vram` - Verify GPU has headroom
 2. `comfy_validate_before_queue` - Check VRAM + queue capacity
-3. `comfy_validate_workflow` - 5-pass catch (schema + catalog + graph + environment + execution_risk)
+3. `comfy_validate_workflow` - 6-pass catch (schema + catalog + graph + anti_cycle + environment + execution_risk)
 
 ### Before Workflow Modifications
 1. `comfy_snapshot_workflow` - Save current state
@@ -400,7 +400,8 @@ ComfyPilot/
 |       +-- hub/
 |       |   +-- huggingface.py
 |       |   +-- civitai.py
-|       +-- tools/                   # 73 tools across 15 modules
+|       +-- tools/                   # 88 tools across 19 modules
+|       +-- cli/                     # comfy-cli subprocess wrappers (v1.8.0)
 |           +-- system.py             # 6
 |           +-- models.py             # 5
 |           +-- workflow.py           # 8

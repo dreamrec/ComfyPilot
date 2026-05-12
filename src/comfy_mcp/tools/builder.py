@@ -74,6 +74,24 @@ async def comfy_build_workflow(
     """
     resolved_params = dict(params or {})
 
+    # Family-agnostic intents (SUPIR super-resolution, RIFE/FILM frame
+    # interpolation, SAM 3.1 segmentation, training, audio t2a) skip family
+    # detection entirely - they operate on any input regardless of the
+    # upstream model that produced it. The intent-override map registered
+    # in family_registry takes precedence over family routing.
+    if family_registry.has_intent_override(template):
+        workflow = family_registry.build_intent(template, resolved_params)
+        return json.dumps(
+            {
+                "intent": template,
+                "family": "intent_override",
+                "checkpoint": resolved_params.get("checkpoint", ""),
+                "node_count": len(workflow),
+                "workflow": workflow,
+            },
+            indent=2,
+        )
+
     # Auto-detect an installed model if none provided. Modern families (Flux 2,
     # Qwen, Wan 2.2, LTX-2, HunyuanVideo, Hunyuan3D) store weights under
     # `diffusion_models/` via UNETLoader; traditional SD-family checkpoints live

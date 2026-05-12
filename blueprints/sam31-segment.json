@@ -1,0 +1,14 @@
+{
+  "id": "sam31-segment",
+  "name": "sam31-segment",
+  "description": "SAM 3.1 prompt-based segmentation (ComfyUI v0.20.0+). Image -> mask via text prompt. Family-agnostic.",
+  "tags": ["sam3", "sam3.1", "segment", "segmentation", "mask"],
+  "node_count": 5,
+  "nodes": {
+    "1": {"class_type": "LoadImage", "inputs": {"image": "input.png"}},
+    "2": {"class_type": "SAM3Loader", "inputs": {"model_name": "sam3.1_hiera_large.pt", "device": "AUTO"}},
+    "3": {"class_type": "SAM3Segment", "inputs": {"sam_model": ["2", 0], "image": ["1", 0], "text_prompt": "the main subject", "threshold": 0.5, "multimask_output": false}},
+    "4": {"class_type": "MaskToImage", "inputs": {"mask": ["3", 0]}},
+    "5": {"class_type": "SaveImage", "inputs": {"images": ["4", 0], "filename_prefix": "ComfyPilot_sam31_mask"}}
+  }
+}

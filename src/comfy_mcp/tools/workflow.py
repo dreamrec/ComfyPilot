@@ -58,6 +58,57 @@ _LATENT_VIDEO_NODES = {
 }
 
 
+def _detect_cycle(workflow: dict) -> list[str]:
+    """Return node IDs forming a sample cycle, or [] if the workflow is acyclic.
+
+    ComfyUI v0.20.0 added anti-cycle validation to its execution engine. We
+    mirror that check client-side so cyclic graphs fail validation before
+    they hit /prompt. Build a dependency graph (target -> set of sources it
+    links from) and run an iterative DFS with 3-coloring. The first back
+    edge found returns the gray-path stack so the caller can name the cycle.
+    """
+    deps: dict[str, set[str]] = {}
+    for node_id, node in workflow.items():
+        if not isinstance(node, dict):
+            continue
+        sources: set[str] = set()
+        for inp in (node.get("inputs", {}) or {}).values():
+            if isinstance(inp, list) and len(inp) == 2:
+                src = str(inp[0])
+                if src in workflow:
+                    sources.add(src)
+        deps[node_id] = sources
+
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: dict[str, int] = {nid: WHITE for nid in deps}
+
+    for start in sorted(deps):
+        if color[start] != WHITE:
+            continue
+        stack: list[tuple[str, list[str]]] = [(start, sorted(deps[start]))]
+        color[start] = GRAY
+        while stack:
+            node, todo = stack[-1]
+            if not todo:
+                color[node] = BLACK
+                stack.pop()
+                continue
+            nb = todo.pop()
+            nb_color = color.get(nb, WHITE)
+            if nb_color == GRAY:
+                # Back edge - cycle. Return the gray frames from `nb` onward.
+                gray_path = [n for n, _ in stack]
+                if nb in gray_path:
+                    idx = gray_path.index(nb)
+                    return gray_path[idx:]
+                return gray_path + [nb]
+            if nb_color == WHITE:
+                color[nb] = GRAY
+                stack.append((nb, sorted(deps.get(nb, ()))))
+
+    return []
+
+
 def _client(ctx: Context):
     return ctx.request_context.lifespan_context["comfy_client"]
 
@@ -249,12 +300,38 @@ async def comfy_validate_workflow(
     workflow: dict,
     ctx: Context = None,
 ) -> ValidationReport:
-    """Validate a workflow with a 5-pass check. Returns structured ValidationReport.
+    """Validate a workflow with a 6-pass check. Returns structured ValidationReport.
 
-    Passes: schema -> catalog -> graph -> environment -> execution_risk.
+    Passes: schema -> catalog -> graph -> anti_cycle -> environment -> execution_risk.
+    A pre-pass detects ComfyUI editor-format (top-level `nodes`/`links` arrays)
+    and short-circuits with a specific re-export instruction.
     """
     errors: list[str] = []
     warnings: list[str] = []
+
+    # Pass 0 (pre-flight): Editor-format detection. ComfyUI's web UI exports
+    # workflows in two shapes - "API format" (each top-level key is a node ID
+    # whose value carries `class_type`) and "editor format" (top-level
+    # `nodes` + `links` arrays plus `groups`/`config`/`extra` metadata). Only
+    # API format is queueable. Catching this before pass 1 lets us issue a
+    # specific, actionable error instead of "missing class_type" * N.
+    if (
+        isinstance(workflow, dict)
+        and isinstance(workflow.get("nodes"), list)
+        and isinstance(workflow.get("links"), list)
+    ):
+        return ValidationReport(
+            valid=False,
+            errors=[
+                "Workflow appears to be in ComfyUI editor format (top-level "
+                "'nodes' and 'links' arrays). Only API format is queueable. "
+                "Open the workflow in ComfyUI's web UI and use Workflow -> "
+                "Export (API) (or the legacy 'Save (API Format)' button) to "
+                "re-export, then retry."
+            ],
+            node_count=len(workflow.get("nodes") or []),
+            passes=["editor_format_detected"],
+        )
 
     # Pass 1: Schema
     if not isinstance(workflow, dict):
@@ -299,7 +376,17 @@ async def comfy_validate_workflow(
                 if source_id not in node_ids:
                     errors.append(f"Node '{node_id}'.{input_name}: links to non-existent node '{source_id}'")
 
-    # Pass 4: Environment - referenced model files exist in ComfyUI's model folders
+    # Pass 4: Anti-cycle - mirror ComfyUI v0.20 execution-side cycle detection.
+    # Catches A->B->A and self-loops that the graph pass alone misses (a link
+    # to an existing node passes the link-target check but can still cycle).
+    cycle = _detect_cycle(workflow)
+    if cycle:
+        errors.append(
+            f"Anti-cycle: workflow contains a cycle through nodes {cycle!r} "
+            "- ComfyUI v0.20+ rejects cyclic graphs at execution time"
+        )
+
+    # Pass 5: Environment - referenced model files exist in ComfyUI's model folders
     env_checked = False
     referenced_models: dict[str, set[str]] = {}
     for node_id, node in workflow.items():
@@ -313,6 +400,21 @@ async def comfy_validate_workflow(
                 referenced_models.setdefault(folder, set()).add(val)
 
     if referenced_models:
+        from comfy_mcp.safety.deprecated_models import lint_model_name
+
+        # Deprecation lint first - advisory, runs regardless of whether the
+        # /models/{folder} endpoint is reachable. Operating purely on names
+        # ensures network hiccups don't silence stale-model warnings.
+        for folder, names in referenced_models.items():
+            for n in sorted(names):
+                lint = lint_model_name(n)
+                if lint is not None:
+                    reason, replacement = lint
+                    msg = f"Deprecated: {n!r} - {reason}"
+                    if replacement:
+                        msg += f" (consider {replacement})"
+                    warnings.append(msg)
+
         any_folder_checked = False
         for folder, names in referenced_models.items():
             try:
@@ -329,7 +431,7 @@ async def comfy_validate_workflow(
         # No model-loading nodes in workflow - nothing to check, treat as pass
         env_checked = True
 
-    # Pass 5: Execution risk - latent volume + VRAM headroom
+    # Pass 6: Execution risk - latent volume + VRAM headroom
     risk_checked = False
     try:
         latent_pixels = 0
@@ -407,6 +509,7 @@ async def comfy_validate_workflow(
             "schema",
             "catalog" if catalog_available else "catalog_skipped",
             "graph",
+            "anti_cycle",
             "environment" if env_checked else "environment_skipped",
             "execution_risk" if risk_checked else "execution_risk_skipped",
         ],

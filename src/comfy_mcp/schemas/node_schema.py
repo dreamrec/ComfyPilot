@@ -31,7 +31,8 @@ from pydantic import BaseModel, Field
 
 # Types that carry data between nodes (vs primitives edited in widgets).
 # Used to decide whether an input expects a link from another node.
-_PRIMITIVE_TYPES = frozenset({"STRING", "INT", "FLOAT", "BOOLEAN", "BOOL"})
+# RANGE was added in ComfyUI v0.20.1 as a two-handle numeric-range widget.
+_PRIMITIVE_TYPES = frozenset({"STRING", "INT", "FLOAT", "BOOLEAN", "BOOL", "RANGE"})
 
 
 class InputSpec(BaseModel):
