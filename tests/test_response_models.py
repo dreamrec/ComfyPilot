@@ -35,6 +35,12 @@ def test_queue_ack_with_error_preserved():
     assert a.model_dump()["error"] == "invalid workflow"
 
 
+def test_queue_ack_distinguishes_number_from_position():
+    ack = QueueAck(prompt_id="abc", queue_number=-3.5)
+    assert ack.queue_number == -3.5
+    assert ack.queue_position is None
+
+
 def test_job_status_state_literal():
     j = JobStatus(prompt_id="abc", status="running")
     assert j.status == "running"
@@ -55,10 +61,50 @@ def test_vram_status_level_literal():
         VRAMStatus(status="fine")
 
 
+def test_vram_status_preserves_nvml_process_details():
+    status = VRAMStatus.model_validate({
+        "status": "ok",
+        "nvml_available": True,
+        "devices": [{
+            "name": "GPU",
+            "index": 0,
+            "nvml_vram_used": 123,
+            "process_vram_used": 100,
+        }],
+        "gpu_processes": [{
+            "pid": 42,
+            "device_index": 0,
+            "used_gpu_memory": 100,
+            "name": "python.exe",
+        }],
+    })
+    assert status.nvml_available is True
+    assert status.devices[0].nvml_vram_used == 123
+    assert status.gpu_processes[0].pid == 42
+
+
 def test_system_stats_accepts_empty_defaults():
     s = SystemStats()
     assert s.system.ram_total == 0
     assert s.devices == []
+
+
+def test_system_stats_accepts_current_comfy_package_version_list():
+    s = SystemStats.model_validate({
+        "system": {
+            "comfyui_version": "0.31.0",
+            "comfy_package_versions": [
+                {
+                    "name": "comfyui-frontend-package",
+                    "installed": "1.48.7",
+                    "required": "1.48.7",
+                }
+            ],
+        }
+    })
+    assert isinstance(s.system.comfy_package_versions, list)
+    assert s.system.comfy_package_versions[0].name == "comfyui-frontend-package"
+    assert s.system.comfy_package_versions[0].installed == "1.48.7"
 
 
 def test_technique_list_empty_defaults():

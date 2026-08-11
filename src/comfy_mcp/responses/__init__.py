@@ -4,6 +4,7 @@ Agents plan better against typed JSON than free-text. Each model here
 defines the exact shape a tool's return value will have when serialized.
 """
 from comfy_mcp.responses.models import (
+    ComfyPackageVersion,
     DynamicsReport,
     JobStatus,
     ModelList,
@@ -17,11 +18,13 @@ from comfy_mcp.responses.models import (
     TechniqueList,
     ValidationReport,
     VRAMDeviceInfo,
+    VRAMProcessInfo,
     VRAMStatus,
     WatchProgressFrame,
 )
 
 __all__ = [
+    "ComfyPackageVersion",
     "DynamicsReport",
     "JobStatus",
     "ModelList",
@@ -35,6 +38,7 @@ __all__ = [
     "TechniqueList",
     "ValidationReport",
     "VRAMDeviceInfo",
+    "VRAMProcessInfo",
     "VRAMStatus",
     "WatchProgressFrame",
 ]

@@ -30,3 +30,6 @@ from comfy_mcp.tools import lifecycle     # noqa: F401 -- v1.8.0 comfy-cli wrapp
 from comfy_mcp.tools import auto_fix_deps # noqa: F401 -- v1.8.0 auto-install workflow deps
 from comfy_mcp.tools import run_with_inputs  # noqa: F401 -- v1.8.0 upload+inject+queue
 from comfy_mcp.tools import randomize_seeds  # noqa: F401 -- v1.8.0 seed sentinel handling
+from comfy_mcp.tools import instance      # noqa: F401 -- Desktop/local instance discovery
+from comfy_mcp.tools import artifacts     # noqa: F401 -- generic output artifact inventory
+from comfy_mcp.tools import workers       # noqa: F401 -- comfy-env worker observability

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from typing import Any
 
@@ -13,6 +14,51 @@ from comfy_mcp.server import mcp
 
 def _client(ctx: Context):
     return ctx.request_context.lifespan_context["comfy_client"]
+
+
+async def _reconcile_tracker(
+    ctx: Context,
+    history: dict,
+    *,
+    prompt_id: str | None = None,
+) -> None:
+    """Best-effort synchronization of history reads into JobTracker state."""
+    lifespan = getattr(getattr(ctx, "request_context", None), "lifespan_context", {})
+    tracker = lifespan.get("job_tracker") if isinstance(lifespan, dict) else None
+    reconcile = getattr(tracker, "reconcile", None)
+    if not callable(reconcile):
+        return
+    result = reconcile(prompt_id=prompt_id, history=history)
+    if inspect.isawaitable(result):
+        await result
+
+
+def _epoch_seconds(value: Any) -> float | None:
+    """Normalize epoch timestamps expressed in seconds, ms, us, or ns."""
+    try:
+        timestamp = float(value)
+    except (TypeError, ValueError):
+        return None
+    while abs(timestamp) >= 10_000_000_000:
+        timestamp /= 1000.0
+    return timestamp
+
+
+def _extract_create_time(data: dict) -> float | None:
+    """Read create_time from current and legacy ComfyUI history shapes."""
+    create_time = data.get("create_time")
+    status = data.get("status")
+    if create_time is None and isinstance(status, dict):
+        create_time = status.get("create_time")
+    prompt = data.get("prompt")
+    if (
+        create_time is None
+        and isinstance(prompt, (list, tuple))
+        and len(prompt) > 3
+        and isinstance(prompt[3], dict)
+    ):
+        create_time = prompt[3].get("create_time")
+    return _epoch_seconds(create_time)
 
 
 @mcp.tool(
@@ -34,6 +80,7 @@ async def comfy_get_history(limit: int = 20, ctx: Context = None) -> str:
         JSON with entries list and total count
     """
     history = await _client(ctx).get_history(max_items=limit)
+    await _reconcile_tracker(ctx, history)
     entries = []
     for prompt_id, data in history.items():
         entries.append({
@@ -70,17 +117,9 @@ async def comfy_get_run_result(prompt_id: str, ctx: Context = None) -> RunResult
         )
 
     data = history.get(prompt_id, {})
+    await _reconcile_tracker(ctx, history, prompt_id=prompt_id)
 
-    # /history entries on v0.3.69+ carry a numeric create_time. Some
-    # custom-node forks shove it inside `status` instead - check both.
-    create_time = data.get("create_time")
-    if create_time is None and isinstance(data.get("status"), dict):
-        create_time = data["status"].get("create_time")
-    if create_time is not None:
-        try:
-            create_time = float(create_time)
-        except (TypeError, ValueError):
-            create_time = None
+    create_time = _extract_create_time(data)
 
     return RunResult(
         prompt_id=prompt_id,

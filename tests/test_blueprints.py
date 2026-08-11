@@ -94,6 +94,13 @@ class TestStoreDirect:
         with pytest.raises(FileNotFoundError):
             store.insert("nope")
 
+    def test_insert_rejects_path_traversal(self, tmp_path):
+        outside = tmp_path.parent / "outside.json"
+        outside.write_text(json.dumps({"name": "outside", "nodes": {}}))
+        store = BlueprintStore(user_dir=tmp_path)
+        with pytest.raises(ValueError):
+            store.insert("../outside")
+
     def test_publish_rejects_path_traversal(self, tmp_path):
         store = BlueprintStore(user_dir=tmp_path)
         with pytest.raises(ValueError):
@@ -138,6 +145,12 @@ class TestTools:
     async def test_insert_unknown_returns_error(self, tmp_path):
         ctx = _ctx(tmp_path)
         result = json.loads(await comfy_insert_blueprint(name="does-not-exist", ctx=ctx))
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_insert_bad_name_returns_error(self, tmp_path):
+        ctx = _ctx(tmp_path)
+        result = json.loads(await comfy_insert_blueprint(name="../outside", ctx=ctx))
         assert "error" in result
 
     @pytest.mark.asyncio

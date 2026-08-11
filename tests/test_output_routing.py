@@ -128,7 +128,7 @@ class TestSendToTouchDesigner:
         assert result["size_bytes"] == len(fake_png)
         assert "td_command" in result
         assert "moviefilein1" in result["td_command"]
-        assert str(td_dir / "td_test.png") in result["td_command"]
+        assert repr(str(td_dir / "td_test.png")) in result["td_command"]
         assert td_dir.exists()
         assert (td_dir / "td_test.png").exists()
 
@@ -146,7 +146,9 @@ class TestSendToTouchDesigner:
         result = json.loads(await comfy_send_to_td("default_td.png", ctx=mock_ctx))
 
         assert result["status"] == "saved"
-        assert "comfypilot_output/touchdesigner" in result["path"]
+        output_path = Path(result["path"])
+        assert output_path.parent.name == "touchdesigner"
+        assert output_path.parent.parent.name == "comfypilot_output"
 
     @pytest.mark.asyncio
     async def test_td_command_includes_path(self, mock_ctx, mock_client, tmp_path, monkeypatch):
@@ -161,7 +163,7 @@ class TestSendToTouchDesigner:
 
         result = json.loads(await comfy_send_to_td("image.png", ctx=mock_ctx))
 
-        assert f"{td_dir / 'image.png'}" in result["td_command"]
+        assert repr(str(td_dir / "image.png")) in result["td_command"]
 
     @pytest.mark.asyncio
     async def test_suggestion_field_present(self, mock_ctx, mock_client, tmp_path, monkeypatch):
@@ -213,7 +215,7 @@ class TestSendToBlender:
         assert result["size_bytes"] == len(fake_png)
         assert "blender_command" in result
         assert "bpy.data.images.load" in result["blender_command"]
-        assert str(blender_dir / "blender_test.png") in result["blender_command"]
+        assert repr(str(blender_dir / "blender_test.png")) in result["blender_command"]
         assert blender_dir.exists()
         assert (blender_dir / "blender_test.png").exists()
 
@@ -231,7 +233,9 @@ class TestSendToBlender:
         result = json.loads(await comfy_send_to_blender("default_blender.png", ctx=mock_ctx))
 
         assert result["status"] == "saved"
-        assert "comfypilot_output/blender" in result["path"]
+        output_path = Path(result["path"])
+        assert output_path.parent.name == "blender"
+        assert output_path.parent.parent.name == "comfypilot_output"
 
     @pytest.mark.asyncio
     async def test_blender_command_format(self, mock_ctx, mock_client, tmp_path, monkeypatch):
@@ -321,7 +325,7 @@ class TestListDestinations:
         result = json.loads(await comfy_list_destinations(ctx=mock_ctx))
 
         assert result["destinations"]["disk"]["configured"] is True
-        assert result["destinations"]["disk"]["path"] == "/custom/output"
+        assert Path(result["destinations"]["disk"]["path"]) == Path("/custom/output")
 
     @pytest.mark.asyncio
     async def test_configured_false_when_env_var_not_set(self, mock_ctx, monkeypatch):

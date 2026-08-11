@@ -60,6 +60,29 @@ class TestListModels:
         assert result.next_offset is None
         assert len(result.models) == 25
 
+    @pytest.mark.asyncio
+    async def test_filters_cache_locks_and_source_by_default(self, mock_ctx, mock_client):
+        mock_client.get_models = AsyncMock(return_value=[
+            "trellis2/model.safetensors",
+            ".cache/huggingface/download/model.safetensors.lock",
+            "nodes/loader.py",
+            "__pycache__/loader.cpython-312.pyc",
+            "wheelhouse/package.whl",
+            "config.json",
+        ])
+        result = await comfy_list_models("trellis2", ctx=mock_ctx)
+        assert result.models == ["trellis2/model.safetensors", "config.json"]
+        assert result.total_count == 2
+
+    @pytest.mark.asyncio
+    async def test_raw_model_listing_is_opt_in(self, mock_ctx, mock_client):
+        raw = ["model.safetensors", "nodes/loader.py", "artifact.lock"]
+        mock_client.get_models = AsyncMock(return_value=raw)
+        result = await comfy_list_models(
+            "custom", include_non_model_files=True, ctx=mock_ctx
+        )
+        assert result.models == raw
+
 
 class TestGetModelInfo:
     @pytest.mark.asyncio
@@ -239,6 +262,34 @@ class TestSearchModels:
         # Should skip the error and only return checkpoints
         assert "checkpoints" in data["matches"]
         assert "missing_folder" not in data["matches"]
+
+    @pytest.mark.asyncio
+    async def test_search_ignores_source_and_huggingface_locks(self, mock_ctx, mock_client):
+        mock_client.get_models = AsyncMock(return_value=[
+            "trellis2/model.safetensors",
+            "trellis2/__pycache__/model.pyc",
+            "trellis2/source/trellis_loader.py",
+            ".cache/huggingface/trellis2.lock",
+        ])
+        data = json.loads(await comfy_search_models(
+            "trellis", folders=["trellis2"], ctx=mock_ctx
+        ))
+        assert data["matches"]["trellis2"] == ["trellis2/model.safetensors"]
+        assert data["total_matches"] == 1
+
+    @pytest.mark.asyncio
+    async def test_query_matching_folder_name_returns_clean_inventory(self, mock_ctx, mock_client):
+        mock_client.get_models = AsyncMock(return_value=[
+            "ckpts/shape_model.safetensors",
+            "ckpts/shape_model.json",
+            ".cache/huggingface/trellis2.safetensors.lock",
+        ])
+        data = json.loads(await comfy_search_models(
+            "trellis", folders=["trellis2"], ctx=mock_ctx
+        ))
+        assert data["matches"]["trellis2"] == [
+            "ckpts/shape_model.safetensors", "ckpts/shape_model.json"
+        ]
 
 
 class TestRefreshModels:

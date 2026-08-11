@@ -61,26 +61,29 @@ class TestConfirmDestructive:
         assert allowed is False
 
     @pytest.mark.asyncio
-    async def test_no_ctx_falls_through(self):
+    async def test_no_ctx_fails_closed(self, monkeypatch):
+        monkeypatch.delenv("COMFY_STRICT_CONFIRM", raising=False)
         allowed = await confirm_destructive(None, "really?", already_confirmed=False)
-        assert allowed is True
+        assert allowed is False
 
     @pytest.mark.asyncio
-    async def test_host_without_elicit_falls_through(self):
+    async def test_host_without_elicit_fails_closed(self, monkeypatch):
+        monkeypatch.delenv("COMFY_STRICT_CONFIRM", raising=False)
         allowed = await confirm_destructive(_ctx_without_elicit(), "really?", already_confirmed=False)
-        assert allowed is True
+        assert allowed is False
 
     @pytest.mark.asyncio
-    async def test_elicit_raises_falls_through(self):
-        """If ctx.elicit raises (host doesn't implement it), treat as allow."""
+    async def test_elicit_raises_fails_closed(self, monkeypatch):
+        """A host failure must never be interpreted as destructive consent."""
+        monkeypatch.delenv("COMFY_STRICT_CONFIRM", raising=False)
         ctx = MagicMock(spec=Context)
         ctx.elicit = AsyncMock(side_effect=Exception("not supported"))
         allowed = await confirm_destructive(ctx, "really?", already_confirmed=False)
-        assert allowed is True
+        assert allowed is False
 
 
 class TestStrictMode:
-    """COMFY_STRICT_CONFIRM=1 flips the fallback to fail-closed."""
+    """Strict is the default; an explicit false value enables legacy mode."""
 
     @pytest.mark.asyncio
     async def test_strict_mode_blocks_when_no_ctx(self, monkeypatch):

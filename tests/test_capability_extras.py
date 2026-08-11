@@ -38,6 +38,71 @@ async def test_frontend_version_surfaced():
 
 
 @pytest.mark.asyncio
+async def test_required_frontend_version_surfaced_from_current_desktop():
+    """Current Desktop builds expose the required frontend package version."""
+    client = ComfyClient("http://localhost:8188")
+
+    async def get_side_effect(path: str):
+        if "system_stats" in path:
+            return {
+                "system": {
+                    "comfyui_version": "0.31.0",
+                    "required_frontend_version": "1.48.7",
+                },
+            }
+        if "openapi" in path:
+            raise Exception("404")
+        if path.endswith("/features"):
+            return {}
+        return {}
+
+    with patch.object(client, "get", new_callable=AsyncMock) as mock_get, \
+         patch.object(client, "_probe_ws_available", new_callable=AsyncMock) as ws:
+        mock_get.side_effect = get_side_effect
+        ws.return_value = True
+        await client.connect()
+        await client.probe_capabilities()
+        assert client.capabilities["frontend_version"] == "1.48.7"
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_package_version_list_preserved_from_current_desktop():
+    """Current ComfyUI Desktop exposes package versions as named records."""
+    client = ComfyClient("http://localhost:8188")
+    packages = [
+        {
+            "name": "comfyui-frontend-package",
+            "installed": "1.48.7",
+            "required": "1.48.7",
+        }
+    ]
+
+    async def get_side_effect(path: str):
+        if "system_stats" in path:
+            return {
+                "system": {
+                    "comfyui_version": "0.31.0",
+                    "comfy_package_versions": packages,
+                },
+            }
+        if "openapi" in path:
+            raise Exception("404")
+        if path.endswith("/features"):
+            return {}
+        return {}
+
+    with patch.object(client, "get", new_callable=AsyncMock) as mock_get, \
+         patch.object(client, "_probe_ws_available", new_callable=AsyncMock) as ws:
+        mock_get.side_effect = get_side_effect
+        ws.return_value = True
+        await client.connect()
+        await client.probe_capabilities()
+        assert client.capabilities["comfy_package_versions"] == packages
+    await client.close()
+
+
+@pytest.mark.asyncio
 async def test_cache_provider_surfaced_from_features_string():
     """When /features returns cache_provider as a string, capture it directly."""
     client = ComfyClient("http://localhost:8188")

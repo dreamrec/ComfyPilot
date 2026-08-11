@@ -111,7 +111,7 @@ async def comfy_upload_image(
     }
 )
 async def comfy_list_output_images(subfolder: str = "", limit: int = 50, ctx: Context = None) -> str:
-    """List images in the output directory by scanning recent history.
+    """List output images from history with a local filesystem fallback.
 
     Args:
         subfolder: Optional subfolder to filter by
@@ -138,7 +138,38 @@ async def comfy_list_output_images(subfolder: str = "", limit: int = 50, ctx: Co
                 break
         if len(filenames) >= limit:
             break
-    return json.dumps({"images": filenames, "count": len(filenames)}, indent=2)
+    source = "history"
+    filesystem_error: str | None = None
+    if len(filenames) < limit:
+        # History can be cleared/restarted independently from the output
+        # directory. The generic artifact scanner safely resolves the output
+        # root from this local server's argv and restores those files.
+        from comfy_mcp.tools.artifacts import discover_artifacts
+
+        try:
+            artifacts, diagnostics = await discover_artifacts(
+                ctx,
+                kind="image",
+                subfolder=subfolder,
+                filesystem_fallback=True,
+            )
+            filesystem_error = diagnostics.get("filesystem_error")
+            for artifact in artifacts:
+                name = artifact.get("filename", "")
+                if name and name not in filenames:
+                    filenames.append(name)
+                if len(filenames) >= limit:
+                    break
+            if diagnostics.get("filesystem_count", 0):
+                source = "history+filesystem"
+        except ValueError as exc:
+            return json.dumps({"error": str(exc), "images": [], "count": 0}, indent=2)
+    return json.dumps({
+        "images": filenames,
+        "count": len(filenames),
+        "source": source,
+        "filesystem_error": filesystem_error,
+    }, indent=2)
 
 
 @mcp.tool(

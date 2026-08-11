@@ -156,6 +156,22 @@ class TestListOutputImages:
         result = json.loads(await comfy_list_output_images(limit=5, ctx=mock_ctx))
         assert result["count"] <= 5
 
+    @pytest.mark.asyncio
+    async def test_empty_history_falls_back_to_local_output_directory(
+        self, tmp_path, mock_ctx, mock_client
+    ):
+        (tmp_path / "kept.png").write_bytes(b"png")
+        (tmp_path / "ignored.glb").write_bytes(b"mesh")
+        mock_client.base_url = "http://127.0.0.1:8000"
+        mock_client.get_history = AsyncMock(return_value={})
+        mock_client.get_system_stats = AsyncMock(return_value={
+            "system": {"argv": ["main.py", "--output-directory", str(tmp_path)]}
+        })
+        from comfy_mcp.tools.images import comfy_list_output_images
+        result = json.loads(await comfy_list_output_images(ctx=mock_ctx))
+        assert result["images"] == ["kept.png"]
+        assert result["source"] == "history+filesystem"
+
 
 class TestDownloadBatch:
     @pytest.mark.asyncio

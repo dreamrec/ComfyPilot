@@ -121,7 +121,7 @@ async def comfy_run_with_inputs(
         front: Insert at the front of the queue (default False).
 
     Returns:
-        QueueAck (typed) with prompt_id, queue_position, plus an
+        QueueAck (typed) with prompt_id, queue_number, plus an
         `auto_snapshot` field listing the upload mapping that was applied.
     """
     if not isinstance(workflow, dict) or not workflow:
@@ -176,7 +176,7 @@ async def comfy_run_with_inputs(
 
     return QueueAck(
         prompt_id=prompt_id,
-        queue_position=result.get("number") if isinstance(result, dict) else None,
+        queue_number=result.get("number") if isinstance(result, dict) else None,
         error=result.get("error") if isinstance(result, dict) else None,
         node_errors=result.get("node_errors") if isinstance(result, dict) else None,
         upload_map=upload_map,

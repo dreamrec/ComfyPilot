@@ -7,18 +7,18 @@
  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝
 ```
 
-# ComfyPilot v1.8.1
+# ComfyPilot v1.9.0
 
 [![CI](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/dreamrec/ComfyPilot/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.8.1-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.8.1)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue)](https://github.com/dreamrec/ComfyPilot/releases/tag/v1.9.0)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
-[![MCP tools](https://img.shields.io/badge/MCP%20tools-88-brightgreen)](#tool-map-88-tools)
+[![MCP tools](https://img.shields.io/badge/MCP%20tools-96-brightgreen)](#tool-map-96-tools)
 [![MCP resources](https://img.shields.io/badge/MCP%20resources-6%20%2B%204%20templates-brightgreen)](#mcp-resources)
 [![Blueprints](https://img.shields.io/badge/bundled%20blueprints-13-teal)](blueprints/)
-[![Tests](https://img.shields.io/badge/tests-770%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-860%20passing-brightgreen)](tests/)
 [![MCP spec](https://img.shields.io/badge/MCP-2026--03--26-blueviolet)](https://modelcontextprotocol.io)
-[![ComfyUI](https://img.shields.io/badge/ComfyUI-v0.20%2B-orange)](https://github.com/comfyanonymous/ComfyUI)
+[![ComfyUI](https://img.shields.io/badge/tested-v0.20.0--v0.31.1-orange)](https://github.com/Comfy-Org/ComfyUI)
 [![Families](https://img.shields.io/badge/model%20families-11%20%2B%205%20intent--overrides-teal)](#model-families)
 [![Transports](https://img.shields.io/badge/transports-stdio%20%7C%20streamable--http-lightgrey)](#transports)
 [![MCPB](https://img.shields.io/badge/install-MCPB-purple)](https://github.com/dreamrec/ComfyPilot/releases/latest)
@@ -30,12 +30,13 @@ It gives an AI agent a clean tool surface for workflow building, queueing, progr
 ## Documentation
 
 - Production manual: `docs/MANUAL.md`
+- ComfyUI release compatibility audit: `docs/COMFYUI_COMPATIBILITY.md`
 - Release notes: `CHANGELOG.md`
 
 ## What This Is
 
 - A practical bridge between AI agents and ComfyUI.
-- An **88-tool MCP surface** for workflow building, model management, image upload/download, history, monitoring, snapshots, technique memory, VRAM safety, output routing, blueprints, Mermaid viz, PNG ingest, n-dim parameter sweeps, partner-API discovery, model-hub search, **comfy-cli lifecycle** (install ComfyUI, launch/stop server, install nodes, download models), and **diagnostics** (workflow schema extraction, log fetching, trust checks, hardware verdicts, timeout suggestions, auto-fix workflow deps, upload-and-inject convenience).
+- A **96-tool MCP surface** for workflow building, modern job inspection/cancellation, model management, image upload/download, history, monitoring, snapshots, technique memory, VRAM safety, output routing, blueprints, Mermaid viz, PNG ingest, n-dim parameter sweeps, partner-API discovery, model-hub search, **Desktop-aware instance control**, generic artifacts, comfy-env workers, **comfy-cli lifecycle**, and diagnostics.
 - Live model-folder discovery: `diffusion_models/`, `text_encoders/`, `clip_vision/`, `style_models/`, `gligen/` (and every other folder the connected ComfyUI actually exposes) are searched by default - no more checkpoint-centric blind spots.
 - A workflow-oriented loop built for iteration, not one-shot guessing.
 - A small technique library for saving and replaying working patterns.
@@ -56,7 +57,7 @@ Use this loop for every non-trivial task:
 
 6. **Route outputs** - Send generated images to disk, TouchDesigner, or Blender with `comfy_send_to_disk`, `comfy_send_to_td`, `comfy_send_to_blender`.
 
-## Tool Map (88 Tools)
+## Tool Map (96 Tools)
 
 ### 1) System + GPU
 Use for connection health, GPU diagnostics, and VRAM management.
@@ -77,6 +78,7 @@ Use for discovering and managing every model file ComfyUI exposes. Folder taxono
 Use for queueing, cancelling, and managing prompt execution.
 
 - `comfy_queue_prompt`, `comfy_get_queue`, `comfy_cancel_run`
+- `comfy_list_jobs`, `comfy_get_job`, `comfy_cancel_jobs`
 - `comfy_interrupt`, `comfy_clear_queue`
 - `comfy_validate_workflow`, `comfy_export_workflow`, `comfy_import_workflow`
 
@@ -199,6 +201,15 @@ Use to compress multi-step flows that an agent would otherwise script manually.
 - `comfy_run_with_inputs` - Upload local images + inject as workflow inputs + queue — collapses the three-step img2img / inpaint flow into one call.
 - `comfy_randomize_seeds` - Replace `seed=-1` sentinels with cryptographic-grade random uint32 values; `force=True` randomises every seed widget.
 
+### 20) Desktop Instance + Artifacts + Workers
+Use for controlling the exact connected Desktop installation rather than guessing a workspace or port.
+
+- `comfy_instance_doctor` - Resolve the connected PID, owner/supervisor, port, code/data/user/input/output/model roots, Desktop installation, versions, and security warnings.
+- `comfy_list_artifacts` - Inventory image, video, audio, mesh, and other outputs, with a local output-directory fallback after history resets.
+- `comfy_get_artifact` - Resolve safe metadata for one output artifact without allowing path traversal.
+- `comfy_get_environment_status` - Inspect configured/cached comfy-env environments and runtime health.
+- `comfy_list_workers` - List active isolated workers, PIDs, environments, and health.
+
 ## MCP Resources
 
 Six fixed resources:
@@ -208,14 +219,14 @@ Six fixed resources:
 - `comfy://nodes/catalog` - Node catalog preview (first 100 names)
 - `comfy://models/{folder}` - Model listing by folder (checkpoints, loras, vae, diffusion_models, text_encoders, etc.)
 - `comfy://embeddings` - Available embeddings
-- `comfy://api/openapi` - ComfyUI's OpenAPI 3.1 spec (v0.20.0+). Returns `{"error": ...}` on older builds.
+- `comfy://api/openapi` - Optional OpenAPI 3.1 ingestion when the connected deployment exposes `/openapi.json`; returns `{"error": ...}` otherwise.
 
 Plus four resource templates (parameterized URIs):
 
 - `comfy://nodes/catalog/{page}` - Paginated node catalog, 100 nodes per page (`{page}` = 0, 1, 2, ...)
 - `comfy://nodes/by-category/{category}` - Node class_types whose category starts with the given prefix (e.g. `sampling`, `loaders/video`)
 - `comfy://templates/catalog` - Workflow templates advertised by ComfyUI core + custom nodes (via `/workflow_templates`)
-- `comfy://docs/{node_class}` - Embedded node documentation (v0.3.68+ docs endpoint, with object_info description fallback)
+- `comfy://docs/{node_class}` - Localized embedded Markdown from `/docs/<class>/en.md`, with structured-fork and object-info fallbacks.
 
 ## How To Use It (Practical Workflow)
 
@@ -300,10 +311,12 @@ uv run comfypilot --transport streamable-http --host 0.0.0.0 --port 8765
 | Paginated node catalog | Supported | `comfy://nodes/catalog/{page}` (100 per page) + `comfy://nodes/by-category/{category}` |
 | MCP Registry publishing | Manifest ready | `server.json` declares `io.github.dreamrec/comfypilot` |
 | Workflow JSON (v0.20+ spec) | Supported | 6-pass validation: schema + catalog + graph + anti-cycle + environment + execution-risk |
-| OpenAPI 3.1 spec | Supported | `comfy://api/openapi` resource and `capabilities.openapi_version` (ComfyUI v0.20.0+) |
+| ComfyUI compatibility | Tested | v0.20.0 through v0.31.1; newer versions are reported as `newer_than_tested` in capabilities |
+| Modern jobs API | Supported | list/get since v0.20; state-aware single/batch cancellation since v0.26; legacy queue fallback retained |
+| OpenAPI 3.1 spec | Optional | `comfy://api/openapi` and `capabilities.openapi_version` when a deployment exposes `/openapi.json` |
 | Deprecated-model lint | Supported | Validator warns on retired partner models (seedream-3-0, seedance-1-0-lite, seededit, etc.) |
-| Native subgraph awareness | Supported | `comfy_list_blueprints(source="native")` reads ComfyUI's v0.3.67+ published subgraphs |
-| V3 custom nodes | Supported | Normalized NodeSchema parses V1 dict-of-tuples and V3 class-based shapes transparently |
+| Native subgraph awareness | Supported | `comfy_list_blueprints(source="native")` reads canonical `/global_subgraphs` ID maps plus older fork routes |
+| V3 custom nodes | Supported | Normalizes V3-derived COMBO/COLOR/BOUNDING_BOX/CURVE/RANGE/dynamic widgets, socket flags, output metadata, and node lifecycle metadata |
 | Subgraph Blueprints | Supported | User + bundled store, list/insert/publish tools |
 | Model families (builder) | Supported | SD 1.5, SDXL, SD 3.5, Flux 2, Qwen-Image, Wan 2.2 (t2v/i2v), LTX-2, HunyuanVideo (t2v/i2v), Hunyuan3D, ACE-Step |
 | WebSocket progress events | Supported where `/ws` is available | Binary preview frames are ignored safely |
@@ -320,7 +333,7 @@ uv run comfypilot --transport streamable-http --host 0.0.0.0 --port 8765
 
 Easiest for Claude Desktop users:
 
-1. Download `comfypilot-v1.8.1.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
+1. Download `comfypilot-v1.9.0.mcpb` from the [latest release](https://github.com/dreamrec/ComfyPilot/releases/latest).
 2. Double-click the file (or drag it into Claude Desktop's Settings > Extensions panel).
 3. Claude Desktop renders a form for `COMFY_URL`, `COMFY_API_KEY`, and the other config fields — fill in what you need.
 4. Click Install. Restart is handled automatically.
@@ -343,6 +356,18 @@ uv run comfypilot
 ```bash
 claude plugin add /path/to/ComfyPilot
 ```
+
+### Option 4: Codex
+
+Install the checkout and register its stdio server:
+
+```bash
+uv sync
+codex mcp add comfypilot --env COMFY_URL=http://127.0.0.1:8188 -- uv run --directory /path/to/ComfyPilot comfypilot
+```
+
+Codex stores MCP configuration in `~/.codex/config.toml`; the CLI, IDE extension,
+and desktop app share that configuration. Restart Codex after changing MCP servers.
 
 ### Local override
 
@@ -385,7 +410,7 @@ Manual client configuration example (Claude Desktop):
 | `COMFY_SNAPSHOT_LIMIT` | `50` | Maximum workflow snapshots retained |
 | `COMFY_SNAPSHOT_DIR` | *(empty)* | If set, persists snapshots to this directory. If empty, snapshots are in-memory only (pre-1.3 behavior). |
 | `COMFY_BLUEPRINT_DIR` | `~/.comfypilot/blueprints` | User-published subgraph blueprints (bundled examples fall back automatically). |
-| `COMFY_STRICT_CONFIRM` | *(unset)* | Set to `1` to fail-closed on destructive tools: if the host lacks elicitation (or `ctx.elicit` errors), the operation is rejected. Default is fail-open for backward compat with elicitation-unaware hosts. |
+| `COMFY_STRICT_CONFIRM` | `1` | Destructive tools fail closed when elicitation is unavailable or errors. Set to `0` only for a trusted legacy host; callers can instead pass `confirm=True` after verifying intent. |
 | `COMFY_OUTPUT_DIR` | `~/comfypilot_output` | Image output directory for disk routing |
 | `COMFY_TD_OUTPUT_DIR` | `~/comfypilot_output/touchdesigner` | TouchDesigner output path |
 | `COMFY_BLENDER_OUTPUT_DIR` | `~/comfypilot_output/blender` | Blender output path |

@@ -10,17 +10,10 @@ sets confirm=True, elicitation is bypassed (used by agents that have
 already verified intent). Otherwise we ask the client/user to explicitly
 accept.
 
-Fallback behaviour when the host does not support elicitation:
-
-- Default (`COMFY_STRICT_CONFIRM` unset or 0): fail-OPEN - allow the
-  destructive operation. This preserves backward compatibility with
-  elicitation-unaware MCP hosts where the gate would otherwise silently
-  block every destructive call.
-
-- Strict mode (`COMFY_STRICT_CONFIRM=1`): fail-CLOSED - any path that
-  cannot obtain an explicit positive confirmation blocks the operation.
-  Use this on shared/automated setups where a failed elicitation round
-  trip should never be interpreted as consent.
+Fallback behaviour when the host does not support elicitation is fail-closed.
+Set `COMFY_STRICT_CONFIRM=0` only for a trusted legacy host that cannot elicit;
+callers can always pass the tool's explicit `confirm=True` argument after
+verifying user intent.
 """
 from __future__ import annotations
 
@@ -43,9 +36,9 @@ class ConfirmDestructive(BaseModel):
 
 
 def _strict_mode() -> bool:
-    """True when COMFY_STRICT_CONFIRM is set to a truthy value."""
+    """Return whether destructive operations fail closed (the safe default)."""
     val = os.environ.get("COMFY_STRICT_CONFIRM", "").strip().lower()
-    return val in {"1", "true", "yes", "on"}
+    return val not in {"0", "false", "no", "off"}
 
 
 async def confirm_destructive(
@@ -56,12 +49,9 @@ async def confirm_destructive(
     """Return True if the destructive operation should proceed.
 
     - If the caller passed confirm=True, proceed immediately.
-    - If no Context or no elicit capability:
-        - strict mode -> block (False)
-        - default     -> allow (True, backward compat)
-    - If elicit is called but raises:
-        - strict mode -> block (False)
-        - default     -> allow (True)
+    - If no Context or no elicit capability, block unless legacy fail-open
+      mode was explicitly configured with `COMFY_STRICT_CONFIRM=0`.
+    - If elicit is called but raises, apply the same policy.
     - Otherwise block unless the response is accept + data.confirm=True.
     """
     if already_confirmed:

@@ -226,7 +226,7 @@ class TestDeleteSnapshot:
         snap_data = json.loads(snap_result)
         snap_id = snap_data["id"]
 
-        result = await comfy_delete_snapshot(snap_id, ctx=snap_ctx)
+        result = await comfy_delete_snapshot(snap_id, confirm=True, ctx=snap_ctx)
         data = json.loads(result)
 
         assert data["status"] == "deleted"
@@ -239,7 +239,7 @@ class TestDeleteSnapshot:
     @pytest.mark.asyncio
     async def test_delete_nonexistent_snapshot(self, snap_ctx):
         """Test deleting non-existent snapshot returns error."""
-        result = await comfy_delete_snapshot("nonexistent_id", ctx=snap_ctx)
+        result = await comfy_delete_snapshot("nonexistent_id", confirm=True, ctx=snap_ctx)
         data = json.loads(result)
 
         assert "error" in data
@@ -256,7 +256,7 @@ class TestDeleteSnapshot:
             snap_ids.append(snap_data["id"])
 
         # Delete the middle one
-        await comfy_delete_snapshot(snap_ids[1], ctx=snap_ctx)
+        await comfy_delete_snapshot(snap_ids[1], confirm=True, ctx=snap_ctx)
 
         # Verify other snapshots still exist
         list_result = await comfy_list_snapshots(ctx=snap_ctx)
@@ -329,7 +329,7 @@ class TestRoundTrip:
         assert restore_data["name"] == "complete_test"
 
         # Delete snapshot
-        delete_result = await comfy_delete_snapshot(snap_id, ctx=snap_ctx)
+        delete_result = await comfy_delete_snapshot(snap_id, confirm=True, ctx=snap_ctx)
         delete_data = json.loads(delete_result)
         assert delete_data["status"] == "deleted"
 
@@ -360,7 +360,7 @@ class TestRoundTrip:
         assert "removed_nodes" in diff_data
 
         # Delete first snapshot
-        await comfy_delete_snapshot(snap_ids[0], ctx=snap_ctx)
+        await comfy_delete_snapshot(snap_ids[0], confirm=True, ctx=snap_ctx)
 
         # Verify count decreased
         list_result = await comfy_list_snapshots(ctx=snap_ctx)

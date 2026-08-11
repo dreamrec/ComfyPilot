@@ -5,7 +5,7 @@ from pathlib import Path
 
 def _get_readme_tool_names():
     readme = Path(__file__).parent.parent / "README.md"
-    content = readme.read_text()
+    content = readme.read_text(encoding="utf-8")
     return set(re.findall(r"`(comfy_\w+)`", content))
 
 

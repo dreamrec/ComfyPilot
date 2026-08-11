@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -147,6 +148,31 @@ class TestCheckVram:
         result = await comfy_check_vram(ctx=safety_ctx)
         assert result.status == "critical"
 
+    @pytest.mark.asyncio
+    async def test_estimated_headroom_uses_conservative_nvml_value(self, safety_ctx):
+        guard = _guard(safety_ctx)
+        guard._client.base_url = "http://127.0.0.1:8188"
+        guard._client.get_system_stats = AsyncMock(return_value={
+            "devices": [{
+                "name": "GPU",
+                "index": 0,
+                "vram_total": 1024 * 1024 * 1024,
+                "vram_free": 700 * 1024 * 1024,
+            }],
+        })
+        guard._get_nvml_snapshot = AsyncMock(return_value={
+            "available": True,
+            "devices": [{
+                "index": 0,
+                "vram_total": 1024 * 1024 * 1024,
+                "vram_free": 400 * 1024 * 1024,
+                "vram_used": 624 * 1024 * 1024,
+                "process_vram_used": 300 * 1024 * 1024,
+            }],
+            "processes": [{"pid": 10, "used_gpu_memory": 300 * 1024 * 1024}],
+        })
+        assert await guard.estimated_headroom_mb() == 400.0
+
 
 # ---------------------------------------------------------------------------
 # validate_before_queue
@@ -251,29 +277,39 @@ class TestSetLimits:
 class TestEmergencyStop:
     @pytest.mark.asyncio
     async def test_emergency_stop_calls_interrupt(self, safety_ctx):
-        await comfy_emergency_stop(ctx=safety_ctx)
+        await comfy_emergency_stop(confirm=True, ctx=safety_ctx)
         guard = _guard(safety_ctx)
         guard._client.interrupt.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_emergency_stop_calls_clear_queue(self, safety_ctx):
-        await comfy_emergency_stop(ctx=safety_ctx)
+        await comfy_emergency_stop(confirm=True, ctx=safety_ctx)
         guard = _guard(safety_ctx)
         guard._client.clear_queue.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_emergency_stop_calls_free_vram(self, safety_ctx):
-        await comfy_emergency_stop(ctx=safety_ctx)
+        await comfy_emergency_stop(confirm=True, ctx=safety_ctx)
         guard = _guard(safety_ctx)
         guard._client.free_vram.assert_called_once_with(unload_models=True, free_memory=True)
 
     @pytest.mark.asyncio
     async def test_emergency_stop_returns_stopped_status(self, safety_ctx):
-        result = json.loads(await comfy_emergency_stop(ctx=safety_ctx))
+        result = json.loads(await comfy_emergency_stop(confirm=True, ctx=safety_ctx))
         assert result["status"] == "stopped"
         assert "interrupted" in result["actions"]
         assert "queue_cleared" in result["actions"]
         assert "vram_freed" in result["actions"]
+
+    @pytest.mark.asyncio
+    async def test_emergency_stop_continues_after_one_action_fails(self, safety_ctx):
+        guard = _guard(safety_ctx)
+        guard._client.interrupt = AsyncMock(side_effect=RuntimeError("socket reset"))
+        result = json.loads(await comfy_emergency_stop(confirm=True, ctx=safety_ctx))
+        assert result["status"] == "partial"
+        assert result["errors"][0]["action"] == "interrupted"
+        guard._client.clear_queue.assert_awaited_once()
+        guard._client.free_vram.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +346,38 @@ class TestDetectInstability:
         result = json.loads(await comfy_detect_instability(ctx=safety_ctx))
         assert result["queue_running"] == 2
         assert result["queue_pending"] == 1
+
+    @pytest.mark.asyncio
+    async def test_stuck_running_job_is_reported(self, safety_ctx):
+        guard = _guard(safety_ctx)
+        guard._client.get_queue = AsyncMock(return_value={
+            "queue_running": [[1, "p-stuck", {}, {"create_time": (time.time() - 400) * 1000}, []]],
+            "queue_pending": [],
+        })
+        guard._client.get_history = AsyncMock(return_value={})
+        result = json.loads(await comfy_detect_instability(ctx=safety_ctx))
+        assert result["stable"] is False
+        assert any("Stuck job: p-stuck" in issue for issue in result["issues"])
+
+    @pytest.mark.asyncio
+    async def test_recent_history_error_spike_is_reported(self, safety_ctx):
+        guard = _guard(safety_ctx)
+        created_ms = time.time() * 1000
+        guard._client.get_history = AsyncMock(return_value={
+            f"p{i}": {
+                "prompt": [i, f"p{i}", {}, {"create_time": created_ms}, []],
+                "status": {
+                    "status_str": "error",
+                    "messages": [["execution_error", {"exception_message": "CUDA out of memory"}]],
+                },
+            }
+            for i in range(3)
+        })
+        result = json.loads(await comfy_detect_instability(ctx=safety_ctx))
+        assert result["stable"] is False
+        assert any("OOM pattern" in issue for issue in result["issues"])
+        assert any("Error spike" in issue for issue in result["issues"])
+        assert result["checks"]["history"]["errors"] == 3
 
 
 # ---------------------------------------------------------------------------

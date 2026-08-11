@@ -1,7 +1,7 @@
 # ComfyPilot Production Manual
 
 Complete reference for operating ComfyPilot - the MCP server for live control of ComfyUI.
-88 tools, 6 resources + 4 resource templates, 11 model families + 5 intent-overrides, 13 bundled blueprints. ComfyUI v0.20+. v1.8.0 adds comfy-cli lifecycle + diagnostics + convenience layers.
+96 tools, 6 resources + 4 resource templates, 11 model families + 5 intent-overrides, 13 bundled blueprints. Tested with ComfyUI v0.20.0 through v0.31.1. v1.9.0 adds modern jobs, strict live-schema validation, Desktop-aware control, generic artifacts, worker observability, native global subgraphs, and expanded V3 schema normalization.
 
 ## Architecture
 
@@ -59,7 +59,7 @@ ComfyPilot runs as an MCP server over stdio (default) or streamable-http (remote
 
 ## Tool Reference
 
-**88 tools across 19 categories.**
+**96 tools across 20 categories.**
 
 ### System Tools (6)
 
@@ -69,7 +69,7 @@ ComfyPilot runs as an MCP server over stdio (default) or streamable-http (remote
 | `comfy_get_gpu_info` | json str | Detailed GPU device information |
 | `comfy_get_features` | json str | Enabled ComfyUI features |
 | `comfy_list_extensions` | json str | Installed custom node extensions |
-| `comfy_restart` | json str | Report that restart is not supported by the standard API |
+| `comfy_restart` | json str | Safely restart the selected local/Desktop instance through its negotiated Manager route, then wait for health and refresh capabilities |
 | `comfy_free_vram` | json str | Unload models and free GPU memory |
 
 ### Model Tools (5)
@@ -86,13 +86,16 @@ Every tool in this group uses live folder discovery. `comfy_list_model_folders` 
 
 **Fallback folder list** (when `/models` is unreachable): `checkpoints`, `diffusion_models`, `unet`, `loras`, `vae`, `vae_approx`, `clip`, `text_encoders`, `clip_vision`, `controlnet`, `upscale_models`, `style_models`, `embeddings`, `hypernetworks`, `gligen`, `diffusers`.
 
-### Workflow Execution Tools (8)
+### Workflow Execution Tools (11)
 
 | Tool | Return | Description |
 |------|--------|-------------|
-| `comfy_queue_prompt` | `QueueAck` | Typed: prompt_id, queue_position, error, node_errors, auto_snapshot |
+| `comfy_queue_prompt` | `QueueAck` | Typed: prompt_id, queue_number, error, node_errors, auto_snapshot (`queue_number` is ComfyUI's priority key, not an ordinal position) |
 | `comfy_get_queue` | json str | Current queue state (running + pending) |
-| `comfy_cancel_run` | json str | Cancel a specific queued prompt by ID |
+| `comfy_cancel_run` | json str | State-aware cancellation of a running or queued prompt; legacy fallback before v0.26 |
+| `comfy_list_jobs` | json str | Filtered/sorted/paginated canonical jobs listing (v0.20+) |
+| `comfy_get_job` | json str | Full job record, with legacy history fallback |
+| `comfy_cancel_jobs` | json str | Batch cancel running or queued jobs (v0.26+; legacy fallback) |
 | `comfy_interrupt` | json str | Interrupt the currently running generation |
 | `comfy_clear_queue` | json str | Clear all pending prompts (gated by elicitation when `confirm=False`) |
 | `comfy_validate_workflow` | `ValidationReport` | Typed: 6-pass validation (schema + catalog + graph + anti_cycle + environment + execution_risk) |
@@ -152,7 +155,7 @@ Every tool in this group uses live folder discovery. `comfy_list_model_folders` 
 | `comfy_delete_snapshot` | json str | Delete a snapshot (gated by elicitation) |
 | `comfy_auto_snapshot` | json str | Toggle automatic snapshots before queue and builder edits |
 
-**Snapshot storage**: in-memory by default. Set `COMFY_SNAPSHOT_DIR` to persist snapshots to disk (JSON per snapshot) and survive restarts. LRU eviction respects `COMFY_SNAPSHOT_LIMIT` across both memory and disk.
+**Snapshot storage**: persistent by default at `~/.comfypilot/snapshots`. Set `COMFY_SNAPSHOT_DIR=0` for memory-only operation or choose another directory. LRU eviction respects `COMFY_SNAPSHOT_LIMIT` across both memory and disk.
 
 ### Memory Tools (5)
 
@@ -207,7 +210,7 @@ Every tool in this group uses live folder discovery. `comfy_list_model_folders` 
 | `comfy_insert_blueprint` | json str | Materialize a blueprint into a workflow dict with optional per-node input overrides |
 | `comfy_publish_subgraph` | json str | Save a set of nodes as a reusable named blueprint |
 
-**Bundled library** ships 13 blueprints in `blueprints/`: `flux2-txt2img`, `sd35-txt2img`, `sdxl-hires-fix`, `qwen-txt2img`, `wan22-txt2video`, `ltx2-txt2video`, `hunyuan-video-txt2video`, `hunyuan3d-image2_3d`, `acestep-txt2music`, `ernie-txt2img`, `supir-upscale`, `rife-interpolate`, `sam31-segment`. User-published blueprints live at `COMFY_BLUEPRINT_DIR` (default `~/.comfypilot/blueprints`). Native ComfyUI subgraphs (v0.3.67+) surface via `comfy_list_blueprints(source="native")`.
+**Bundled library** ships 13 blueprints in `blueprints/`: `flux2-txt2img`, `sd35-txt2img`, `sdxl-hires-fix`, `qwen-txt2img`, `wan22-txt2video`, `ltx2-txt2video`, `hunyuan-video-txt2video`, `hunyuan3d-image2_3d`, `acestep-txt2music`, `ernie-txt2img`, `supir-upscale`, `rife-interpolate`, `sam31-segment`. User-published blueprints live at `COMFY_BLUEPRINT_DIR` (default `~/.comfypilot/blueprints`). Native ComfyUI subgraphs surface via the canonical `/global_subgraphs` route; older fork routes remain fallback probes.
 
 ### Viz + Ingest + Sweep (3)
 
@@ -269,6 +272,16 @@ Multi-step flow compressors.
 | `comfy_run_with_inputs` | `QueueAck` | Upload local images + inject as workflow inputs + queue. `inputs={"label": "/local/path.png"}` where labels are `node_id.input_name` (explicit) or just `input_name` (implicit). |
 | `comfy_randomize_seeds` | json str | Replace `seed=-1` / `noise_seed=-1` sentinels with cryptographic-grade random uint32 (range [1, 2^32) - excludes 0 which some custom nodes treat as sentinel). `force=True` randomises every seed widget. |
 
+### Desktop Instance, Artifacts, and Workers (5)
+
+| Tool | Return | Description |
+|------|--------|-------------|
+| `comfy_instance_doctor` | json str | Discover the connected local/Desktop PID, supervisor, port, roots, versions, model-path configuration, and security warnings. |
+| `comfy_list_artifacts` | json str | List image/video/audio/mesh/other outputs from history plus a local filesystem fallback. |
+| `comfy_get_artifact` | json str | Resolve traversal-safe metadata for one output artifact. |
+| `comfy_get_environment_status` | json str | Inspect comfy-env runtime, configured environments, cache health, and endpoint failures. |
+| `comfy_list_workers` | json str | List active isolated worker processes and their environment/PID state. |
+
 ## MCP Resources (6 + 4 resource templates)
 
 Resources provide static/semi-static data without tool-call overhead.
@@ -282,7 +295,7 @@ Resources provide static/semi-static data without tool-call overhead.
 | `comfy://nodes/catalog` | First 100 node class_types (preview) |
 | `comfy://models/{folder}` | Models in a specific folder |
 | `comfy://embeddings` | Available embeddings |
-| `comfy://api/openapi` | ComfyUI OpenAPI 3.1 spec (v0.20.0+; returns `{"error": ...}` on older builds) |
+| `comfy://api/openapi` | Optional OpenAPI 3.1 spec when the deployment exposes `/openapi.json`; otherwise returns `{"error": ...}` |
 
 ### Resource templates (4)
 
@@ -291,7 +304,7 @@ Resources provide static/semi-static data without tool-call overhead.
 | `comfy://nodes/catalog/{page}` | Paginated node catalog (100 per page, `{page}` = 0, 1, 2, ...) |
 | `comfy://nodes/by-category/{category}` | All nodes whose category starts with the given prefix (e.g. `sampling`, `loaders/video`) |
 | `comfy://templates/catalog` | Workflow templates advertised by ComfyUI core + custom nodes (via `/workflow_templates`) |
-| `comfy://docs/{node_class}` | Embedded node documentation (v0.3.68+ docs endpoint, with object_info description fallback) |
+| `comfy://docs/{node_class}` | Embedded `/docs/<class>/en.md` Markdown, with structured-fork and object-info description fallbacks |
 
 ## Structured Output Models
 
@@ -322,7 +335,7 @@ Five tools gate destructive operations on `ctx.elicit()` when `confirm=False`:
 - `comfy_delete_snapshot`
 - `comfy_emergency_stop`
 
-Call with `confirm=True` to skip the elicitation (useful for agents with already-verified intent). If the MCP host doesn't implement elicitation, the tools allow (graceful fallback so elicitation-unaware clients aren't silently blocked).
+Call with `confirm=True` to skip elicitation after the caller has already verified user intent. Destructive tools fail closed if the MCP host cannot elicit or elicitation errors. A trusted legacy host can explicitly opt into the old behavior with `COMFY_STRICT_CONFIRM=0`.
 
 ## Safety Protocol
 
@@ -389,7 +402,7 @@ ComfyPilot/
 |   +-- ci.yml                       # pytest matrix (3.10/3.11/3.12) + doc-drift + release-metadata gates
 +-- .mcp.json                        # MCP server config (plugin-portable)
 +-- .mcp.local.json.example          # Per-machine override template (gitignored real file)
-+-- blueprints/                      # Bundled subgraph blueprints (9 shipped)
++-- blueprints/                      # Bundled subgraph blueprints (13 shipped)
 |   +-- flux2-txt2img.json
 |   +-- sd35-txt2img.json
 |   +-- sdxl-hires-fix.json
@@ -448,7 +461,7 @@ ComfyPilot/
 |       +-- hub/
 |       |   +-- huggingface.py
 |       |   +-- civitai.py
-|       +-- tools/                   # 88 tools across 19 modules
+|       +-- tools/                   # 96 tools across registered modules
 |       +-- cli/                     # comfy-cli subprocess wrappers (v1.8.0)
 |           +-- system.py             # 6
 |           +-- models.py             # 5

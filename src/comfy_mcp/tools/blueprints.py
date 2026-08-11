@@ -50,7 +50,7 @@ async def comfy_list_blueprints(source: str = "all", ctx: Context = None) -> str
     - "all" (default): user + bundled + native (everything available).
     - "user": only the user-published store (COMFY_BLUEPRINT_DIR).
     - "bundled": only the bundled examples shipping with ComfyPilot.
-    - "native": only the subgraphs ComfyUI itself publishes (v0.3.67+).
+    - "native": only the global subgraphs ComfyUI itself publishes.
 
     User blueprints shadow bundled ones when names collide. Native entries
     are tagged with `source: "native"` so the caller can distinguish them
@@ -103,7 +103,7 @@ async def comfy_insert_blueprint(
     store = _store(ctx)
     try:
         return json.dumps(store.insert(name, inputs), indent=2)
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         return json.dumps({"error": str(e)})
 
 
