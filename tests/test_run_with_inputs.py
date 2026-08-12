@@ -73,6 +73,8 @@ class TestComfyRunWithInputs:
             ctx=ctx,
         )
         assert result.prompt_id == "abc-123"
+        assert result.queue_number == 1
+        assert result.queue_position is None
         # Upload happened
         client.upload_image.assert_awaited_once()
         # Queue happened with patched workflow

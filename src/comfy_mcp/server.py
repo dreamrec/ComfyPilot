@@ -9,10 +9,22 @@ from __future__ import annotations
 import json
 import os
 import inspect
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# ``python -m comfy_mcp.server`` initially publishes this module as
+# ``__main__``. Tool modules import ``comfy_mcp.server`` to reach ``mcp``;
+# without this alias Python executes the file a second time and the decorators
+# populate a different FastMCP instance from the one serving stdio. The
+# console-script entry point already imports the canonical name, so it is
+# intentionally unchanged by this branch.
+if __name__ == "__main__":
+    sys.modules.setdefault("comfy_mcp.server", sys.modules[__name__])
 
 from mcp.server.fastmcp import FastMCP
 
+from comfy_mcp import __version__
 from comfy_mcp.comfy_client import ComfyClient
 
 # Module-level reference for resources (set during lifespan)
@@ -28,7 +40,13 @@ async def comfy_lifespan(server: FastMCP):
     api_key = os.environ.get("COMFY_API_KEY", "")
     timeout = float(os.environ.get("COMFY_TIMEOUT", "300"))
     snapshot_limit = int(os.environ.get("COMFY_SNAPSHOT_LIMIT", "50"))
-    snapshot_dir = os.environ.get("COMFY_SNAPSHOT_DIR", "")
+    snapshot_setting = os.environ.get("COMFY_SNAPSHOT_DIR")
+    if snapshot_setting is None:
+        snapshot_dir: str | None = str(Path.home() / ".comfypilot" / "snapshots")
+    elif snapshot_setting.strip().lower() in {"", "0", "false", "off", "none"}:
+        snapshot_dir = None
+    else:
+        snapshot_dir = str(Path(snapshot_setting).expanduser())
     auth_method = os.environ.get("COMFY_AUTH_METHOD", "auto")
 
     client = ComfyClient(url, api_key=api_key, auth_method=auth_method, timeout=timeout)
@@ -46,7 +64,7 @@ async def comfy_lifespan(server: FastMCP):
     event_mgr = EventManager(client)
     snapshot_mgr = SnapshotManager(
         max_snapshots=snapshot_limit,
-        storage_dir=(snapshot_dir or None),
+        storage_dir=snapshot_dir,
     )
     technique_store = TechniqueStore()
     vram_guard = VRAMGuard(client)
@@ -71,6 +89,10 @@ async def comfy_lifespan(server: FastMCP):
 
 
 mcp = FastMCP("comfypilot", lifespan=comfy_lifespan)
+# MCP SDK 1.26 does not forward an application version through FastMCP's
+# constructor, so set it on the underlying protocol server. Otherwise the
+# initialize handshake reports the SDK version instead of ComfyPilot's.
+mcp._mcp_server.version = __version__
 _tool_signature = inspect.signature(FastMCP.tool)
 _tool_supports_annotations = "annotations" in _tool_signature.parameters
 _original_tool = mcp.tool
@@ -154,11 +176,10 @@ async def templates_resource() -> str:
 
 @mcp.resource("comfy://docs/{node_class}")
 async def node_docs_resource(node_class: str) -> str:
-    """Embedded documentation for a node class (ComfyUI v0.3.68+).
+    """Embedded documentation for a node class.
 
-    Tries the v0.3.68 docs endpoint first; falls back to the node's
-    object_info description when the endpoint is unavailable so this
-    resource never returns empty as long as the node exists.
+    Tries official localized Markdown and structured fork routes, then falls
+    back to the node's object_info description.
     """
     if _shared_client is None:
         return json.dumps({"error": "Server not initialized"})
@@ -201,12 +222,12 @@ async def node_docs_resource(node_class: str) -> str:
 
 @mcp.resource("comfy://api/openapi")
 async def openapi_resource() -> str:
-    """OpenAPI 3.1 spec ComfyUI v0.20+ serves at /openapi.json.
+    """OpenAPI 3.1 spec when the deployment serves one over HTTP.
 
     The full spec is too large to inline in tool descriptions, but exposing
     it as an MCP resource lets agents fetch it on demand for endpoint
     introspection, schema-backed validation, or auto-generated client code.
-    Returns {"error": ...} when the underlying ComfyUI doesn't ship a spec.
+    Returns {"error": ...} when the connected deployment exposes no spec.
     """
     if _shared_client is None:
         return json.dumps({"error": "Server not initialized"})
@@ -217,7 +238,7 @@ async def openapi_resource() -> str:
     if spec is None:
         return json.dumps({
             "error": "ComfyUI did not return an OpenAPI spec",
-            "hint": "Upgrade to ComfyUI v0.20.0+ for /openapi.json",
+            "hint": "This ComfyUI deployment does not expose /openapi.json",
         })
     return json.dumps(spec, indent=2)
 

@@ -9,6 +9,11 @@ from comfy_mcp.comfy_client import ComfyClient
 from comfy_mcp.errors import ComfyAPIError, ComfyConnectionError
 
 
+class AsyncNoop:
+    async def __call__(self, *args, **kwargs):
+        return None
+
+
 def _mock_transport(responses: dict[str, tuple[int, dict]]):
     """Create httpx.MockTransport from path->(status, body) mapping."""
 
@@ -80,6 +85,25 @@ class TestComfyClientGet:
         assert exc_info.value.error_code == "HTTP_500"
         assert exc_info.value.retry_possible is True
 
+    @pytest.mark.asyncio
+    async def test_get_retries_transient_server_error(self, monkeypatch):
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            if attempts < 3:
+                return httpx.Response(503, json={"error": "busy"})
+            return httpx.Response(200, json={"ok": True})
+
+        monkeypatch.setattr("comfy_mcp.comfy_client.asyncio.sleep", AsyncNoop())
+        client = ComfyClient("http://test:8188", max_retries=2)
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="http://test:8188"
+        )
+        assert await client.get("/status") == {"ok": True}
+        assert attempts == 3
+
 
 class TestComfyClientPost:
     @pytest.mark.asyncio
@@ -89,6 +113,63 @@ class TestComfyClientPost:
         })
         result = await client.post("/prompt", {"prompt": {}})
         assert result["prompt_id"] == "abc123"
+
+    @pytest.mark.asyncio
+    async def test_post_accepts_empty_success_body(self):
+        client = ComfyClient("http://test:8188")
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200)),
+            base_url="http://test:8188",
+        )
+        assert await client.post("/interrupt", idempotent=True) == {}
+
+    @pytest.mark.asyncio
+    async def test_post_accepts_plain_text_success_body(self):
+        client = ComfyClient("http://test:8188")
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, text="restarting")
+            ),
+            base_url="http://test:8188",
+        )
+        assert await client.post("/manager/reboot", idempotent=True) == "restarting"
+
+    @pytest.mark.asyncio
+    async def test_non_idempotent_post_is_never_replayed(self, monkeypatch):
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(503, json={"error": "busy"})
+
+        monkeypatch.setattr("comfy_mcp.comfy_client.asyncio.sleep", AsyncNoop())
+        client = ComfyClient("http://test:8188", max_retries=5)
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="http://test:8188"
+        )
+        with pytest.raises(ComfyAPIError):
+            await client.post("/prompt", {"prompt": {}})
+        assert attempts == 1
+
+    @pytest.mark.asyncio
+    async def test_idempotent_post_retries(self, monkeypatch):
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                return httpx.Response(503, json={"error": "busy"})
+            return httpx.Response(200)
+
+        monkeypatch.setattr("comfy_mcp.comfy_client.asyncio.sleep", AsyncNoop())
+        client = ComfyClient("http://test:8188", max_retries=2)
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="http://test:8188"
+        )
+        assert await client.post("/interrupt", idempotent=True) == {}
+        assert attempts == 2
 
 
 class TestComfyClientHighLevel:
@@ -118,6 +199,88 @@ class TestComfyClientHighLevel:
         })
         result = await client.queue_prompt({"1": {"class_type": "KSampler"}})
         assert result["prompt_id"] == "p1"
+
+    @pytest.mark.asyncio
+    async def test_queue_prompt_sends_modern_metadata(self):
+        captured = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.update(__import__("json").loads(request.content))
+            return httpx.Response(200, json={"prompt_id": "p-modern", "number": 0})
+
+        client = ComfyClient("http://test:8188")
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="http://test:8188"
+        )
+        await client.queue_prompt(
+            {"1": {"class_type": "SaveImage"}},
+            workflow_id="wf-1",
+            workflow_version_id="wfv-2",
+            partial_execution_targets=["1"],
+            extra_data={"source": "test"},
+        )
+        assert captured["workflow_id"] == "wf-1"
+        assert captured["workflow_version_id"] == "wfv-2"
+        assert captured["partial_execution_targets"] == ["1"]
+        assert captured["extra_data"] == {"source": "test"}
+
+    @pytest.mark.asyncio
+    async def test_embedded_markdown_docs(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/docs/KSampler/en.md":
+                return httpx.Response(200, text="# KSampler\nSamples a latent.")
+            return httpx.Response(404, text="missing")
+
+        client = ComfyClient("http://test:8188")
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="http://test:8188"
+        )
+        result = await client.get_node_docs("KSampler")
+        assert result["format"] == "markdown"
+        assert result["source"] == "/docs/KSampler/en.md"
+        assert "Samples a latent" in result["description"]
+
+    @pytest.mark.asyncio
+    async def test_global_subgraphs_id_map_normalized(self, client_with_transport):
+        client = client_with_transport({
+            "/global_subgraphs": (200, {"sha256-id": {"name": "Reusable Detailer"}}),
+        })
+        result = await client.get_published_subgraphs()
+        assert result == [{"name": "Reusable Detailer", "id": "sha256-id"}]
+
+    @pytest.mark.asyncio
+    async def test_list_jobs_uses_local_sort_alias_and_offset(self):
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.update(dict(request.url.params))
+            return httpx.Response(200, json={"jobs": [], "pagination": {}})
+
+        client = ComfyClient("http://test:8188")
+        client._http = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url="http://test:8188"
+        )
+        await client.get_jobs(sort_by="create_time", offset=7, after="cloud-cursor")
+        assert seen["sort_by"] == "created_at"
+        assert seen["offset"] == "7"
+        assert "after" not in seen
+
+    @pytest.mark.asyncio
+    async def test_cancel_prompt_prefers_modern_jobs_api(self, client_with_transport):
+        client = client_with_transport({
+            "/api/jobs/job-1/cancel": (200, {"cancelled": True}),
+        })
+        result = await client.cancel_prompt("job-1")
+        assert result == {"cancelled": True, "method": "jobs_api"}
+
+    @pytest.mark.asyncio
+    async def test_cancel_prompt_legacy_queue_fallback(self, client_with_transport):
+        client = client_with_transport({
+            "/queue": (200, {"queue_running": [], "queue_pending": []}),
+        })
+        result = await client.cancel_prompt("job-old")
+        assert result["cancelled"] is True
+        assert result["method"] == "legacy_queue_delete"
 
     @pytest.mark.asyncio
     async def test_interrupt(self, client_with_transport):

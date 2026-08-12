@@ -148,3 +148,77 @@ def test_v1_range_type_recognized():
     speed = next(i for i in schema.inputs if i.name == "speed_range")
     assert speed.type_name == "RANGE"
     assert speed.is_link_target is False
+
+
+def test_modern_v3_widgets_serialized_as_v1_are_not_links():
+    raw = {
+        "input": {
+            "required": {
+                "model_choice": ["COMBO", {"options": ["a", "b"]}],
+                "box": ["BOUNDING_BOX", {"socketless": True}],
+                "curve": ["CURVE", {"socketless": True}],
+                "forced_box": ["BOUNDING_BOX", {"forceInput": True}],
+            }
+        },
+        "output": [],
+    }
+    schema = parse_object_info("ModernWidgets", raw)
+    by_name = {item.name: item for item in schema.inputs}
+    assert by_name["model_choice"].is_link_target is False
+    assert by_name["box"].is_link_target is False
+    assert by_name["curve"].is_link_target is False
+    assert by_name["forced_box"].is_link_target is True
+
+
+def test_modern_node_and_output_metadata_preserved():
+    raw = {
+        "input": {"required": {}},
+        "output": ["IMAGE"],
+        "output_name": ["preview"],
+        "output_is_list": [True],
+        "output_tooltips": ["Rendered frames"],
+        "output_matchtypes": ["image-template"],
+        "display_name": "Modern Preview",
+        "python_module": "comfy_extras.nodes_preview",
+        "deprecated": True,
+        "experimental": True,
+        "dev_only": True,
+        "api_node": True,
+        "has_intermediate_output": True,
+        "search_aliases": ["preview frames"],
+        "essentials_category": "Image",
+        "price_badge": {"amount": 1},
+    }
+    schema = parse_object_info("ModernPreview", raw)
+    assert schema.display_name == "Modern Preview"
+    assert schema.python_module == "comfy_extras.nodes_preview"
+    assert schema.deprecated is True
+    assert schema.experimental is True
+    assert schema.dev_only is True
+    assert schema.api_node is True
+    assert schema.has_intermediate_output is True
+    assert schema.search_aliases == ["preview frames"]
+    assert schema.essentials_category == "Image"
+    assert schema.price_badge == {"amount": 1}
+    assert schema.outputs[0].is_list is True
+    assert schema.outputs[0].tooltip == "Rendered frames"
+    assert schema.outputs[0].match_type == "image-template"
+
+
+def test_divider_is_layout_metadata_not_a_link_socket():
+    raw = {
+        "input": {"required": {"divider": ["ZIPN_SEPARATOR", {"mode": "divider"}]}},
+        "output": [],
+    }
+    schema = parse_object_info("DividerNode", raw)
+    assert schema.inputs[0].is_link_target is False
+
+
+def test_v3_is_output_node_alias_is_preserved():
+    raw = {
+        "schema_version": "v3",
+        "inputs": [],
+        "outputs": [],
+        "is_output_node": True,
+    }
+    assert parse_object_info("V3Sink", raw).is_output_node is True

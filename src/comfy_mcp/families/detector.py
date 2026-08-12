@@ -69,7 +69,7 @@ _PATTERNS: list[tuple[re.Pattern[str], Family]] = [
     (re.compile(r"sd[._\-]?3(?![._\-]?5)", re.I), Family.SD3),
 
     # SDXL must beat plain SD
-    (re.compile(r"sd[._\-]?xl|sdxl", re.I), Family.SDXL),
+    (re.compile(r"sd[._\-]?xl|sdxl|xl(?:[._\-]|$)", re.I), Family.SDXL),
 
     # SD 1.5 - "v1-5" only matches at start of basename to avoid clashing with
     # version suffixes like "ace_step_v1.5" or "some_model_v1.5.safetensors".
@@ -89,9 +89,12 @@ def detect_family(checkpoint_name: str, catalog: dict | None = None) -> Family:
     """
     if not checkpoint_name:
         return Family.UNKNOWN
-    # Strip any path prefix - match on basename only
-    name = checkpoint_name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    # Folder names sometimes carry the only useful family marker (the current
+    # Hunyuan3D distribution is ``hunyuan3d-dit-v2-1/model.fp16.ckpt``), so
+    # inspect the normalized relative path as well as its basename.
+    normalized = checkpoint_name.replace("\\", "/")
+    name = normalized.rsplit("/", 1)[-1]
     for pattern, family in _PATTERNS:
-        if pattern.search(name):
+        if pattern.search(name) or pattern.search(normalized):
             return family
     return Family.UNKNOWN

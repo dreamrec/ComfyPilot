@@ -1,4 +1,4 @@
-"""Workflow tools - 8 tools for workflow execution and queue management.
+"""Workflow tools - 11 tools for workflow execution and queue management.
 
 Validation is now multi-pass: schema -> catalog -> graph -> environment. The
 environment pass cross-checks that every model filename referenced by a
@@ -16,6 +16,7 @@ from typing import Any
 from mcp.server.fastmcp import Context
 
 from comfy_mcp.responses import QueueAck, ValidationReport
+from comfy_mcp.schemas.node_schema import InputSpec, NodeSchema, parse_object_info
 from comfy_mcp.server import mcp
 
 
@@ -58,7 +59,21 @@ _LATENT_VIDEO_NODES = {
 }
 
 
-def _detect_cycle(workflow: dict) -> list[str]:
+def _is_link_value(value: Any) -> bool:
+    """Return whether *value* has ComfyUI's ``[node_id, output_index]`` shape."""
+    return (
+        isinstance(value, (list, tuple))
+        and len(value) == 2
+        and isinstance(value[0], (str, int))
+        and isinstance(value[1], int)
+        and not isinstance(value[1], bool)
+    )
+
+
+def _detect_cycle(
+    workflow: dict,
+    link_inputs: set[tuple[str, str]] | None = None,
+) -> list[str]:
     """Return node IDs forming a sample cycle, or [] if the workflow is acyclic.
 
     ComfyUI v0.20.0 added anti-cycle validation to its execution engine. We
@@ -72,8 +87,10 @@ def _detect_cycle(workflow: dict) -> list[str]:
         if not isinstance(node, dict):
             continue
         sources: set[str] = set()
-        for inp in (node.get("inputs", {}) or {}).values():
-            if isinstance(inp, list) and len(inp) == 2:
+        for input_name, inp in (node.get("inputs", {}) or {}).items():
+            if link_inputs is not None and (str(node_id), str(input_name)) not in link_inputs:
+                continue
+            if _is_link_value(inp):
                 src = str(inp[0])
                 if src in workflow:
                     sources.add(src)
@@ -133,13 +150,133 @@ def _prompt_ids_from_queue(entries: list[Any]) -> list[str]:
     for entry in entries:
         if isinstance(entry, str):
             prompt_ids.append(entry)
-        elif isinstance(entry, (list, tuple)) and entry:
-            prompt_ids.append(str(entry[0]))
+        elif isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            # Current ComfyUI queue tuples are
+            # (monotonic_number, prompt_id, prompt, extra_data, outputs_to_execute).
+            # Older ComfyPilot tests accidentally encoded the reverse order.
+            prompt_ids.append(str(entry[1]))
         elif isinstance(entry, dict):
             prompt_id = entry.get("prompt_id") or entry.get("id")
             if prompt_id:
                 prompt_ids.append(str(prompt_id))
     return prompt_ids
+
+
+def _is_ui_only_input(spec: InputSpec) -> bool:
+    constraints = spec.constraints or {}
+    return (
+        str(constraints.get("mode", "")).lower() in {"divider", "spacer", "separator"}
+        or spec.type_name.upper() in {"ZIPN_SEPARATOR", "DIVIDER", "SEPARATOR"}
+    )
+
+
+def _choice_values(spec: InputSpec) -> list[Any] | None:
+    constraints = spec.constraints or {}
+    choices = constraints.get("choices", constraints.get("options"))
+    if isinstance(choices, (list, tuple)):
+        return list(choices)
+    return None
+
+
+def _validate_scalar_value(path: str, value: Any, spec: InputSpec, errors: list[str]) -> None:
+    """Validate a non-link API input against a normalized object_info spec."""
+    type_name = spec.type_name.upper()
+    constraints = spec.constraints or {}
+
+    if type_name == "COMFY_DYNAMICCOMBO_V3":
+        options = constraints.get("options")
+        keys = [item.get("key") for item in options or [] if isinstance(item, dict)]
+        if not isinstance(value, str):
+            errors.append(
+                f"{path}: DynamicCombo selector must be a string key with child values "
+                f"flattened as '{spec.name}.<input>'; nested objects are not API format"
+            )
+        elif keys and value not in keys:
+            errors.append(f"{path}: value {value!r} is not one of {keys!r}")
+        return
+
+    choices = _choice_values(spec)
+    if choices is not None:
+        multiselect = bool(constraints.get("multiselect", False))
+        values = value if multiselect and isinstance(value, list) else [value]
+        if multiselect and not isinstance(value, list):
+            errors.append(f"{path}: expected a list of choices")
+            return
+        invalid = [item for item in values if item not in choices]
+        if invalid:
+            errors.append(f"{path}: value {invalid[0]!r} is not one of {choices!r}")
+        return
+
+    valid_type = True
+    expected = type_name
+    if type_name == "INT":
+        valid_type = isinstance(value, int) and not isinstance(value, bool)
+    elif type_name == "FLOAT":
+        valid_type = isinstance(value, (int, float)) and not isinstance(value, bool)
+    elif type_name in {"BOOLEAN", "BOOL"}:
+        valid_type = isinstance(value, bool)
+    elif type_name == "STRING":
+        valid_type = isinstance(value, str)
+    elif type_name == "RANGE":
+        valid_type = (
+            isinstance(value, (list, tuple))
+            and len(value) == 2
+            and all(isinstance(item, (int, float)) and not isinstance(item, bool) for item in value)
+        )
+
+    if not valid_type:
+        errors.append(f"{path}: expected {expected}, got {type(value).__name__}")
+        return
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        minimum = constraints.get("min")
+        maximum = constraints.get("max")
+        if isinstance(minimum, (int, float)) and value < minimum:
+            errors.append(f"{path}: value {value!r} is below minimum {minimum!r}")
+        if isinstance(maximum, (int, float)) and value > maximum:
+            errors.append(f"{path}: value {value!r} exceeds maximum {maximum!r}")
+
+
+def _types_compatible(source_type: str, target_type: str) -> bool:
+    """Conservative socket compatibility for catalog types and union types."""
+    def split(value: str) -> set[str]:
+        return {part.strip().upper() for part in str(value).split(",") if part.strip()}
+
+    source = split(source_type)
+    target = split(target_type)
+    wildcards = {"*", "ANY", "ANY_TYPE", "UNKNOWN"}
+    if source & wildcards or target & wildcards:
+        return True
+    if source & target:
+        return True
+    numeric = {"INT", "FLOAT", "NUMBER"}
+    return bool(source & numeric and target & numeric and "NUMBER" in (source | target))
+
+
+def _dynamic_child_specs(spec: InputSpec, selected: Any) -> dict[str, InputSpec]:
+    """Return normalized child specs for the selected DynamicCombo option."""
+    options = (spec.constraints or {}).get("options")
+    for option in options or []:
+        if not isinstance(option, dict) or option.get("key") != selected:
+            continue
+        result: dict[str, InputSpec] = {}
+        inputs = option.get("inputs") or {}
+        for required, group_name in ((True, "required"), (False, "optional")):
+            group = inputs.get(group_name) or {}
+            if not isinstance(group, dict):
+                continue
+            for child_name, raw in group.items():
+                # Reuse the V1 parser for an individual DynamicCombo child.
+                child_schema = parse_object_info(
+                    "_DynamicChild",
+                    {"input": {group_name: {child_name: raw}}, "output": []},
+                )
+                if child_schema.inputs:
+                    child = child_schema.inputs[0]
+                    child.required = required
+                    result[child_name] = child
+        return result
+    return {}
 
 
 async def _await_if_needed(result: Any) -> Any:
@@ -160,6 +297,10 @@ async def _await_if_needed(result: Any) -> Any:
 async def comfy_queue_prompt(
     workflow: dict,
     front: bool = False,
+    workflow_id: str | None = None,
+    workflow_version_id: str | None = None,
+    partial_execution_targets: list[str] | None = None,
+    extra_data: dict[str, Any] | None = None,
     ctx: Context = None,
 ) -> QueueAck:
     """Queue a workflow for execution. Returns structured QueueAck.
@@ -167,10 +308,24 @@ async def comfy_queue_prompt(
     Args:
         workflow: Workflow dict to queue
         front: If True, insert at front of queue instead of back
+        workflow_id: Optional stable workflow UUID for ComfyUI job metadata
+        workflow_version_id: Optional workflow-version UUID
+        partial_execution_targets: Optional output node IDs to execute
+        extra_data: Optional metadata to attach to the queued prompt
     """
     await ctx.report_progress(0, 100)
     snapshot = _maybe_auto_snapshot(ctx, workflow)
-    result = await _client(ctx).queue_prompt(workflow, front=front)
+    metadata = {
+        "workflow_id": workflow_id,
+        "workflow_version_id": workflow_version_id,
+        "partial_execution_targets": partial_execution_targets,
+        "extra_data": extra_data,
+    }
+    if any(value is not None for value in metadata.values()):
+        result = await _client(ctx).queue_prompt(workflow, front=front, **metadata)
+    else:
+        # Preserve the historical call shape for older client adapters.
+        result = await _client(ctx).queue_prompt(workflow, front=front)
     prompt_id = result.get("prompt_id")
 
     job_tracker = _job_tracker(ctx)
@@ -181,7 +336,7 @@ async def comfy_queue_prompt(
 
     return QueueAck(
         prompt_id=prompt_id,
-        queue_position=result.get("number"),
+        queue_number=result.get("number"),
         error=result.get("error"),
         node_errors=result.get("node_errors"),
         auto_snapshot=snapshot,
@@ -223,18 +378,111 @@ async def comfy_cancel_run(
     prompt_id: str,
     ctx: Context = None,
 ) -> str:
-    """Cancel a specific queued prompt by ID.
+    """Cancel a running or queued prompt by ID.
 
     Args:
         prompt_id: The prompt ID to cancel
     """
     result = await _client(ctx).cancel_prompt(prompt_id)
-    job_tracker = ctx.request_context.lifespan_context["job_tracker"]
-    await _await_if_needed(job_tracker.mark_cancelled(prompt_id))
+    cancelled = result.get("cancelled", True) if isinstance(result, dict) else True
+    if cancelled:
+        job_tracker = ctx.request_context.lifespan_context["job_tracker"]
+        await _await_if_needed(job_tracker.mark_cancelled(prompt_id))
     return json.dumps({
-        "status": "cancelled",
+        "status": "cancelled" if cancelled else "not_found",
         "prompt_id": prompt_id,
+        "result": result,
     }, indent=2)
+
+
+@mcp.tool(
+    annotations={
+        "title": "List Jobs",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+)
+async def comfy_list_jobs(
+    status: str | None = None,
+    workflow_id: str | None = None,
+    sort_by: str | None = None,
+    sort_order: str = "desc",
+    limit: int = 100,
+    offset: int = 0,
+    after: str | None = None,
+    ctx: Context = None,
+) -> str:
+    """List ComfyUI jobs using the v0.20+ canonical jobs API.
+
+    Args:
+        status: Optional job state filter
+        workflow_id: Optional workflow UUID filter
+        sort_by: Optional server-supported sort field
+        sort_order: `asc` or `desc`
+        limit: Maximum records to return (1-1000)
+        offset: Offset pagination when `after` is omitted
+        after: Cursor pagination token when supported
+    """
+    if sort_order not in {"asc", "desc"}:
+        return json.dumps({"error": "sort_order must be 'asc' or 'desc'"})
+    limit = max(1, min(int(limit), 1000))
+    offset = max(0, int(offset))
+    result = await _client(ctx).get_jobs(
+        status=status,
+        workflow_id=workflow_id,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        limit=limit,
+        offset=offset,
+        after=after,
+    )
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool(
+    annotations={
+        "title": "Get Job",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+)
+async def comfy_get_job(job_id: str, ctx: Context = None) -> str:
+    """Get a full modern job record, with a legacy history fallback."""
+    result = await _client(ctx).get_job(job_id)
+    if not result:
+        result = {
+            "error": "not_found",
+            "status": "not_found",
+            "job_id": job_id,
+        }
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool(
+    annotations={
+        "title": "Cancel Jobs",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+)
+async def comfy_cancel_jobs(job_ids: list[str], ctx: Context = None) -> str:
+    """Cancel multiple running or queued jobs (v0.26+, with legacy fallback)."""
+    normalized = list(dict.fromkeys(str(value).strip() for value in job_ids if str(value).strip()))
+    if not normalized:
+        return json.dumps({"error": "job_ids must contain at least one ID"})
+    result = await _client(ctx).cancel_jobs(normalized)
+    cancelled = result.get("cancelled", True) if isinstance(result, dict) else True
+    if cancelled:
+        tracker = _job_tracker(ctx)
+        for job_id in normalized:
+            await _await_if_needed(tracker.mark_cancelled(job_id))
+    return json.dumps(result, indent=2)
 
 
 @mcp.tool(
@@ -346,8 +594,11 @@ async def comfy_validate_workflow(
         if "class_type" not in node:
             errors.append(f"Node '{node_id}' missing 'class_type' field")
 
-    # Pass 2: Catalog (if we can reach ComfyUI)
-    catalog = None
+    # Pass 2: Catalog/schema validation (if we can reach ComfyUI).  object_info
+    # is the execution contract: validate every supplied value against it,
+    # instead of maintaining a second, inevitably stale node allowlist.
+    catalog: dict[str, Any] | None = None
+    schemas: dict[str, NodeSchema] = {}
     catalog_available = False
     try:
         result = await _client(ctx).get_object_info()
@@ -364,22 +615,112 @@ async def comfy_validate_workflow(
             class_type = node.get("class_type", "")
             if class_type and class_type not in catalog:
                 errors.append(f"Node '{node_id}': unknown class_type '{class_type}' - not in ComfyUI catalog")
+                continue
+            if not class_type:
+                continue
+            try:
+                schema = parse_object_info(class_type, catalog[class_type])
+                schemas[str(node_id)] = schema
+            except (TypeError, ValueError) as exc:
+                warnings.append(f"Node '{node_id}': could not normalize catalog schema: {exc}")
+                continue
 
-    # Pass 3: Graph - check link targets
-    node_ids = set(workflow.keys())
+            inputs = node.get("inputs", {})
+            if not isinstance(inputs, dict):
+                errors.append(f"Node '{node_id}'.inputs must be a dict")
+                continue
+
+            specs = {spec.name: spec for spec in schema.inputs}
+            for spec in schema.inputs:
+                if spec.required and not _is_ui_only_input(spec) and spec.name not in inputs:
+                    errors.append(f"Node '{node_id}': missing required input '{spec.name}'")
+
+            for input_name in inputs:
+                if input_name not in specs:
+                    errors.append(
+                        f"Node '{node_id}'.{input_name}: unknown input for class_type '{class_type}'"
+                    )
+
+            # DynamicCombo V3 is serialized in API prompts as a string selector
+            # plus flat ``selector.child`` fields.  The live catalog exposes the
+            # flat children as optional inputs, so validate both the selector and
+            # the selected option's children here.
+            for spec in schema.inputs:
+                if spec.name not in inputs or spec.type_name.upper() != "COMFY_DYNAMICCOMBO_V3":
+                    continue
+                selected = inputs[spec.name]
+                _validate_scalar_value(f"Node '{node_id}'.{spec.name}", selected, spec, errors)
+                child_specs = _dynamic_child_specs(spec, selected)
+                allowed_flat = {f"{spec.name}.{name}" for name in child_specs}
+                supplied_flat = {
+                    name for name in inputs if name.startswith(f"{spec.name}.")
+                }
+                inactive = sorted(supplied_flat - allowed_flat)
+                for name in inactive:
+                    errors.append(
+                        f"Node '{node_id}'.{name}: field is not valid for "
+                        f"{spec.name}={selected!r}"
+                    )
+                for child_name, child_spec in child_specs.items():
+                    flat_name = f"{spec.name}.{child_name}"
+                    if flat_name in inputs:
+                        _validate_scalar_value(
+                            f"Node '{node_id}'.{flat_name}", inputs[flat_name], child_spec, errors
+                        )
+
+    # Pass 3: Graph - validate link shape, source output index, and socket type.
+    node_ids = {str(value) for value in workflow.keys()}
+    link_inputs: set[tuple[str, str]] = set()
     for node_id, node in workflow.items():
         if not isinstance(node, dict):
             continue
-        for input_name, input_val in node.get("inputs", {}).items():
-            if isinstance(input_val, list) and len(input_val) == 2:
+        inputs = node.get("inputs", {})
+        if not isinstance(inputs, dict):
+            continue
+        schema = schemas.get(str(node_id))
+        specs = {spec.name: spec for spec in schema.inputs} if schema else {}
+        for input_name, input_val in inputs.items():
+            spec = specs.get(input_name)
+            expects_link = spec.is_link_target if spec is not None else _is_link_value(input_val)
+            path = f"Node '{node_id}'.{input_name}"
+
+            if expects_link:
+                if not _is_link_value(input_val):
+                    errors.append(f"{path}: expected a [source_node_id, output_index] link")
+                    continue
+                link_inputs.add((str(node_id), str(input_name)))
                 source_id = str(input_val[0])
                 if source_id not in node_ids:
-                    errors.append(f"Node '{node_id}'.{input_name}: links to non-existent node '{source_id}'")
+                    errors.append(f"{path}: links to non-existent node '{source_id}'")
+                    continue
+
+                output_index = input_val[1]
+                source_schema = schemas.get(source_id)
+                if source_schema is not None:
+                    if output_index < 0 or output_index >= len(source_schema.outputs):
+                        errors.append(
+                            f"{path}: output index {output_index} is out of range for "
+                            f"node '{source_id}' ({len(source_schema.outputs)} outputs)"
+                        )
+                        continue
+                    if spec is not None:
+                        source_type = source_schema.outputs[output_index].type_name
+                        if not _types_compatible(source_type, spec.type_name):
+                            errors.append(
+                                f"{path}: socket type mismatch; node '{source_id}' output "
+                                f"{output_index} is {source_type}, expected {spec.type_name}"
+                            )
+            elif (
+                spec is not None
+                and not _is_ui_only_input(spec)
+                and spec.type_name.upper() != "COMFY_DYNAMICCOMBO_V3"
+            ):
+                _validate_scalar_value(path, input_val, spec, errors)
 
     # Pass 4: Anti-cycle - mirror ComfyUI v0.20 execution-side cycle detection.
     # Catches A->B->A and self-loops that the graph pass alone misses (a link
     # to an existing node passes the link-target check but can still cycle).
-    cycle = _detect_cycle(workflow)
+    cycle = _detect_cycle(workflow, link_inputs if catalog_available else None)
     if cycle:
         errors.append(
             f"Anti-cycle: workflow contains a cycle through nodes {cycle!r} "
@@ -487,18 +828,20 @@ async def comfy_validate_workflow(
     except Exception as e:
         warnings.append(f"Execution-risk pass error: {e}")
 
-    # Check for output nodes
-    has_output = False
-    output_types = {
-        "SaveImage", "PreviewImage", "SaveAnimatedWEBP", "SaveAnimatedPNG",
-        "SaveGLB", "SaveAudio",
-    }
-    for node in workflow.values():
-        if isinstance(node, dict) and node.get("class_type") in output_types:
-            has_output = True
-            break
+    # Check for output nodes from the live schema.  Only use a naming fallback
+    # when object_info was unavailable.
+    if catalog_available:
+        has_output = any(schema.is_output_node for schema in schemas.values())
+    else:
+        has_output = any(
+            isinstance(node, dict)
+            and str(node.get("class_type", "")).lower().startswith(("save", "preview", "export"))
+            for node in workflow.values()
+        )
     if not has_output:
-        warnings.append("No output node found (SaveImage, SaveAnimatedWEBP, SaveGLB, SaveAudio, etc.) - workflow may produce no visible output")
+        warnings.append(
+            "No node marked as an output node by ComfyUI was found; workflow may produce no visible output"
+        )
 
     return ValidationReport(
         valid=len(errors) == 0,

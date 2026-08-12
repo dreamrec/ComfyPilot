@@ -99,6 +99,34 @@ class TestGetRunResult:
         assert result.create_time == 1747000123.0
 
     @pytest.mark.asyncio
+    async def test_get_run_result_create_time_from_current_prompt_tuple_ms(
+        self, mock_ctx, mock_client
+    ):
+        mock_client.get_history = AsyncMock(return_value={
+            "prompt_1": {
+                "prompt": [
+                    7,
+                    "prompt_1",
+                    {},
+                    {"client_id": "client", "create_time": 1_747_000_456_250},
+                    [],
+                ],
+                "outputs": {},
+                "status": {"status_str": "success"},
+            },
+        })
+        result = await comfy_get_run_result(prompt_id="prompt_1", ctx=mock_ctx)
+        assert result.create_time == 1_747_000_456.25
+
+    @pytest.mark.asyncio
+    async def test_get_run_result_reconciles_job_tracker(self, mock_ctx, mock_client):
+        history = {"prompt_1": MOCK_HISTORY["prompt_1"]}
+        mock_client.get_history = AsyncMock(return_value=history)
+        await comfy_get_run_result(prompt_id="prompt_1", ctx=mock_ctx)
+        tracker = mock_ctx.request_context.lifespan_context["job_tracker"]
+        tracker.reconcile.assert_called_once_with(prompt_id="prompt_1", history=history)
+
+    @pytest.mark.asyncio
     async def test_get_run_result_create_time_absent_on_old_comfy(self, mock_ctx, mock_client):
         """Older ComfyUI builds omit create_time - field stays None."""
         mock_client.get_history = AsyncMock(return_value={
@@ -117,7 +145,7 @@ class TestDeleteHistory:
     async def test_delete_history(self, mock_ctx, mock_client):
         """Test deleting a specific history entry."""
         mock_client.delete_history = AsyncMock()
-        result = await comfy_delete_history(prompt_id="prompt_1", ctx=mock_ctx)
+        result = await comfy_delete_history(prompt_id="prompt_1", confirm=True, ctx=mock_ctx)
         data = json.loads(result)
         assert data["status"] == "deleted"
         assert data["prompt_id"] == "prompt_1"
@@ -129,7 +157,7 @@ class TestClearHistory:
     async def test_clear_history(self, mock_ctx, mock_client):
         """Test clearing all history."""
         mock_client.clear_history = AsyncMock()
-        result = await comfy_clear_history(ctx=mock_ctx)
+        result = await comfy_clear_history(confirm=True, ctx=mock_ctx)
         data = json.loads(result)
         assert data["status"] == "cleared"
         assert "All execution history" in data["message"]

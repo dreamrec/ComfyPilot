@@ -27,14 +27,17 @@ def txt2img(params: dict) -> dict:
         "2": {
             "class_type": "DualCLIPLoader",
             "inputs": {
-                "clip_name1": params.get("clip_name1", "t5xxl_fp16.safetensors"),
-                "clip_name2": params.get("clip_name2", "clip_l.safetensors"),
+                # Flux 2 uses CLIP-L plus Mistral 3 (not the Flux 1 T5XXL
+                # pairing).  The top-level builder resolves these defaults to
+                # actual installed filenames before this function is called.
+                "clip_name1": params.get("clip_name1", "clip_l.safetensors"),
+                "clip_name2": params.get("clip_name2", "mistral_3_small_flux2_bf16.safetensors"),
                 "type": "flux",
             },
         },
         "3": {
             "class_type": "VAELoader",
-            "inputs": {"vae_name": params.get("vae", "ae.safetensors")},
+            "inputs": {"vae_name": params.get("vae", "flux2-vae.safetensors")},
         },
         "4": {
             "class_type": "CLIPTextEncode",

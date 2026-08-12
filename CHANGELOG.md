@@ -2,6 +2,49 @@
 
 All notable changes to ComfyPilot will be documented in this file.
 
+## [Unreleased]
+
+### Reliability and ComfyUI Desktop control
+
+- Fixed successful empty-body ComfyUI control responses, safe idempotent retries,
+  current queue tuple semantics, terminal job reconciliation, and restart-safe
+  WebSocket/progress-state recovery.
+- Replaced shallow workflow checks with strict live-schema validation and made
+  builders resolve installed model folders/auxiliary weights before returning.
+- Added Desktop instance discovery/restart, Manager V2 package inventory,
+  generic mixed-media artifacts, comfy-env/worker inspection, and aggregate
+  GPU process visibility, bringing the MCP surface to 96 tools.
+- Destructive confirmation now fails closed by default, snapshots persist by
+  default, and artifact/blueprint paths reject traversal and NTFS ADS forms.
+
+## [1.9.0] - 2026-08-11
+
+### ComfyUI 0.20-0.31.1 compatibility update
+
+- Audited every official stable line from ComfyUI 0.20.0 through 0.31.1
+  (634 commits / 575 changed files across the endpoint-to-endpoint diff) and
+  documented the result in `docs/COMFYUI_COMPATIBILITY.md`.
+- Added `comfy_list_jobs`, `comfy_get_job`, and `comfy_cancel_jobs`, bringing
+  the MCP surface from 88 to 91 tools. Single cancellation now uses the
+  state-aware 0.26+ jobs API and falls back to legacy interrupt/queue deletion.
+- Extended `comfy_queue_prompt` with workflow ID, workflow version ID, partial
+  execution targets, and extra prompt metadata.
+- Fixed official native-subgraph discovery by reading `/global_subgraphs` and
+  normalizing its ID-keyed response. Older fork routes remain supported.
+- Fixed embedded node documentation by reading the official localized Markdown
+  route (`/docs/<class>/en.md`) before structured fork fallbacks.
+- Normalized modern V3-derived widget types and socket flags, including combo,
+  color, bounding-box, curve, range, webcam, and dynamic input types.
+- Preserved modern node/output metadata: lifecycle flags, aliases, output list
+  flags/tooltips/match types, essentials categories, and price badges.
+- Expanded capability/system data for nullable device indices, multiple GPUs,
+  package versions, deployment environment, jobs support, and tested-version
+  status.
+- Added `Comfy-Usage-Source: comfypilot/1.9.0` to HTTP requests so ComfyUI
+  0.25+ can forward accurate client provenance to partner nodes.
+- Clarified that HTTP OpenAPI ingestion is deployment-dependent rather than a
+  guaranteed local 0.20+ route.
+
 ## [1.8.1] - 2026-05-12
 
 ### Repo-checkout MCP connectivity fix

@@ -1,7 +1,7 @@
 {
   "name": "comfypilot",
-  "version": "1.8.1",
-  "description": "MCP server for live control of ComfyUI v0.20+ with 88 tools across 19 categories: system, models, workflow execution, nodes, images, history, monitoring, snapshots, memory, safety, builder, output routing, blueprints, viz/ingest/sweep, hub search, partner APIs, lifecycle (comfy-cli), diagnostics, convenience.",
+  "version": "1.9.0",
+  "description": "MCP server for live control of ComfyUI v0.20-v0.31.1+ with 96 tools across 20 categories, including strict validation, resilient jobs/events, Desktop control, generic artifacts, workers, lifecycle, and diagnostics.",
   "author": "ComfyPilot",
   "license": "MIT",
   "transports": [

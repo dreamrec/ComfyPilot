@@ -8,12 +8,12 @@
         "COMFY_AUTH_METHOD": "auto",
         "COMFY_TIMEOUT": "300",
         "COMFY_SNAPSHOT_LIMIT": "50",
-        "COMFY_SNAPSHOT_DIR": "",
+        "COMFY_SNAPSHOT_DIR": "~/.comfypilot/snapshots",
         "COMFY_BLUEPRINT_DIR": "~/.comfypilot/blueprints",
         "COMFY_OUTPUT_DIR": "~/comfypilot_output",
         "COMFY_TD_OUTPUT_DIR": "~/comfypilot_output/touchdesigner",
         "COMFY_BLENDER_OUTPUT_DIR": "~/comfypilot_output/blender",
-        "COMFY_STRICT_CONFIRM": ""
+        "COMFY_STRICT_CONFIRM": "1"
       }
     }
   }

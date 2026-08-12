@@ -25,13 +25,9 @@ class BlueprintStore:
 
     # ---------- publish ----------
 
-    def publish(self, name: str, nodes: dict, description: str = "", tags: list[str] | None = None) -> dict:
-        if self._user_dir is None:
-            raise RuntimeError("BlueprintStore has no writable user directory configured")
-        # Reject path separators on every platform. Windows treats '\' as a
-        # separator and our manifest advertises win32 support, so names like
-        # 'foo\bar' would escape the intended single-file layout. Also reject
-        # NUL, control characters, and leading dots (hidden files).
+    @staticmethod
+    def _validate_name(name: str) -> None:
+        """Reject names that could escape the single-file blueprint store."""
         if (
             not name
             or "/" in name
@@ -42,6 +38,15 @@ class BlueprintStore:
             or any(ord(c) < 0x20 for c in name)
         ):
             raise ValueError(f"Invalid blueprint name: {name!r}")
+
+    def publish(self, name: str, nodes: dict, description: str = "", tags: list[str] | None = None) -> dict:
+        if self._user_dir is None:
+            raise RuntimeError("BlueprintStore has no writable user directory configured")
+        # Reject path separators on every platform. Windows treats '\' as a
+        # separator and our manifest advertises win32 support, so names like
+        # 'foo\bar' would escape the intended single-file layout. Also reject
+        # NUL, control characters, and leading dots (hidden files).
+        self._validate_name(name)
 
         record = {
             "id": str(uuid.uuid4())[:8],
@@ -111,6 +116,7 @@ class BlueprintStore:
     # ---------- helpers ----------
 
     def _load_named(self, name: str) -> dict | None:
+        self._validate_name(name)
         if self._user_dir is not None:
             candidate = self._user_dir / f"{name}.json"
             if candidate.exists():

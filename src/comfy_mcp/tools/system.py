@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from typing import Any
 
 from mcp.server.fastmcp import Context
 
 from comfy_mcp.responses import SystemStats
+from comfy_mcp.errors import ComfyAPIError
+from comfy_mcp.safety.confirm import confirm_destructive
 from comfy_mcp.server import mcp
+from comfy_mcp.tools.instance import inspect_instance
 
 
 def _client(ctx: Context):
@@ -92,16 +97,167 @@ async def comfy_list_extensions(ctx: Context) -> str:
         "openWorldHint": False,
     }
 )
-async def comfy_restart(ctx: Context) -> str:
-    """Restart ComfyUI (not supported via API).
+async def comfy_restart(
+    expected_instance_id: str = "",
+    expected_pid: int | None = None,
+    confirm: bool = False,
+    wait_for_health: bool = True,
+    timeout_seconds: float = 120.0,
+    ctx: Context = None,
+) -> str:
+    """Safely restart the selected local instance through Manager V2.
 
-    ComfyUI does not expose a restart endpoint. Use system-level
-    restart (e.g., systemctl, docker restart) instead.
+    First call ``comfy_instance_doctor`` and pass back either its
+    ``instance_id`` or listener PID. The selector is checked immediately before
+    the mutation. Desktop/Manager V2 is used when available; ComfyPilot never
+    falls back to launching a competing server on port 8188.
     """
+    before = await inspect_instance(ctx)
+    if before.get("status") != "ok":
+        return json.dumps({
+            "status": "unavailable",
+            "message": "The selected ComfyUI endpoint is not healthy enough to restart safely.",
+            "instance": before,
+        }, indent=2)
+    if not before.get("local"):
+        return json.dumps({
+            "status": "controlled_fallback",
+            "message": "Remote restart is intentionally disabled because no local PID/owner can be selected safely.",
+            "base_url": before.get("base_url"),
+        }, indent=2)
+    actual_id = before.get("instance_id")
+    old_pid = (before.get("listener") or {}).get("pid")
+
+    if actual_id is None and old_pid is None:
+        return json.dumps({
+            "status": "controlled_fallback",
+            "message": "No stable instance ID or listener PID was available for safe restart selection.",
+            "base_url": before.get("base_url"),
+            "owner_type": before.get("owner_type"),
+        }, indent=2)
+
+    if not expected_instance_id and expected_pid is None:
+        selector = (
+            {"expected_instance_id": actual_id}
+            if actual_id
+            else {"expected_pid": old_pid}
+        )
+        return json.dumps({
+            "status": "selection_required",
+            "message": "Pass the connected instance selector back to confirm the exact restart target.",
+            "selector": selector,
+            "instance_id": actual_id,
+            "pid": old_pid,
+            "base_url": before.get("base_url"),
+        }, indent=2)
+    if expected_instance_id and expected_instance_id != actual_id:
+        return json.dumps({
+            "status": "selection_mismatch",
+            "message": f"Expected instance {expected_instance_id!r}, connected instance is {actual_id!r}.",
+        }, indent=2)
+    if expected_pid is not None and int(expected_pid) != old_pid:
+        return json.dumps({
+            "status": "selection_mismatch",
+            "message": f"Expected listener PID {expected_pid}, connected listener PID is {old_pid}.",
+        }, indent=2)
+
+    manager = before.get("manager") or {}
+    if not manager.get("available") or manager.get("api_generation") != "v2":
+        return json.dumps({
+            "status": "controlled_fallback",
+            "message": "Manager V2 restart is unavailable. Restart the selected instance through its supervisor.",
+            "owner_type": before.get("owner_type"),
+            "supervisor": before.get("supervisor"),
+            "instance_id": actual_id,
+            "pid": old_pid,
+            "reason": manager.get("error") or "Manager V2 was not detected",
+        }, indent=2)
+
+    if not await confirm_destructive(
+        ctx,
+        f"Restart ComfyUI instance {actual_id or old_pid!r} through Manager V2?",
+        confirm,
+    ):
+        return json.dumps({
+            "status": "cancelled",
+            "operation": "restart",
+            "reason": "confirmation_required_or_declined",
+        }, indent=2)
+
+    route = str(manager.get("restart_route") or "/v2/manager/reboot")
+    request_uncertain = False
+    try:
+        await _client(ctx).post(route, {})
+    except ComfyAPIError as exc:
+        return json.dumps({
+            "status": "rejected",
+            "message": "ComfyUI Manager rejected the restart request.",
+            "route": route,
+            "error": exc.to_dict(),
+        }, indent=2)
+    except Exception as exc:
+        # Manager exits the process from inside this handler and can close the
+        # socket before an HTTP body is received. Health/PID verification below
+        # decides whether the request actually succeeded.
+        request_uncertain = True
+        request_error = str(exc)
+    else:
+        request_error = None
+
+    if not wait_for_health:
+        return json.dumps({
+            "status": "restart_requested",
+            "route": route,
+            "instance_id": actual_id,
+            "previous_pid": old_pid,
+            "request_uncertain": request_uncertain,
+            "request_error": request_error,
+        }, indent=2)
+
+    timeout_seconds = min(max(float(timeout_seconds), 10.0), 300.0)
+    deadline = time.monotonic() + timeout_seconds
+    saw_offline = False
+    last_error: str | None = None
+    while time.monotonic() < deadline:
+        await asyncio.sleep(1.0)
+        try:
+            current = await inspect_instance(ctx)
+        except Exception as exc:
+            saw_offline = True
+            last_error = str(exc)
+            continue
+        if current.get("status") != "ok":
+            saw_offline = True
+            last_error = current.get("error")
+            continue
+        new_pid = (current.get("listener") or {}).get("pid")
+        if (old_pid is not None and new_pid is not None and new_pid != old_pid) or (
+            old_pid is None and saw_offline
+        ):
+            return json.dumps({
+                "status": "restarted",
+                "route": route,
+                "instance_id": current.get("instance_id"),
+                "previous_pid": old_pid,
+                "pid": new_pid,
+                "saw_offline": saw_offline,
+                "request_uncertain": request_uncertain,
+                "request_error": request_error,
+                "health": "ok",
+                "versions": current.get("versions"),
+            }, indent=2)
+
     return json.dumps({
-        "status": "not_supported",
-        "message": "ComfyUI does not expose a restart endpoint in the standard API. Use system-level restart.",
-    })
+        "status": "restart_unverified",
+        "message": "Restart was requested but a new healthy listener PID was not observed before timeout.",
+        "route": route,
+        "instance_id": actual_id,
+        "previous_pid": old_pid,
+        "saw_offline": saw_offline,
+        "request_uncertain": request_uncertain,
+        "request_error": request_error,
+        "last_health_error": last_error,
+    }, indent=2)
 
 
 @mcp.tool(

@@ -59,6 +59,14 @@ def test_detects_family_from_filename(name, expected):
     assert detect_family(name) == expected
 
 
+def test_detects_sdxl_brand_filename_without_sd_prefix():
+    assert detect_family("DreamShaperXL_Turbo_v2_1.safetensors") == Family.SDXL
+
+
+def test_detects_family_marker_in_parent_folder():
+    assert detect_family(r"hunyuan3d-dit-v2-1\model.fp16.ckpt") == Family.HUNYUAN_3D
+
+
 def test_empty_string_is_unknown():
     assert detect_family("") == Family.UNKNOWN
 

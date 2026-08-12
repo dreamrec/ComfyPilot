@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from comfy_mcp.jobs.job_tracker import JobTracker
+from comfy_mcp.events.event_manager import EventManager
 
 
 @pytest.fixture
@@ -93,6 +94,71 @@ class TestJobTrackerCompletion:
         await tracker.mark_failed("p1", "error msg")
         assert "p1" not in tracker._active_jobs
         assert tracker._completed[0]["error"] == "error msg"
+
+    @pytest.mark.asyncio
+    async def test_execution_success_event_reconciles_automatically(self, mock_jt_client):
+        event_mgr = EventManager(MagicMock())
+        tracker = JobTracker(mock_jt_client, event_mgr)
+        await tracker.track("p-event")
+        mock_jt_client.get_history.return_value = {
+            "p-event": {
+                "status": {"status_str": "success", "completed": True},
+                "outputs": {"1": {"images": []}},
+            }
+        }
+
+        event_mgr._dispatch({"type": "execution_success", "data": {"prompt_id": "p-event"}})
+        await asyncio.gather(*list(event_mgr._subscriber_tasks))
+
+        status = tracker.get_status("p-event")
+        assert status["status"] == "completed"
+        assert status["result"]["outputs"] == {"1": {"images": []}}
+
+    @pytest.mark.asyncio
+    async def test_execution_error_event_marks_failed(self, mock_jt_client):
+        event_mgr = EventManager(MagicMock())
+        tracker = JobTracker(mock_jt_client, event_mgr)
+        await tracker.track("p-error")
+        event_mgr._dispatch({
+            "type": "execution_error",
+            "data": {"prompt_id": "p-error", "exception_message": "CUDA out of memory"},
+        })
+        status = tracker.get_status("p-error")
+        assert status["status"] == "failed"
+        assert status["error"] == "CUDA out of memory"
+
+    @pytest.mark.asyncio
+    async def test_reconcile_history_moves_active_job_to_completed(self, tracker, mock_jt_client):
+        await tracker.track("p-history")
+        history = {
+            "p-history": {
+                "status": {"status_str": "success", "completed": True},
+                "outputs": {},
+            }
+        }
+        assert await tracker.reconcile(history=history) == ["p-history"]
+        assert tracker.get_status("p-history")["status"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_reconnect_retires_job_missing_from_history_and_queue(
+        self, tracker, mock_jt_client
+    ):
+        await tracker.track("p-before-restart")
+        mock_jt_client.get_history.return_value = {}
+        mock_jt_client.get_queue = AsyncMock(
+            return_value={"queue_running": [], "queue_pending": []}
+        )
+        await tracker._on_connection_restored({"data": {"generation": 2}})
+        status = tracker.get_status("p-before-restart")
+        assert status["status"] == "failed"
+        assert "disappeared" in status["error"]
+
+    def test_queue_tuple_prompt_id_is_second_item(self):
+        ids = JobTracker._prompt_ids_from_queue({
+            "queue_running": [[42, "prompt-id", {}, {}, []]],
+            "queue_pending": [],
+        })
+        assert ids == {"prompt-id"}
 
 
 class TestJobTrackerWait:

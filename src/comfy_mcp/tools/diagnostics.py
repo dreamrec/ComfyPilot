@@ -19,6 +19,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
+from comfy_mcp.schemas.node_schema import NodeSchema, parse_object_info
 from comfy_mcp.server import mcp
 
 
@@ -51,41 +52,6 @@ _MODEL_INPUT_FIELDS: dict[str, list[tuple[str, str]]] = {
     # Video/audio loaders
     "VHS_LoadVideo": [("video", "input")],
     "LoadVideo": [("video", "input")],
-}
-
-
-# Known output-node class types. Anything in this set marks a node as
-# producing a saved artifact (image / video / audio / mesh / lora).
-_OUTPUT_NODES = frozenset({
-    "SaveImage",
-    "PreviewImage",
-    "SaveAnimatedWEBP",
-    "SaveAnimatedPNG",
-    "SaveGLB",
-    "SaveAudio",
-    "SaveLora",
-    "VHS_VideoCombine",
-    "SaveVideo",
-})
-
-
-# Timeout heuristics: certain output classes warrant a longer default than
-# the standard 300s. Values are seconds.
-_TIMEOUT_HEURISTICS: dict[str, int] = {
-    # Video / animation outputs - often 60-300 s of generation
-    "VHS_VideoCombine": 900,
-    "SaveVideo": 900,
-    "SaveAnimatedWEBP": 600,
-    "SaveAnimatedPNG": 600,
-    # Long-running samplers
-    "SUPIRSample": 600,
-    # 3D outputs (Hunyuan3D can be very slow)
-    "SaveGLB": 600,
-    # Audio - shorter than video
-    "SaveAudio": 450,
-    # Training - very long
-    "TrainLora": 3600,
-    "SaveLora": 3600,
 }
 
 
@@ -128,6 +94,61 @@ def _is_link(value: Any) -> bool:
 def _extract_embedding_refs(text: str) -> list[str]:
     """Find `embedding:NAME` references inside a text input."""
     return re.findall(r"embedding:([\w\-.]+)", text)
+
+
+async def _workflow_schemas(workflow: dict, ctx: Context | None) -> dict[str, NodeSchema]:
+    """Resolve the workflow's node schemas from the live object_info catalog."""
+    if ctx is None:
+        return {}
+    try:
+        catalog = await _client(ctx).get_object_info()
+    except Exception:
+        return {}
+    if not isinstance(catalog, dict):
+        return {}
+
+    result: dict[str, NodeSchema] = {}
+    for node_id, node in workflow.items():
+        if not isinstance(node, dict):
+            continue
+        class_type = node.get("class_type")
+        raw = catalog.get(class_type)
+        if isinstance(class_type, str) and isinstance(raw, dict):
+            try:
+                result[str(node_id)] = parse_object_info(class_type, raw)
+            except (TypeError, ValueError):
+                continue
+    return result
+
+
+def _looks_like_output(class_type: str) -> bool:
+    lowered = class_type.lower()
+    return lowered.startswith(("save", "preview", "export")) or "videocombine" in lowered
+
+
+def _timeout_for_node(class_type: str, schema: NodeSchema | None) -> int | None:
+    """Infer a timeout from live category/output types plus semantic node names."""
+    metadata = " ".join(
+        [
+            class_type,
+            schema.category if schema else "",
+            schema.python_module if schema else "",
+            " ".join(output.type_name for output in schema.outputs) if schema else "",
+        ]
+    ).lower()
+    if "train" in metadata and ("lora" in metadata or "model" in metadata):
+        return 3600
+    if any(token in metadata for token in ("video", "vhs_", "videocombine")):
+        return 900
+    if any(token in metadata for token in ("animated", "webp", "animation")):
+        return 600
+    if any(token in metadata for token in ("trellis", "hunyuan3d", "3d", "mesh", "voxel", "glb", "gltf")):
+        return 600
+    if any(token in metadata for token in ("supir", "upscale", "super_resolution")):
+        return 600
+    if "audio" in metadata:
+        return 450
+    return None
 
 
 @mcp.tool(
@@ -174,6 +195,7 @@ async def comfy_extract_schema(
 
     has_negative_prompt = False
     has_seed = False
+    schemas = await _workflow_schemas(workflow, ctx)
 
     for node_id, node in workflow.items():
         if not isinstance(node, dict):
@@ -182,7 +204,10 @@ async def comfy_extract_schema(
         inputs = node.get("inputs", {}) or {}
 
         # Output node?
-        if class_type in _OUTPUT_NODES:
+        schema = schemas.get(str(node_id))
+        if (schema is not None and schema.is_output_node) or (
+            schema is None and _looks_like_output(class_type)
+        ):
             output_nodes.append({"node_id": node_id, "class_type": class_type})
 
         # Model dependencies
@@ -558,13 +583,14 @@ async def comfy_suggest_timeout(workflow: dict, ctx: Context = None) -> str:
     default = 300
     suggested = default
     drivers: list[dict] = []
+    schemas = await _workflow_schemas(workflow, ctx)
 
     for node_id, node in workflow.items():
         if not isinstance(node, dict):
             continue
         ct = node.get("class_type", "")
-        if ct in _TIMEOUT_HEURISTICS:
-            t = _TIMEOUT_HEURISTICS[ct]
+        t = _timeout_for_node(ct, schemas.get(str(node_id)))
+        if t is not None:
             drivers.append({"node_id": node_id, "class_type": ct, "suggested_seconds": t})
             if t > suggested:
                 suggested = t

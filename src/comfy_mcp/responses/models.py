@@ -17,11 +17,19 @@ from pydantic import BaseModel, Field
 class GPUInfo(BaseModel):
     name: str = ""
     type: str = ""
-    index: int = 0
+    index: int | None = None
     vram_total: int = 0
     vram_free: int = 0
     torch_vram_total: int = 0
     torch_vram_free: int = 0
+
+
+class ComfyPackageVersion(BaseModel):
+    """Installed/required version pair returned by current ComfyUI builds."""
+
+    name: str = ""
+    installed: str | None = None
+    required: str | None = None
 
 
 class SystemInfo(BaseModel):
@@ -33,6 +41,17 @@ class SystemInfo(BaseModel):
     argv: list[str] = Field(default_factory=list)
     ram_total: int = 0
     ram_free: int = 0
+    comfyui_frontend_package: str = ""
+    required_frontend_version: str = ""
+    installed_templates_version: str = ""
+    required_templates_version: str = ""
+    # Current ComfyUI Desktop returns a list of named package records. Keep
+    # accepting the short-lived mapping shape too so older/custom builds do
+    # not fail response validation.
+    comfy_package_versions: list[ComfyPackageVersion] | dict[str, str] = Field(
+        default_factory=list
+    )
+    deploy_environment: str | None = None
 
 
 class SystemStats(BaseModel):
@@ -59,7 +78,14 @@ class NodeError(BaseModel):
 
 class QueueAck(BaseModel):
     prompt_id: str | None = None
-    queue_position: int | None = None
+    # ComfyUI calls this `number`: a monotonic/priority queue key, not an
+    # ordinal position. Preserve the old field as a deprecated compatibility
+    # slot, but new responses intentionally leave it unset.
+    queue_number: int | float | None = None
+    queue_position: int | None = Field(
+        default=None,
+        description="Deprecated: ComfyUI does not return an ordinal queue position",
+    )
     error: str | None = None
     node_errors: dict[str, NodeError] | None = None
     auto_snapshot: dict[str, Any] | None = None
@@ -147,17 +173,31 @@ VRAMLevel = Literal["ok", "warn", "critical", "unknown"]
 
 class VRAMDeviceInfo(BaseModel):
     name: str = "unknown"
+    index: int | None = None
     vram_total: int = 0
     vram_free: int = 0
     vram_used: int = 0
     vram_used_pct: float = 0.0
     status: VRAMLevel = "ok"
+    nvml_vram_total: int | None = None
+    nvml_vram_free: int | None = None
+    nvml_vram_used: int | None = None
+    process_vram_used: int = 0
+
+
+class VRAMProcessInfo(BaseModel):
+    pid: int
+    device_index: int = 0
+    used_gpu_memory: int = 0
+    name: str = "unknown"
 
 
 class VRAMStatus(BaseModel):
     status: VRAMLevel = "unknown"
     vram_used_pct: float = 0.0
     devices: list[VRAMDeviceInfo] = Field(default_factory=list)
+    nvml_available: bool = False
+    gpu_processes: list[VRAMProcessInfo] = Field(default_factory=list)
     message: str = ""
 
 
